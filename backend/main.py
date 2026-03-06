@@ -55,26 +55,37 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
     return {"access_token": create_token(form.username), "token_type": "bearer"}
 
-# ── Dados ──────────────────────────────────────────────────────────────────────
+# ── Cache em memória ───────────────────────────────────────────────────────────
+
+_cache: dict = {"df": None, "nomes": None}
 
 WORKER_ID   = "13ORJ-dpxKXVF6sVy3Ex0Fp-hOLhxM8H_"
 PERSONAL_ID = "1qXu1bjWKqL3tNMYUAFjoMSiSle417WPF"
 SAP_NAMES   = {"BR02": "FCamara", "BR07": "Hyper", "BR09": "NextGen"}
 
-def get_nomes():
-    if not os.path.exists("personaldata.xlsx"):
-        gdown.download(id=PERSONAL_ID, output="personaldata.xlsx", quiet=True)
-    df = pd.read_excel("personaldata.xlsx", sheet_name="YY1_FCTEAM5_PERSONEW",
-                       usecols=["ID Number", "Full Name"])
-    df = df.dropna(subset=["ID Number"]).drop_duplicates("ID Number")
-    return dict(zip(df["ID Number"].astype(str), df["Full Name"]))
+def get_nomes() -> dict:
+    if _cache["nomes"] is None:
+        if not os.path.exists("personaldata.xlsx"):
+            gdown.download(id=PERSONAL_ID, output="personaldata.xlsx", quiet=True)
+        df = pd.read_excel("personaldata.xlsx", sheet_name="YY1_FCTEAM5_PERSONEW",
+                           usecols=["ID Number", "Full Name"])
+        df = df.dropna(subset=["ID Number"]).drop_duplicates("ID Number")
+        _cache["nomes"] = dict(zip(df["ID Number"].astype(str), df["Full Name"]))
+    return _cache["nomes"]
 
-def get_df():
-    if not os.path.exists("worker.xlsx"):
-        gdown.download(id=WORKER_ID, output="worker.xlsx", quiet=True)
-    df = pd.read_excel("worker.xlsx", sheet_name="receita_worker")
-    df["lucro_bruto"] = df["receita_liquida"] - df["cost"]
-    return df
+def get_df() -> pd.DataFrame:
+    if _cache["df"] is None:
+        if not os.path.exists("worker.xlsx"):
+            gdown.download(id=WORKER_ID, output="worker.xlsx", quiet=True)
+        df = pd.read_excel("worker.xlsx", sheet_name="receita_worker")
+        df["lucro_bruto"] = df["receita_liquida"] - df["cost"]
+        _cache["df"] = df
+    return _cache["df"]
+
+@app.on_event("startup")
+async def startup():
+    get_df()
+    get_nomes()
 
 def apply_filters(df, competencias="", sap_code="", client_name="", project_id="", worker_id=""):
     if competencias:
@@ -93,8 +104,7 @@ def apply_filters(df, competencias="", sap_code="", client_name="", project_id="
 
 @app.get("/api/competencias")
 def get_competencias(user=Depends(get_current_user)):
-    df = get_df()
-    return sorted(df["competencia"].dropna().unique().tolist())
+    return sorted(get_df()["competencia"].dropna().unique().tolist())
 
 @app.get("/api/kpis")
 def get_kpis(competencias="", sap_code="", client_name="", project_id="", worker_id="",
