@@ -4,5 +4,5 @@ pandas
 openpyxl
 gdown
 python-jose[cryptography]
-passlib[bcrypt]
+bcrypt
 python-multipart

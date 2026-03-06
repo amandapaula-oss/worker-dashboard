@@ -2,8 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from datetime import datetime, timedelta
+import bcrypt
 import pandas as pd
 import gdown
 import os
@@ -24,13 +24,15 @@ SECRET_KEY = "wk_secret_key_2024_react"
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 480
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 USERS = {
-    "amanda": {"name": "Amanda", "hashed_password": pwd_context.hash("123amanda")},
-    "paola":  {"name": "Paola",  "hashed_password": pwd_context.hash("123paola")},
+    "amanda": {"name": "Amanda", "hashed_password": "$2b$12$aEj6abenzCphFtkn/Kjmvezk3ImEWCu38Cpm6cYfg0X2/tz3fYGSa"},
+    "paola":  {"name": "Paola",  "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC"},
 }
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 def create_token(username: str):
     expire = datetime.utcnow() + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
@@ -49,7 +51,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 @app.post("/auth/login")
 def login(form: OAuth2PasswordRequestForm = Depends()):
     user = USERS.get(form.username)
-    if not user or not pwd_context.verify(form.password, user["hashed_password"]):
+    if not user or not verify_password(form.password, user["hashed_password"]):
         raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
     return {"access_token": create_token(form.username), "token_type": "bearer"}
 
@@ -101,11 +103,11 @@ def get_kpis(competencias="", sap_code="", client_name="", project_id="", worker
     rl = df["receita_liquida"].sum()
     lb = df["lucro_bruto"].sum()
     return {
-        "receita_bruta":  float(df["receita_bruta"].sum()),
+        "receita_bruta":   float(df["receita_bruta"].sum()),
         "receita_liquida": float(rl),
-        "custo":          float(df["cost"].sum()),
-        "lucro_bruto":    float(lb),
-        "margem_bruta":   float(lb / rl) if rl else 0,
+        "custo":           float(df["cost"].sum()),
+        "lucro_bruto":     float(lb),
+        "margem_bruta":    float(lb / rl) if rl else 0,
     }
 
 @app.get("/api/metricas")
