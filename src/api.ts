@@ -1,0 +1,64 @@
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+
+function getToken() {
+  return localStorage.getItem("token") || "";
+}
+
+async function apiFetch(path: string, options: RequestInit = {}) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+      ...options.headers,
+    },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  }
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function login(username: string, password: string) {
+  const form = new URLSearchParams({ username, password });
+  const res = await fetch(`${BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form,
+  });
+  if (!res.ok) throw new Error("Usuário ou senha incorretos");
+  const data = await res.json();
+  localStorage.setItem("token", data.access_token);
+}
+
+export function logout() {
+  localStorage.removeItem("token");
+  window.location.href = "/login";
+}
+
+export function isAuthenticated() {
+  return !!localStorage.getItem("token");
+}
+
+function buildQuery(params: Record<string, string>) {
+  const q = new URLSearchParams(params);
+  return q.toString() ? `?${q.toString()}` : "";
+}
+
+export async function getCompetencias(): Promise<string[]> {
+  return apiFetch("/api/competencias");
+}
+
+export async function getKPIs(params: Record<string, string>) {
+  return apiFetch(`/api/kpis${buildQuery(params)}`);
+}
+
+export async function getMetricas(level: string, params: Record<string, string>) {
+  return apiFetch(`/api/metricas${buildQuery({ level, ...params })}`);
+}
+
+export async function getMensal(params: Record<string, string>) {
+  return apiFetch(`/api/mensal${buildQuery(params)}`);
+}
