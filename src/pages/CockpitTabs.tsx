@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Select, Spin, Typography, Row, Col, Table } from "antd";
+import { Select, Spin, Table } from "antd";
 import { getNexusFilters, getDre, getStreams, getMatricial } from "../api";
 import PLTable from "../components/PLTable";
 

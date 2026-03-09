@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table, Spin, Typography } from "antd";
+import { Select, Table, Spin } from "antd";
 import { getSapFilters, getSapData } from "../api";
 
-const { Title } = Typography;
 
 export default function SapTab() {
   const [filters, setFilters] = useState<{ companies: string[]; verticals: string[]; profit_centers: string[] }>({ companies: [], verticals: [], profit_centers: [] });
