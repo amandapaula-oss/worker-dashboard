@@ -297,9 +297,10 @@ def get_mensal(competencias="", sap_code="", client_name="", project_id="", work
 
 @app.get("/api/sap/filters")
 def get_sap_filters(user=Depends(get_current_user)):
-    if _cache["sap"] is None:
-        raise HTTPException(status_code=503, detail="Dados ainda carregando, aguarde.")
-    df = get_sap()
+    try:
+        df = get_sap()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao carregar SAP: {e}")
     return {
         "companies": sorted(df["CompanyCode"].dropna().unique().tolist()),
         "verticals": sorted(df["vertical"].dropna().unique().tolist()),
@@ -332,9 +333,10 @@ def get_sap_data(companies="", verticals="", profit_centers="", user=Depends(get
 
 @app.get("/api/nexus/filters")
 def get_nexus_filters(user=Depends(get_current_user)):
-    if _cache["nexus"] is None:
-        raise HTTPException(status_code=503, detail="Dados ainda carregando, aguarde.")
-    df = get_nexus()
+    try:
+        df = get_nexus()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao carregar Nexus: {e}")
     return {
         "anos": sorted(df["Ano"].dropna().unique().tolist()),
         "empresas": sorted(df["[Empresa]"].dropna().unique().tolist()),
