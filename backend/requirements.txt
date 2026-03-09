@@ -3,6 +3,7 @@ uvicorn[standard]
 pandas
 openpyxl
 gdown
+requests
 python-jose[cryptography]
 bcrypt
 python-multipart

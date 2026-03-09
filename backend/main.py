@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import bcrypt
 import pandas as pd
 import gdown
+import requests
 import os
 import threading
 
@@ -90,12 +91,18 @@ def get_df() -> pd.DataFrame:
         _cache["df"] = df
     return _cache["df"]
 
+def download_gsheet(file_id: str, output: str):
+    url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+    r = requests.get(url, allow_redirects=True, timeout=120)
+    if r.status_code != 200:
+        raise RuntimeError(f"Falha ao baixar planilha (id={file_id}, status={r.status_code}). Verifique o compartilhamento.")
+    with open(output, "wb") as f:
+        f.write(r.content)
+
 def get_sap() -> pd.DataFrame:
     if _cache["sap"] is None:
         if not os.path.exists("dados_sap.xlsx"):
-            ok = gdown.download(id=SAP_ID, output="dados_sap.xlsx", quiet=False, fuzzy=True)
-            if not ok or not os.path.exists("dados_sap.xlsx"):
-                raise RuntimeError(f"Falha ao baixar SAP do Drive (id={SAP_ID}). Verifique o compartilhamento do arquivo.")
+            download_gsheet(SAP_ID, "dados_sap.xlsx")
         df = pd.read_excel("dados_sap.xlsx", usecols=[
             "CompanyCode", "agrupador_fpa", "FiscalPeriod",
             "AmountInCompanyCodeCurrency", "vertical", "ProfitCenter"
@@ -107,9 +114,7 @@ def get_sap() -> pd.DataFrame:
 def get_nexus() -> pd.DataFrame:
     if _cache["nexus"] is None:
         if not os.path.exists("nexus.xlsx"):
-            ok = gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=False, fuzzy=True)
-            if not ok or not os.path.exists("nexus.xlsx"):
-                raise RuntimeError(f"Falha ao baixar Nexus do Drive (id={NEXUS_ID}). Verifique o compartilhamento do arquivo.")
+            download_gsheet(NEXUS_ID, "nexus.xlsx")
         cols = ["[Tipo]", "[Empresa]", "[Competência]", "[Vertical]",
                 "[Stream]", "[Agrupador FP&A - COA]", "[Valor]", "[Moeda]"]
         df = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado", usecols=cols)
