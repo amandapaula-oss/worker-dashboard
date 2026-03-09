@@ -102,14 +102,17 @@ def download_drive(file_id: str, output: str):
         timeout=60
     )
 
-    # Extrai uuid da página de aviso (necessário para arquivos grandes)
-    uuid_match = re.search(r'name="uuid"\s+value="([^"]+)"', r1.text)
-    uuid = uuid_match.group(1) if uuid_match else ""
+    # Extrai todos os inputs do formulário (ordem dos atributos não importa)
+    form_params: dict = {"id": file_id, "export": "download", "authuser": "0", "confirm": "t"}
+    for inp in re.findall(r'<input[^>]+>', r1.text):
+        name_m = re.search(r'name="(\w+)"', inp)
+        value_m = re.search(r'value="([^"]*)"', inp)
+        if name_m and value_m:
+            form_params[name_m.group(1)] = value_m.group(1)
 
-    # Download real com confirmação
     r = session.get(
         "https://drive.usercontent.google.com/download",
-        params={"id": file_id, "export": "download", "authuser": "0", "confirm": "t", "uuid": uuid},
+        params=form_params,
         stream=True, timeout=300
     )
     r.raise_for_status()
@@ -124,7 +127,7 @@ def download_drive(file_id: str, output: str):
         with open(tmp, "rb") as f:
             preview = f.read(200).decode("utf-8", errors="replace")
         os.remove(tmp)
-        raise RuntimeError(f"Download retornou HTML mesmo com uuid. Preview: {preview[:200]}")
+        raise RuntimeError(f"Download retornou HTML mesmo com form params extraídos. Preview: {preview[:200]}")
 
     os.rename(tmp, output)
 
