@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import bcrypt
 import pandas as pd
 import gdown
+import requests
 import os
 import threading
 
@@ -90,12 +91,20 @@ def get_df() -> pd.DataFrame:
         _cache["df"] = df
     return _cache["df"]
 
+def download_drive(file_id: str, output: str):
+    url = "https://drive.usercontent.google.com/download"
+    r = requests.get(url, params={"id": file_id, "export": "download", "confirm": "t"},
+                     stream=True, timeout=300)
+    r.raise_for_status()
+    with open(output, "wb") as f:
+        for chunk in r.iter_content(chunk_size=32768):
+            if chunk:
+                f.write(chunk)
+
 def get_sap() -> pd.DataFrame:
     if _cache["sap"] is None:
         if not os.path.exists("dados_sap.xlsx"):
-            ok = gdown.download(id=SAP_ID, output="dados_sap.xlsx", quiet=False)
-            if not ok:
-                raise RuntimeError(f"Falha ao baixar SAP (id={SAP_ID})")
+            download_drive(SAP_ID, "dados_sap.xlsx")
         df = pd.read_excel("dados_sap.xlsx", usecols=[
             "CompanyCode", "agrupador_fpa", "FiscalPeriod",
             "AmountInCompanyCodeCurrency", "vertical", "ProfitCenter"
@@ -107,9 +116,7 @@ def get_sap() -> pd.DataFrame:
 def get_nexus() -> pd.DataFrame:
     if _cache["nexus"] is None:
         if not os.path.exists("nexus.xlsx"):
-            ok = gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=False)
-            if not ok:
-                raise RuntimeError(f"Falha ao baixar Nexus (id={NEXUS_ID})")
+            download_drive(NEXUS_ID, "nexus.xlsx")
         cols = ["[Tipo]", "[Empresa]", "[Competência]", "[Vertical]",
                 "[Stream]", "[Agrupador FP&A - COA]", "[Valor]", "[Moeda]"]
         df = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado", usecols=cols)
