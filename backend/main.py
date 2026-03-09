@@ -92,21 +92,24 @@ def get_df() -> pd.DataFrame:
     return _cache["df"]
 
 def download_drive(file_id: str, output: str):
-    import zipfile
+    import zipfile, re
     session = requests.Session()
 
-    # Primeira requisição para obter cookie de confirmação (arquivos grandes)
+    # Primeira requisição — pode retornar página de aviso de vírus para arquivos grandes
     r1 = session.get(
         "https://drive.google.com/uc",
         params={"id": file_id, "export": "download"},
         timeout=60
     )
-    confirm = r1.cookies.get("download_warning", "t")
 
-    # Segunda requisição com confirmação
+    # Extrai uuid da página de aviso (necessário para arquivos grandes)
+    uuid_match = re.search(r'name="uuid"\s+value="([^"]+)"', r1.text)
+    uuid = uuid_match.group(1) if uuid_match else ""
+
+    # Download real com confirmação
     r = session.get(
-        "https://drive.google.com/uc",
-        params={"id": file_id, "export": "download", "confirm": confirm},
+        "https://drive.usercontent.google.com/download",
+        params={"id": file_id, "export": "download", "authuser": "0", "confirm": "t", "uuid": uuid},
         stream=True, timeout=300
     )
     r.raise_for_status()
@@ -119,9 +122,9 @@ def download_drive(file_id: str, output: str):
 
     if not zipfile.is_zipfile(tmp):
         with open(tmp, "rb") as f:
-            preview = f.read(300).decode("utf-8", errors="replace")
+            preview = f.read(200).decode("utf-8", errors="replace")
         os.remove(tmp)
-        raise RuntimeError(f"Download retornou HTML (arquivo não compartilhado corretamente?). Preview: {preview[:200]}")
+        raise RuntimeError(f"Download retornou HTML mesmo com uuid. Preview: {preview[:200]}")
 
     os.rename(tmp, output)
 
