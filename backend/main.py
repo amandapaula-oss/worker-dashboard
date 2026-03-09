@@ -140,13 +140,16 @@ def get_clt() -> dict:
     """Returns {mes_label: {empresa: total_totalizador}}"""
     if _cache["clt"] is None:
         import subprocess, sys, glob, re
+        os.makedirs("clt_files", exist_ok=True)
         subprocess.run(
             [sys.executable, "-c",
-             f"import gdown; gdown.download_folder(id='{CLT_FOLDER_ID}', output='clt_files', quiet=False, use_cookies=False)"],
+             f"import gdown; gdown.download_folder(id='{CLT_FOLDER_ID}', output='clt_files', quiet=False)"],
             capture_output=True, text=True, timeout=300
         )
         result: dict = {}
-        for filepath in glob.glob("clt_files/*"):
+        for filepath in glob.glob("clt_files/**/*", recursive=True):
+            if os.path.isdir(filepath):
+                continue
             fn = os.path.basename(filepath).lower()
             month_label = None
             for i, m in enumerate(CLT_MONTHS_PT):
