@@ -3,7 +3,6 @@ import { Select, Spin, Table } from "antd";
 import { getNexusFilters, getDre, getStreams, getMatricial } from "../api";
 import PLTable from "../components/PLTable";
 
-const { Title } = Typography;
 
 const labelStyle: React.CSSProperties = {
   color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
