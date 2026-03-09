@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import bcrypt
 import pandas as pd
 import gdown
-import requests
 import os
 import threading
 
@@ -92,44 +91,18 @@ def get_df() -> pd.DataFrame:
     return _cache["df"]
 
 def download_drive(file_id: str, output: str):
-    import zipfile, re
-    session = requests.Session()
-
-    # Primeira requisição — pode retornar página de aviso de vírus para arquivos grandes
-    r1 = session.get(
-        "https://drive.google.com/uc",
-        params={"id": file_id, "export": "download"},
-        timeout=60
+    import subprocess, zipfile, sys
+    # Roda gdown em subprocess para isolar sys.exit() e crashes
+    result = subprocess.run(
+        [sys.executable, "-c",
+         f"import gdown; ok = gdown.download(id='{file_id}', output='{output}', quiet=False, fuzzy=True); exit(0 if ok else 1)"],
+        capture_output=True, text=True, timeout=300
     )
-
-    # Extrai todos os inputs do formulário (ordem dos atributos não importa)
-    form_params: dict = {"id": file_id, "export": "download", "authuser": "0", "confirm": "t"}
-    for inp in re.findall(r'<input[^>]+>', r1.text):
-        name_m = re.search(r'name="(\w+)"', inp)
-        value_m = re.search(r'value="([^"]*)"', inp)
-        if name_m and value_m:
-            form_params[name_m.group(1)] = value_m.group(1)
-
-    r = session.get(
-        "https://drive.usercontent.google.com/download",
-        params=form_params,
-        stream=True, timeout=300
-    )
-    r.raise_for_status()
-
-    tmp = output + ".tmp"
-    with open(tmp, "wb") as f:
-        for chunk in r.iter_content(chunk_size=65536):
-            if chunk:
-                f.write(chunk)
-
-    if not zipfile.is_zipfile(tmp):
-        with open(tmp, "rb") as f:
-            preview = f.read(200).decode("utf-8", errors="replace")
-        os.remove(tmp)
-        raise RuntimeError(f"Download retornou HTML mesmo com form params extraídos. Preview: {preview[:200]}")
-
-    os.rename(tmp, output)
+    if not os.path.exists(output):
+        raise RuntimeError(f"Download falhou (returncode={result.returncode}). stderr: {result.stderr[-300:]}")
+    if not zipfile.is_zipfile(output):
+        os.remove(output)
+        raise RuntimeError(f"Arquivo baixado não é xlsx válido (returncode={result.returncode}). stderr: {result.stderr[-300:]}")
 
 def get_sap() -> pd.DataFrame:
     if _cache["sap"] is None:
