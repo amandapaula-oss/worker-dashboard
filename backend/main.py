@@ -58,7 +58,14 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 
 # ── Cache em memória ───────────────────────────────────────────────────────────
 
-_cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None}
+_cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None, "clt": None}
+
+CLT_FOLDER_ID = "1aEHQAARXkf_BZbc5j0Z8Tt0s5Fmk6tSu"
+CLT_SHEETS    = ["FC", "NX", "HY", "DOJO", "ND", "SGA"]
+CLT_MONTHS_PT = ["janeiro","fevereiro","março","abril","maio","junho",
+                 "julho","agosto","setembro","outubro","novembro","dezembro"]
+CLT_MONTHS_BR = ["Jan","Fev","Mar","Abr","Mai","Jun",
+                 "Jul","Ago","Set","Out","Nov","Dez"]
 
 WORKER_ID   = "13ORJ-dpxKXVF6sVy3Ex0Fp-hOLhxM8H_"
 PERSONAL_ID = "1qXu1bjWKqL3tNMYUAFjoMSiSle417WPF"
@@ -128,6 +135,41 @@ def get_nexus() -> pd.DataFrame:
         df["Ano"] = df["[Competência]"].dt.year
         _cache["nexus"] = df
     return _cache["nexus"]
+
+def get_clt() -> dict:
+    """Returns {mes_label: {empresa: total_totalizador}}"""
+    if _cache["clt"] is None:
+        import subprocess, sys, glob, re
+        subprocess.run(
+            [sys.executable, "-c",
+             f"import gdown; gdown.download_folder(id='{CLT_FOLDER_ID}', output='clt_files', quiet=False, use_cookies=False)"],
+            capture_output=True, text=True, timeout=300
+        )
+        result: dict = {}
+        for filepath in glob.glob("clt_files/*"):
+            fn = os.path.basename(filepath).lower()
+            month_label = None
+            for i, m in enumerate(CLT_MONTHS_PT):
+                if m in fn:
+                    year_match = re.search(r'20\d\d', fn)
+                    year = year_match.group(0) if year_match else "2026"
+                    month_label = f"{CLT_MONTHS_BR[i]}/{year}"
+                    break
+            if not month_label:
+                continue
+            month_data: dict = {}
+            for sheet in CLT_SHEETS:
+                try:
+                    df = pd.read_excel(filepath, sheet_name=sheet)
+                    col = next((c for c in df.columns if "totalizador" in str(c).lower()), None)
+                    if col:
+                        month_data[sheet] = float(pd.to_numeric(df[col], errors="coerce").sum())
+                except Exception:
+                    pass
+            if month_data:
+                result[month_label] = month_data
+        _cache["clt"] = result
+    return _cache["clt"]
 
 def _preload_heavy():
     get_sap()
@@ -402,3 +444,25 @@ def get_matricial(anos="", tipo="Actual", user=Depends(get_current_user)):
         "data": mat.fillna(0).to_dict(orient="records"),
         "pct_cols": list(PCT_ROWS),
     }
+
+# ── CLT endpoints ──────────────────────────────────────────────────────────────
+
+@app.get("/api/clt/data")
+def get_clt_data(meses: str = "", user=Depends(get_current_user)):
+    try:
+        data = get_clt()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao carregar CLT: {e}")
+    all_meses = sorted(data.keys(), key=lambda s: (s.split("/")[1], CLT_MONTHS_BR.index(s.split("/")[0]) if s.split("/")[0] in CLT_MONTHS_BR else 99))
+    sel = meses.split(",") if meses else all_meses
+    totals: dict = {}
+    for mes in sel:
+        if mes in data:
+            for empresa, val in data[mes].items():
+                totals[empresa] = totals.get(empresa, 0.0) + val
+    order = {s: i for i, s in enumerate(CLT_SHEETS)}
+    rows = sorted([{"empresa": e, "totalizador": v} for e, v in totals.items()],
+                  key=lambda x: order.get(x["empresa"], 99))
+    total = sum(r["totalizador"] for r in rows)
+    rows.append({"empresa": "Total", "totalizador": total})
+    return {"meses": all_meses, "data": rows}

@@ -96,3 +96,9 @@ export async function getStreams(params: Record<string, string>) {
 export async function getMatricial(params: Record<string, string>) {
   return apiFetch(`/api/matricial${buildQuery(params)}`);
 }
+
+// ── CLT ───────────────────────────────────────────────────────────────────────
+
+export async function getCltData(params: Record<string, string>) {
+  return apiFetch(`/api/clt/data${buildQuery(params)}`);
+}

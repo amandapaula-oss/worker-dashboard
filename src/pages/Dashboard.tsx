@@ -7,6 +7,7 @@ import KPICard from "../components/KPICard";
 import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
+import CltTab from "./CltTab";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 
 const { Header, Content } = Layout;
@@ -164,6 +165,7 @@ export default function Dashboard() {
             size="large"
             items={[
               { key: "worker",    label: "👷 Worker",          children: <WorkerTab /> },
+              { key: "clt",       label: "📄 CLT",             children: <CltTab /> },
               { key: "sap",       label: "📋 Base SAP S4",     children: <SapTab /> },
               { key: "dre",       label: "🏢 DRE por Empresa", children: <DreTab /> },
               { key: "streams",   label: "🌊 P&L por Stream",  children: <StreamsTab /> },
