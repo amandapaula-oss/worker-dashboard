@@ -118,8 +118,6 @@ def get_nexus() -> pd.DataFrame:
 async def startup():
     get_df()
     get_nomes()
-    get_sap()
-    get_nexus()
 
 # ── P&L Engine ─────────────────────────────────────────────────────────────────
 
