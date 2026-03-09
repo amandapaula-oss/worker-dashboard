@@ -7,6 +7,7 @@ import bcrypt
 import pandas as pd
 import gdown
 import os
+import threading
 
 app = FastAPI()
 
@@ -114,10 +115,15 @@ def get_nexus() -> pd.DataFrame:
         _cache["nexus"] = df
     return _cache["nexus"]
 
+def _preload_heavy():
+    get_sap()
+    get_nexus()
+
 @app.on_event("startup")
 async def startup():
     get_df()
     get_nomes()
+    threading.Thread(target=_preload_heavy, daemon=True).start()
 
 # ── P&L Engine ─────────────────────────────────────────────────────────────────
 
@@ -291,6 +297,8 @@ def get_mensal(competencias="", sap_code="", client_name="", project_id="", work
 
 @app.get("/api/sap/filters")
 def get_sap_filters(user=Depends(get_current_user)):
+    if _cache["sap"] is None:
+        raise HTTPException(status_code=503, detail="Dados ainda carregando, aguarde.")
     df = get_sap()
     return {
         "companies": sorted(df["CompanyCode"].dropna().unique().tolist()),
@@ -324,6 +332,8 @@ def get_sap_data(companies="", verticals="", profit_centers="", user=Depends(get
 
 @app.get("/api/nexus/filters")
 def get_nexus_filters(user=Depends(get_current_user)):
+    if _cache["nexus"] is None:
+        raise HTTPException(status_code=503, detail="Dados ainda carregando, aguarde.")
     df = get_nexus()
     return {
         "anos": sorted(df["Ano"].dropna().unique().tolist()),

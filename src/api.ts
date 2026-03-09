@@ -4,7 +4,7 @@ function getToken() {
   return localStorage.getItem("token") || "";
 }
 
-async function apiFetch(path: string, options: RequestInit = {}) {
+async function apiFetch(path: string, options: RequestInit = {}, retries = 10): Promise<any> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
@@ -16,6 +16,10 @@ async function apiFetch(path: string, options: RequestInit = {}) {
   if (res.status === 401) {
     localStorage.removeItem("token");
     window.location.href = "/login";
+  }
+  if (res.status === 503 && retries > 0) {
+    await new Promise(r => setTimeout(r, 5000));
+    return apiFetch(path, options, retries - 1);
   }
   if (!res.ok) throw new Error(await res.text());
   return res.json();
