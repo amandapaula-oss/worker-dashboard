@@ -93,7 +93,9 @@ def get_df() -> pd.DataFrame:
 def get_sap() -> pd.DataFrame:
     if _cache["sap"] is None:
         if not os.path.exists("dados_sap.xlsx"):
-            gdown.download(id=SAP_ID, output="dados_sap.xlsx", quiet=True)
+            ok = gdown.download(id=SAP_ID, output="dados_sap.xlsx", quiet=False, fuzzy=True)
+            if not ok or not os.path.exists("dados_sap.xlsx"):
+                raise RuntimeError(f"Falha ao baixar SAP do Drive (id={SAP_ID}). Verifique o compartilhamento do arquivo.")
         df = pd.read_excel("dados_sap.xlsx", usecols=[
             "CompanyCode", "agrupador_fpa", "FiscalPeriod",
             "AmountInCompanyCodeCurrency", "vertical", "ProfitCenter"
@@ -105,7 +107,9 @@ def get_sap() -> pd.DataFrame:
 def get_nexus() -> pd.DataFrame:
     if _cache["nexus"] is None:
         if not os.path.exists("nexus.xlsx"):
-            gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=True)
+            ok = gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=False, fuzzy=True)
+            if not ok or not os.path.exists("nexus.xlsx"):
+                raise RuntimeError(f"Falha ao baixar Nexus do Drive (id={NEXUS_ID}). Verifique o compartilhamento do arquivo.")
         cols = ["[Tipo]", "[Empresa]", "[Competência]", "[Vertical]",
                 "[Stream]", "[Agrupador FP&A - COA]", "[Valor]", "[Moeda]"]
         df = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado", usecols=cols)
