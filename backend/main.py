@@ -92,14 +92,38 @@ def get_df() -> pd.DataFrame:
     return _cache["df"]
 
 def download_drive(file_id: str, output: str):
-    url = "https://drive.usercontent.google.com/download"
-    r = requests.get(url, params={"id": file_id, "export": "download", "confirm": "t"},
-                     stream=True, timeout=300)
+    import zipfile
+    session = requests.Session()
+
+    # Primeira requisição para obter cookie de confirmação (arquivos grandes)
+    r1 = session.get(
+        "https://drive.google.com/uc",
+        params={"id": file_id, "export": "download"},
+        timeout=60
+    )
+    confirm = r1.cookies.get("download_warning", "t")
+
+    # Segunda requisição com confirmação
+    r = session.get(
+        "https://drive.google.com/uc",
+        params={"id": file_id, "export": "download", "confirm": confirm},
+        stream=True, timeout=300
+    )
     r.raise_for_status()
-    with open(output, "wb") as f:
-        for chunk in r.iter_content(chunk_size=32768):
+
+    tmp = output + ".tmp"
+    with open(tmp, "wb") as f:
+        for chunk in r.iter_content(chunk_size=65536):
             if chunk:
                 f.write(chunk)
+
+    if not zipfile.is_zipfile(tmp):
+        with open(tmp, "rb") as f:
+            preview = f.read(300).decode("utf-8", errors="replace")
+        os.remove(tmp)
+        raise RuntimeError(f"Download retornou HTML (arquivo não compartilhado corretamente?). Preview: {preview[:200]}")
+
+    os.rename(tmp, output)
 
 def get_sap() -> pd.DataFrame:
     if _cache["sap"] is None:
