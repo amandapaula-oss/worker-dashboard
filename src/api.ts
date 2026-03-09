@@ -47,6 +47,8 @@ function buildQuery(params: Record<string, string>) {
   return q.toString() ? `?${q.toString()}` : "";
 }
 
+// ── Worker ────────────────────────────────────────────────────────────────────
+
 export async function getCompetencias(): Promise<string[]> {
   return apiFetch("/api/competencias");
 }
@@ -61,4 +63,32 @@ export async function getMetricas(level: string, params: Record<string, string>)
 
 export async function getMensal(params: Record<string, string>) {
   return apiFetch(`/api/mensal${buildQuery(params)}`);
+}
+
+// ── SAP ───────────────────────────────────────────────────────────────────────
+
+export async function getSapFilters() {
+  return apiFetch("/api/sap/filters");
+}
+
+export async function getSapData(params: Record<string, string>) {
+  return apiFetch(`/api/sap/data${buildQuery(params)}`);
+}
+
+// ── Nexus ─────────────────────────────────────────────────────────────────────
+
+export async function getNexusFilters() {
+  return apiFetch("/api/nexus/filters");
+}
+
+export async function getDre(params: Record<string, string>) {
+  return apiFetch(`/api/dre${buildQuery(params)}`);
+}
+
+export async function getStreams(params: Record<string, string>) {
+  return apiFetch(`/api/streams${buildQuery(params)}`);
+}
+
+export async function getMatricial(params: Record<string, string>) {
+  return apiFetch(`/api/matricial${buildQuery(params)}`);
 }

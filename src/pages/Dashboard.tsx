@@ -1,16 +1,18 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, Spin, ConfigProvider } from "antd";
+import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, Spin, ConfigProvider, Tabs } from "antd";
 import { HomeOutlined, LogoutOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
 import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
+import SapTab from "./SapTab";
+import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 
-export default function Dashboard() {
+function WorkerTab() {
   const [competencias, setCompetencias] = useState<string[]>([]);
   const [selComp, setSelComp] = useState<string[]>([]);
   const [path, setPath] = useState<PathItem[]>([]);
@@ -77,7 +79,8 @@ export default function Dashboard() {
       title: (
         <span
           style={{ cursor: i < path.length - 1 ? "pointer" : "default",
-                   color: i === path.length - 1 ? "#1a2e5a" : "#2d50a0", fontWeight: i === path.length - 1 ? 600 : 400 }}
+                   color: i === path.length - 1 ? "#1a2e5a" : "#2d50a0",
+                   fontWeight: i === path.length - 1 ? 600 : 400 }}
           onClick={() => i < path.length - 1 && setPath(prev => prev.slice(0, i + 1))}
         >
           {LEVEL_LABELS[p.level]}: {p.label}
@@ -87,15 +90,66 @@ export default function Dashboard() {
   ];
 
   return (
+    <div>
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+        <Space wrap>
+          <Text strong style={{ color: "#1a2e5a" }}>Competência:</Text>
+          <Button size="small" type="link" onClick={() => setSelComp(competencias)}>Todas</Button>
+          <Button size="small" type="link" onClick={() => setSelComp([])}>Nenhuma</Button>
+          <Divider type="vertical" />
+          {competencias.map(c => (
+            <Checkbox key={c} checked={selComp.includes(c)} onChange={() => toggleComp(c)}>{c}</Checkbox>
+          ))}
+        </Space>
+      </div>
+
+      <Breadcrumb items={breadcrumbItems} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 20 }} />
+
+      {kpis && (
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+          <KPICard label="Receita Bruta"   value={kpis.receita_bruta} />
+          <KPICard label="Receita Líquida" value={kpis.receita_liquida} />
+          <KPICard label="Custo"           value={kpis.custo} />
+          <KPICard label="Lucro Bruto"     value={kpis.lucro_bruto} />
+          <KPICard label="Margem Bruta"    value={kpis.margem_bruta} format="pct" />
+        </div>
+      )}
+
+      <Title level={5} style={{ color: "#1a2e5a", borderBottom: "2px solid #2d50a0", paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
+        Comparativo por Competência
+      </Title>
+      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : <MonthlySection data={mensal} />}
+
+      <div style={{ height: 28 }} />
+
+      {currentLevel && (
+        <>
+          <Title level={5} style={{ color: "#1a2e5a", borderBottom: "2px solid #2d50a0", paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
+            Visão por {LEVEL_LABELS[currentLevel]}
+          </Title>
+          {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+            <MetricTable
+              data={metricas}
+              levelKey={currentLevel}
+              onSelect={currentIdx + 1 < LEVELS.length ? handleDrillDown : undefined}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
     <ConfigProvider theme={{ token: { colorPrimary: "#2d50a0", borderRadius: 8 } }}>
       <Layout style={{ minHeight: "100vh", background: "#f4f6fb" }}>
-        {/* Header */}
         <Header style={{ background: "#fff", borderBottom: "1px solid #dde3f0", padding: "0 2rem", height: "auto", lineHeight: "normal", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", paddingTop: "0.8rem", paddingBottom: "0.8rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 28 }}>👷</span>
+            <span style={{ fontSize: 28 }}>📊</span>
             <div>
-              <Title level={4} style={{ margin: 0, color: "#1a2e5a" }}>Worker Dashboard</Title>
-              <Text type="secondary" style={{ fontSize: "0.8rem" }}>Receita, Custo e Margem por hierarquia</Text>
+              <Title level={4} style={{ margin: 0, color: "#1a2e5a" }}>Cockpit FP&A</Title>
+              <Text type="secondary" style={{ fontSize: "0.8rem" }}>Visualização gerencial de resultados financeiros</Text>
             </div>
           </div>
           <Button icon={<LogoutOutlined />} onClick={logout} type="text" style={{ color: "#6b7fa3" }}>
@@ -104,66 +158,28 @@ export default function Dashboard() {
         </Header>
 
         <Content style={{ padding: "1.5rem 2rem" }}>
-
-          {/* Filtro Competência */}
-          <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <Space wrap>
-              <Text strong style={{ color: "#1a2e5a" }}>Competência:</Text>
-              <Button size="small" type="link" onClick={() => setSelComp(competencias)}>Todas</Button>
-              <Button size="small" type="link" onClick={() => setSelComp([])}>Nenhuma</Button>
-              <Divider type="vertical" />
-              {competencias.map(c => (
-                <Checkbox key={c} checked={selComp.includes(c)} onChange={() => toggleComp(c)}>
-                  {c}
-                </Checkbox>
-              ))}
-            </Space>
-          </div>
-
-          {/* Breadcrumb */}
-          <Breadcrumb items={breadcrumbItems} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 20 }} />
-
-          {/* KPI Cards */}
-          {kpis && (
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
-              <KPICard label="Receita Bruta"   value={kpis.receita_bruta} />
-              <KPICard label="Receita Líquida" value={kpis.receita_liquida} />
-              <KPICard label="Custo"           value={kpis.custo} />
-              <KPICard label="Lucro Bruto"     value={kpis.lucro_bruto} />
-              <KPICard label="Margem Bruta"    value={kpis.margem_bruta} format="pct" />
-            </div>
-          )}
-
-          {/* Comparativo Mensal */}
-          <Title level={5} style={{ color: "#1a2e5a", borderBottom: "2px solid #2d50a0", paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
-            Comparativo por Competência
-          </Title>
-          {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : <MonthlySection data={mensal} />}
-
-          <div style={{ height: 28 }} />
-
-          {/* Tabela drill-down */}
-          {currentLevel && (
-            <>
-              <Title level={5} style={{ color: "#1a2e5a", borderBottom: "2px solid #2d50a0", paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
-                Visão por {LEVEL_LABELS[currentLevel]}
-              </Title>
-              {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
-                <MetricTable
-                  data={metricas}
-                  levelKey={currentLevel}
-                  onSelect={currentIdx + 1 < LEVELS.length ? handleDrillDown : undefined}
-                />
-              )}
-            </>
-          )}
+          <Tabs
+            defaultActiveKey="worker"
+            type="card"
+            size="large"
+            items={[
+              { key: "worker",    label: "👷 Worker",          children: <WorkerTab /> },
+              { key: "sap",       label: "📋 Base SAP S4",     children: <SapTab /> },
+              { key: "dre",       label: "🏢 DRE por Empresa", children: <DreTab /> },
+              { key: "streams",   label: "🌊 P&L por Stream",  children: <StreamsTab /> },
+              { key: "matricial", label: "📐 P&L Matricial",   children: <MatricialTab /> },
+            ]}
+          />
         </Content>
       </Layout>
 
       <style>{`
         .total-row td { background-color: #dce6f7 !important; font-weight: 700; }
+        .subtotal-row td { background-color: #dce6f7 !important; font-weight: 700; }
         .ant-table-thead > tr > th { background: #2d50a0 !important; color: #fff !important; font-weight: 600; }
         .ant-table-row:hover > td { background: #f0f4ff !important; }
+        .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active { background: #2d50a0 !important; border-color: #2d50a0 !important; }
+        .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn { color: #fff !important; }
       `}</style>
     </ConfigProvider>
   );
