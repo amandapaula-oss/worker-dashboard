@@ -1,4 +1,5 @@
 import React from "react";
+import { Card, Statistic } from "antd";
 
 interface Props {
   label: string;
@@ -13,22 +14,16 @@ function fmt(value: number, format: "brl" | "pct") {
 
 export default function KPICard({ label, value, format = "brl" }: Props) {
   const isNegative = value < 0;
+  const color = isNegative ? "#c0392b" : format === "pct" ? "#1a7a4a" : "#1a2e5a";
+
   return (
-    <div style={styles.card}>
-      <div style={styles.label}>{label}</div>
-      <div style={{ ...styles.value, color: isNegative ? "#c0392b" : format === "pct" ? "#1a7a4a" : "#1a2e5a" }}>
-        {fmt(value, format)}
-      </div>
-    </div>
+    <Card style={{ flex: 1, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+      styles={{ body: { padding: "1rem 1.2rem", textAlign: "center" } }}>
+      <Statistic
+        title={<span style={{ color: "#6b7fa3", fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</span>}
+        value={fmt(value, format)}
+        valueStyle={{ color, fontSize: "1.25rem", fontWeight: 700 }}
+      />
+    </Card>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  card: {
-    background: "#fff", border: "1px solid #dde3f0", borderRadius: 10,
-    padding: "1rem 1.2rem", textAlign: "center",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.04)", flex: 1,
-  },
-  label: { color: "#6b7fa3", fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
-  value: { fontSize: "1.3rem", fontWeight: 700 },
-};

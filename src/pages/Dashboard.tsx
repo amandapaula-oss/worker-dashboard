@@ -1,9 +1,14 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, Spin, ConfigProvider } from "antd";
+import { HomeOutlined, LogoutOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
 import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
+
+const { Header, Content } = Layout;
+const { Title, Text } = Typography;
 
 export default function Dashboard() {
   const [competencias, setCompetencias] = useState<string[]>([]);
@@ -56,116 +61,110 @@ export default function Dashboard() {
     setPath(prev => [...prev, { level: currentLevel, value: rawValue, label: row.nome }]);
   }
 
-  function navigateTo(idx: number) {
-    setPath(prev => prev.slice(0, idx + 1));
-  }
-
   function toggleComp(c: string) {
-    setSelComp(prev =>
-      prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
-    );
+    setSelComp(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   }
 
-  function selectAll() { setSelComp(competencias); }
-  function clearAll() { setSelComp([]); }
+  const breadcrumbItems = [
+    {
+      title: (
+        <span style={{ cursor: "pointer", color: "#2d50a0" }} onClick={() => setPath([])}>
+          <HomeOutlined /> Início
+        </span>
+      ),
+    },
+    ...path.map((p, i) => ({
+      title: (
+        <span
+          style={{ cursor: i < path.length - 1 ? "pointer" : "default",
+                   color: i === path.length - 1 ? "#1a2e5a" : "#2d50a0", fontWeight: i === path.length - 1 ? 600 : 400 }}
+          onClick={() => i < path.length - 1 && setPath(prev => prev.slice(0, i + 1))}
+        >
+          {LEVEL_LABELS[p.level]}: {p.label}
+        </span>
+      ),
+    })),
+  ];
 
   return (
-    <div style={styles.page}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.h1}>👷 Worker Dashboard</h1>
-          <p style={styles.subtitle}>Receita, Custo e Margem por hierarquia de alocação</p>
-        </div>
-        <button onClick={logout} style={styles.logoutBtn}>Sair</button>
-      </div>
+    <ConfigProvider theme={{ token: { colorPrimary: "#2d50a0", borderRadius: 8 } }}>
+      <Layout style={{ minHeight: "100vh", background: "#f4f6fb" }}>
+        {/* Header */}
+        <Header style={{ background: "#fff", borderBottom: "1px solid #dde3f0", padding: "0 2rem", height: "auto", lineHeight: "normal", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", paddingTop: "0.8rem", paddingBottom: "0.8rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 28 }}>👷</span>
+            <div>
+              <Title level={4} style={{ margin: 0, color: "#1a2e5a" }}>Worker Dashboard</Title>
+              <Text type="secondary" style={{ fontSize: "0.8rem" }}>Receita, Custo e Margem por hierarquia</Text>
+            </div>
+          </div>
+          <Button icon={<LogoutOutlined />} onClick={logout} type="text" style={{ color: "#6b7fa3" }}>
+            Sair
+          </Button>
+        </Header>
 
-      {/* Filtro Competência */}
-      <div style={styles.filterBox}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={styles.filterLabel}>Competência:</span>
-          <button onClick={selectAll} style={styles.linkBtn}>Todas</button>
-          <button onClick={clearAll} style={styles.linkBtn}>Nenhuma</button>
-          {competencias.map(c => (
-            <label key={c} style={styles.checkLabel}>
-              <input type="checkbox" checked={selComp.includes(c)} onChange={() => toggleComp(c)} />
-              {" "}{c}
-            </label>
-          ))}
-        </div>
-      </div>
+        <Content style={{ padding: "1.5rem 2rem" }}>
 
-      {/* Breadcrumb */}
-      <div style={styles.breadcrumb}>
-        <span
-          style={{ ...styles.crumb, color: path.length === 0 ? "#2d50a0" : "#6b7fa3", cursor: path.length > 0 ? "pointer" : "default", fontWeight: path.length === 0 ? 700 : 400 }}
-          onClick={() => setPath([])}
-        >Início</span>
-        {path.map((p, i) => (
-          <React.Fragment key={i}>
-            <span style={styles.sep}>›</span>
-            <span
-              style={{ ...styles.crumb, color: i === path.length - 1 ? "#2d50a0" : "#6b7fa3",
-                       cursor: i < path.length - 1 ? "pointer" : "default",
-                       fontWeight: i === path.length - 1 ? 700 : 400 }}
-              onClick={() => i < path.length - 1 && navigateTo(i)}
-            >
-              {LEVEL_LABELS[p.level]}: {p.label}
-            </span>
-          </React.Fragment>
-        ))}
-      </div>
+          {/* Filtro Competência */}
+          <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+            <Space wrap>
+              <Text strong style={{ color: "#1a2e5a" }}>Competência:</Text>
+              <Button size="small" type="link" onClick={() => setSelComp(competencias)}>Todas</Button>
+              <Button size="small" type="link" onClick={() => setSelComp([])}>Nenhuma</Button>
+              <Divider type="vertical" />
+              {competencias.map(c => (
+                <Checkbox key={c} checked={selComp.includes(c)} onChange={() => toggleComp(c)}>
+                  {c}
+                </Checkbox>
+              ))}
+            </Space>
+          </div>
 
-      {/* KPI Cards */}
-      {kpis && (
-        <div style={styles.kpiRow}>
-          <KPICard label="Receita Bruta"  value={kpis.receita_bruta} />
-          <KPICard label="Receita Líquida" value={kpis.receita_liquida} />
-          <KPICard label="Custo"          value={kpis.custo} />
-          <KPICard label="Lucro Bruto"    value={kpis.lucro_bruto} />
-          <KPICard label="Margem Bruta"   value={kpis.margem_bruta} format="pct" />
-        </div>
-      )}
+          {/* Breadcrumb */}
+          <Breadcrumb items={breadcrumbItems} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 20 }} />
 
-      <div style={{ height: 24 }} />
-
-      {/* Comparativo Mensal */}
-      <p style={styles.sectionTitle}>Comparativo por Competência</p>
-      {loading ? <p style={styles.loading}>Carregando...</p> : <MonthlySection data={mensal} />}
-
-      <div style={{ height: 24 }} />
-
-      {/* Tabela drill-down */}
-      {currentLevel && (
-        <>
-          <p style={styles.sectionTitle}>Visão por {LEVEL_LABELS[currentLevel]}</p>
-          {loading ? <p style={styles.loading}>Carregando...</p> : (
-            <MetricTable
-              data={metricas}
-              levelKey={currentLevel}
-              onSelect={currentIdx + 1 < LEVELS.length ? handleDrillDown : undefined}
-            />
+          {/* KPI Cards */}
+          {kpis && (
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+              <KPICard label="Receita Bruta"   value={kpis.receita_bruta} />
+              <KPICard label="Receita Líquida" value={kpis.receita_liquida} />
+              <KPICard label="Custo"           value={kpis.custo} />
+              <KPICard label="Lucro Bruto"     value={kpis.lucro_bruto} />
+              <KPICard label="Margem Bruta"    value={kpis.margem_bruta} format="pct" />
+            </div>
           )}
-        </>
-      )}
-    </div>
+
+          {/* Comparativo Mensal */}
+          <Title level={5} style={{ color: "#1a2e5a", borderBottom: "2px solid #2d50a0", paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
+            Comparativo por Competência
+          </Title>
+          {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : <MonthlySection data={mensal} />}
+
+          <div style={{ height: 28 }} />
+
+          {/* Tabela drill-down */}
+          {currentLevel && (
+            <>
+              <Title level={5} style={{ color: "#1a2e5a", borderBottom: "2px solid #2d50a0", paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
+                Visão por {LEVEL_LABELS[currentLevel]}
+              </Title>
+              {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+                <MetricTable
+                  data={metricas}
+                  levelKey={currentLevel}
+                  onSelect={currentIdx + 1 < LEVELS.length ? handleDrillDown : undefined}
+                />
+              )}
+            </>
+          )}
+        </Content>
+      </Layout>
+
+      <style>{`
+        .total-row td { background-color: #dce6f7 !important; font-weight: 700; }
+        .ant-table-thead > tr > th { background: #2d50a0 !important; color: #fff !important; font-weight: 600; }
+        .ant-table-row:hover > td { background: #f0f4ff !important; }
+      `}</style>
+    </ConfigProvider>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100vh", background: "#f4f6fb", padding: "2rem 2.5rem", fontFamily: "'Segoe UI', sans-serif" },
-  header: { background: "#fff", border: "1px solid #dde3f0", borderLeft: "5px solid #2d50a0", borderRadius: 10, padding: "1.2rem 1.8rem", marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", justifyContent: "space-between", alignItems: "center" },
-  h1: { color: "#1a2e5a", fontSize: "1.5rem", fontWeight: 700, margin: 0 },
-  subtitle: { color: "#6b7fa3", fontSize: "0.85rem", margin: "4px 0 0 0" },
-  logoutBtn: { background: "none", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.4rem 1rem", color: "#6b7fa3", cursor: "pointer", fontSize: "0.85rem" },
-  filterBox: { background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" },
-  filterLabel: { color: "#1a2e5a", fontWeight: 600, fontSize: "0.85rem" },
-  linkBtn: { background: "none", border: "none", color: "#2d50a0", cursor: "pointer", fontSize: "0.85rem", padding: "0 4px", textDecoration: "underline" },
-  checkLabel: { fontSize: "0.85rem", color: "#1a2e5a", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 },
-  breadcrumb: { background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 20, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  crumb: { fontSize: "0.88rem" },
-  sep: { color: "#aab4cc", fontSize: "0.9rem" },
-  kpiRow: { display: "flex", gap: 16, flexWrap: "wrap" },
-  sectionTitle: { fontSize: "1rem", fontWeight: 600, color: "#1a2e5a", borderBottom: "2px solid #2d50a0", display: "inline-block", paddingBottom: 4, marginBottom: 14 },
-  loading: { color: "#6b7fa3", fontSize: "0.9rem" },
-};
