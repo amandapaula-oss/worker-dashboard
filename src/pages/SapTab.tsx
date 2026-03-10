@@ -45,6 +45,7 @@ export default function SapTab() {
       .finally(() => {
         setLoading(false);
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selCompanies, selVerticals, selPC]);
 
   const columns = data?.columns.map(col => ({

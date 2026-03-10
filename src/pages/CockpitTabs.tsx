@@ -54,6 +54,7 @@ export function DreTab() {
         message.error("Erro ao carregar dados da DRE");
       })
       .finally(() => { setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selAnos, selEmpresas, tipo]);
 
   return (
@@ -125,6 +126,7 @@ export function StreamsTab() {
         message.error("Erro ao carregar dados por Stream");
       })
       .finally(() => { setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selAnos, selEmpresas, selStreams, tipo]);
 
   return (
@@ -191,6 +193,7 @@ export function MatricialTab() {
         message.error("Erro ao carregar dados de P&L Matricial");
       })
       .finally(() => { setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selAnos, tipo]);
 
   const pctCols: string[] = data?.pct_cols || [];
