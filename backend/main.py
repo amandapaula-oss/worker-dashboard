@@ -113,12 +113,21 @@ def get_nexus() -> pd.DataFrame:
     if _cache["nexus"] is None:
         if not os.path.exists("nexus.xlsx"):
             gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=False, fuzzy=True)
-        cols = ["[Tipo]", "[Empresa]", "[Competência]", "[Vertical]",
-                "[Stream]", "[Agrupador FP&A - COA]", "[Valor]", "[Moeda]"]
-        df = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado", usecols=cols)
-        df["[Competência]"] = pd.to_datetime(df["[Competência]"])
-        df["Período"] = df["[Competência]"].dt.to_period("M").astype(str)
-        df["Ano"] = df["[Competência]"].dt.year
+        df = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado")
+        # Detectar coluna de competência independente de encoding
+        comp_col = next((c for c in df.columns if "ompet" in str(c)), None)
+        agrup_col = next((c for c in df.columns if "grupador" in str(c)), None)
+        keep = ["[Tipo]", "[Empresa]", "[Vertical]", "[Stream]", "[Valor]", "[Moeda]"]
+        if comp_col: keep.append(comp_col)
+        if agrup_col: keep.append(agrup_col)
+        df = df[[c for c in keep if c in df.columns]]
+        if agrup_col and agrup_col != "[Agrupador FP&A - COA]":
+            df = df.rename(columns={agrup_col: "[Agrupador FP&A - COA]"})
+        if comp_col:
+            df[comp_col] = pd.to_datetime(df[comp_col], errors="coerce")
+            df["Período"] = df[comp_col].dt.to_period("M").astype(str)
+            df["Ano"] = df[comp_col].dt.year
+            df = df.rename(columns={comp_col: "[Competência]"})
         _cache["nexus"] = df
     return _cache["nexus"]
 
