@@ -97,24 +97,10 @@ def get_df() -> pd.DataFrame:
         _cache["df"] = df
     return _cache["df"]
 
-def download_drive(file_id: str, output: str):
-    import subprocess, zipfile, sys
-    # Roda gdown em subprocess para isolar sys.exit() e crashes
-    result = subprocess.run(
-        [sys.executable, "-c",
-         f"import gdown; ok = gdown.download(id='{file_id}', output='{output}', quiet=False, fuzzy=True); exit(0 if ok else 1)"],
-        capture_output=True, text=True, timeout=300
-    )
-    if not os.path.exists(output):
-        raise RuntimeError(f"Download falhou (returncode={result.returncode}). stderr: {result.stderr[-300:]}")
-    if not zipfile.is_zipfile(output):
-        os.remove(output)
-        raise RuntimeError(f"Arquivo baixado não é xlsx válido (returncode={result.returncode}). stderr: {result.stderr[-300:]}")
-
 def get_sap() -> pd.DataFrame:
     if _cache["sap"] is None:
         if not os.path.exists("dados_sap.xlsx"):
-            download_drive(SAP_ID, "dados_sap.xlsx")
+            gdown.download(id=SAP_ID, output="dados_sap.xlsx", quiet=False, fuzzy=True)
         df = pd.read_excel("dados_sap.xlsx", usecols=[
             "CompanyCode", "agrupador_fpa", "FiscalPeriod",
             "AmountInCompanyCodeCurrency", "vertical", "ProfitCenter"
@@ -126,7 +112,7 @@ def get_sap() -> pd.DataFrame:
 def get_nexus() -> pd.DataFrame:
     if _cache["nexus"] is None:
         if not os.path.exists("nexus.xlsx"):
-            download_drive(NEXUS_ID, "nexus.xlsx")
+            gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=False, fuzzy=True)
         cols = ["[Tipo]", "[Empresa]", "[Competência]", "[Vertical]",
                 "[Stream]", "[Agrupador FP&A - COA]", "[Valor]", "[Moeda]"]
         df = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado", usecols=cols)
