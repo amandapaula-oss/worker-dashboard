@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, Spin, ConfigProvider, Tabs } from "antd";
-import { HomeOutlined, LogoutOutlined } from "@ant-design/icons";
+import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, Spin, ConfigProvider, Tabs, Card } from "antd";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
@@ -141,12 +141,19 @@ function WorkerTab() {
   );
 }
 
+type Section = "worker" | "cockpit" | null;
+
 export default function Dashboard() {
+  const [section, setSection] = useState<Section>(null);
+
   return (
     <ConfigProvider theme={{ token: { colorPrimary: "#2d50a0", borderRadius: 8 } }}>
       <Layout style={{ minHeight: "100vh", background: "#f4f6fb" }}>
         <Header style={{ background: "#fff", borderBottom: "1px solid #dde3f0", padding: "0 2rem", height: "auto", lineHeight: "normal", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", paddingTop: "0.8rem", paddingBottom: "0.8rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {section && (
+              <Button icon={<ArrowLeftOutlined />} type="text" style={{ color: "#2d50a0" }} onClick={() => setSection(null)} />
+            )}
             <span style={{ fontSize: 28 }}>📊</span>
             <div>
               <Title level={4} style={{ margin: 0, color: "#1a2e5a" }}>Cockpit FP&A</Title>
@@ -159,19 +166,57 @@ export default function Dashboard() {
         </Header>
 
         <Content style={{ padding: "1.5rem 2rem" }}>
-          <Tabs
-            defaultActiveKey="worker"
-            type="card"
-            size="large"
-            items={[
-              { key: "worker",    label: "👷 Worker",          children: <WorkerTab /> },
-              { key: "clt",       label: "📄 CLT",             children: <CltTab /> },
-              { key: "sap",       label: "📋 Base SAP S4",     children: <SapTab /> },
-              { key: "dre",       label: "🏢 DRE por Empresa", children: <DreTab /> },
-              { key: "streams",   label: "🌊 P&L por Stream",  children: <StreamsTab /> },
-              { key: "matricial", label: "📐 P&L Matricial",   children: <MatricialTab /> },
-            ]}
-          />
+          {section === null && (
+            <div style={{ display: "flex", gap: 32, justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+              <Card
+                hoverable
+                onClick={() => setSection("worker")}
+                style={{ width: 280, textAlign: "center", border: "2px solid #dde3f0", cursor: "pointer" }}
+                styles={{ body: { padding: "2.5rem 2rem" } }}
+              >
+                <div style={{ fontSize: 52, marginBottom: 16 }}>👷</div>
+                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Worker & CLT</Title>
+                <Text type="secondary">Base Worker, receitas e custos por colaborador</Text>
+              </Card>
+
+              <Card
+                hoverable
+                onClick={() => setSection("cockpit")}
+                style={{ width: 280, textAlign: "center", border: "2px solid #dde3f0", cursor: "pointer" }}
+                styles={{ body: { padding: "2.5rem 2rem" } }}
+              >
+                <div style={{ fontSize: 52, marginBottom: 16 }}>🏢</div>
+                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Cockpit Financeiro</Title>
+                <Text type="secondary">DRE, P&L por Stream, Matricial e Base SAP S4</Text>
+              </Card>
+            </div>
+          )}
+
+          {section === "worker" && (
+            <Tabs
+              defaultActiveKey="worker"
+              type="card"
+              size="large"
+              items={[
+                { key: "worker", label: "👷 Worker", children: <WorkerTab /> },
+                { key: "clt",    label: "📄 CLT",    children: <CltTab /> },
+              ]}
+            />
+          )}
+
+          {section === "cockpit" && (
+            <Tabs
+              defaultActiveKey="dre"
+              type="card"
+              size="large"
+              items={[
+                { key: "dre",       label: "🏢 DRE por Empresa", children: <DreTab /> },
+                { key: "streams",   label: "🌊 P&L por Stream",  children: <StreamsTab /> },
+                { key: "matricial", label: "📐 P&L Matricial",   children: <MatricialTab /> },
+                { key: "sap",       label: "📋 Base SAP S4",     children: <SapTab /> },
+              ]}
+            />
+          )}
         </Content>
       </Layout>
 

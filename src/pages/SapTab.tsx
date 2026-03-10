@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table, Spin } from "antd";
+import { Select, Table, Spin, message } from "antd";
 import { getSapFilters, getSapData } from "../api";
 
 
@@ -10,23 +10,42 @@ export default function SapTab() {
   const [selPC, setSelPC] = useState<string[]>([]);
   const [data, setData] = useState<{ columns: string[]; data: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [filtersReady, setFiltersReady] = useState(false);
 
   useEffect(() => {
-    getSapFilters().then(f => {
-      setFilters(f);
-      setSelCompanies(f.companies);
-    });
+    getSapFilters()
+      .then(f => {
+        setFilters(f);
+        setSelCompanies(f.companies);
+        setFiltersReady(true);
+      })
+      .catch(err => {
+        console.error("Sap Filters Error:", err);
+        message.error("Erro ao carregar filtros SAP");
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
+    if (!filtersReady) return;
     if (!selCompanies.length && filters.companies.length) return;
     setLoading(true);
     const params: Record<string, string> = {};
     if (selCompanies.length) params.companies = selCompanies.join(",");
     if (selVerticals.length) params.verticals = selVerticals.join(",");
     if (selPC.length) params.profit_centers = selPC.join(",");
-    getSapData(params).then(d => { setData(d); setLoading(false); });
-  }, [selCompanies, selVerticals, selPC, filters]);
+    getSapData(params)
+      .then(d => {
+        setData(d);
+      })
+      .catch(err => {
+        console.error("Sap Data Error:", err);
+        message.error("Erro ao carregar dados SAP");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [filtersReady, selCompanies, selVerticals, selPC]);
 
   const columns = data?.columns.map(col => ({
     title: col,

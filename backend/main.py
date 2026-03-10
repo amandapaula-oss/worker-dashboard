@@ -7,7 +7,6 @@ import bcrypt
 import pandas as pd
 import gdown
 import os
-import threading
 
 app = FastAPI()
 
@@ -28,7 +27,7 @@ TOKEN_EXPIRE_MINUTES = 480
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 USERS = {
-    "amanda": {"name": "Amanda", "hashed_password": "$2b$12$aEj6abenzCphFtkn/Kjmvezk3ImEWCu38Cpm6cYfg0X2/tz3fYGSa"},
+    "amanda": {"name": "Amanda", "hashed_password": "$2b$12$mfHiyBw/auw.B745JxG2eO5Qlw/urUAOOVwi5x2koGXqWhUDhZv/a"},
     "paola":  {"name": "Paola",  "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC"},
 }
 
@@ -59,6 +58,7 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 # ── Cache em memória ───────────────────────────────────────────────────────────
 
 _cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None, "clt": None}
+_ready: dict = {"sap": False, "nexus": False}
 
 CLT_FOLDER_ID = "1aEHQAARXkf_BZbc5j0Z8Tt0s5Fmk6tSu"
 CLT_SHEETS    = ["FC", "NX", "HY", "DOJO", "ND", "SGA"]
@@ -175,13 +175,28 @@ def get_clt() -> dict:
     return _cache["clt"]
 
 def _preload_heavy():
-    get_sap()
-    get_nexus()
+    try:
+        print("Carregando SAP...")
+        get_sap()
+        _ready["sap"] = True
+        print("SAP carregado.")
+    except Exception as e:
+        print(f"Erro ao carregar SAP: {e}")
+    try:
+        print("Carregando Nexus...")
+        get_nexus()
+        _ready["nexus"] = True
+        print("Nexus carregado. Servidor pronto.")
+    except Exception as e:
+        print(f"Erro ao carregar Nexus: {e}")
 
 @app.on_event("startup")
 async def startup():
+    print("Carregando Worker...")
     get_df()
     get_nomes()
+    print("Worker carregado. Iniciando carregamento pesado em background...")
+    import threading
     threading.Thread(target=_preload_heavy, daemon=True).start()
 
 # ── P&L Engine ─────────────────────────────────────────────────────────────────
@@ -356,6 +371,8 @@ def get_mensal(competencias="", sap_code="", client_name="", project_id="", work
 
 @app.get("/api/sap/filters")
 def get_sap_filters(user=Depends(get_current_user)):
+    if not _ready["sap"]:
+        raise HTTPException(status_code=503, detail="SAP ainda carregando, aguarde...")
     try:
         df = get_sap()
     except Exception as e:
@@ -368,6 +385,8 @@ def get_sap_filters(user=Depends(get_current_user)):
 
 @app.get("/api/sap/data")
 def get_sap_data(companies="", verticals="", profit_centers="", user=Depends(get_current_user)):
+    if not _ready["sap"]:
+        raise HTTPException(status_code=503, detail="SAP ainda carregando, aguarde...")
     df = get_sap()
     if companies:
         df = df[df["CompanyCode"].isin(companies.split(","))]
@@ -392,6 +411,8 @@ def get_sap_data(companies="", verticals="", profit_centers="", user=Depends(get
 
 @app.get("/api/nexus/filters")
 def get_nexus_filters(user=Depends(get_current_user)):
+    if not _ready["nexus"]:
+        raise HTTPException(status_code=503, detail="Nexus ainda carregando, aguarde...")
     try:
         df = get_nexus()
     except Exception as e:
@@ -404,6 +425,8 @@ def get_nexus_filters(user=Depends(get_current_user)):
 
 @app.get("/api/dre")
 def get_dre(anos="", tipo="Actual", empresas="", user=Depends(get_current_user)):
+    if not _ready["nexus"]:
+        raise HTTPException(status_code=503, detail="Nexus ainda carregando, aguarde...")
     df = get_nexus()
     if anos:
         df = df[df["Ano"].isin([int(a) for a in anos.split(",")])]
@@ -416,6 +439,8 @@ def get_dre(anos="", tipo="Actual", empresas="", user=Depends(get_current_user))
 
 @app.get("/api/streams")
 def get_streams(anos="", tipo="Actual", empresas="", streams="", user=Depends(get_current_user)):
+    if not _ready["nexus"]:
+        raise HTTPException(status_code=503, detail="Nexus ainda carregando, aguarde...")
     df = get_nexus()
     if anos:
         df = df[df["Ano"].isin([int(a) for a in anos.split(",")])]
@@ -430,6 +455,8 @@ def get_streams(anos="", tipo="Actual", empresas="", streams="", user=Depends(ge
 
 @app.get("/api/matricial")
 def get_matricial(anos="", tipo="Actual", user=Depends(get_current_user)):
+    if not _ready["nexus"]:
+        raise HTTPException(status_code=503, detail="Nexus ainda carregando, aguarde...")
     df = get_nexus()
     if anos:
         df = df[df["Ano"].isin([int(a) for a in anos.split(",")])]
@@ -449,6 +476,23 @@ def get_matricial(anos="", tipo="Actual", user=Depends(get_current_user)):
     }
 
 # ── CLT endpoints ──────────────────────────────────────────────────────────────
+
+@app.get("/api/clt/debug")
+def get_clt_debug(user=Depends(get_current_user)):
+    import subprocess, sys, glob
+    os.makedirs("clt_files", exist_ok=True)
+    result = subprocess.run(
+        [sys.executable, "-c",
+         f"import gdown; gdown.download_folder(id='{CLT_FOLDER_ID}', output='clt_files', quiet=False)"],
+        capture_output=True, text=True, timeout=300
+    )
+    all_files = glob.glob("clt_files/**/*", recursive=True)
+    return {
+        "returncode": result.returncode,
+        "stdout": result.stdout[-2000:],
+        "stderr": result.stderr[-2000:],
+        "files": all_files,
+    }
 
 @app.get("/api/clt/data")
 def get_clt_data(meses: str = "", user=Depends(get_current_user)):

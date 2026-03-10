@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Select, Spin, Table } from "antd";
+import { Select, Spin, Table, message } from "antd";
 import { getNexusFilters, getDre, getStreams, getMatricial } from "../api";
 import PLTable from "../components/PLTable";
 
@@ -23,23 +23,38 @@ export function DreTab() {
   const [tipo, setTipo] = useState("Actual");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [filtersReady, setFiltersReady] = useState(false);
 
   useEffect(() => {
-    getNexusFilters().then(f => {
-      setFilters(f);
-      setSelAnos(f.anos);
-      setSelEmpresas(f.empresas);
-    });
+    getNexusFilters()
+      .then(f => {
+        setFilters(f);
+        setSelAnos(f.anos);
+        setSelEmpresas(f.empresas);
+        setFiltersReady(true);
+      })
+      .catch(err => {
+        console.error("Nexus Filters Error:", err);
+        message.error("Erro ao carregar filtros Nexus");
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
+    if (!filtersReady) return;
     if (!selAnos.length && filters.anos.length) return;
     setLoading(true);
     const params: Record<string, string> = { tipo };
     if (selAnos.length) params.anos = selAnos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
-    getDre(params).then(d => { setData(d); setLoading(false); });
-  }, [selAnos, selEmpresas, tipo, filters]);
+    getDre(params)
+      .then(d => { setData(d); })
+      .catch(err => {
+        console.error("DRE Data Error:", err);
+        message.error("Erro ao carregar dados da DRE");
+      })
+      .finally(() => { setLoading(false); });
+  }, [filtersReady, selAnos, selEmpresas, tipo]);
 
   return (
     <div>
@@ -77,25 +92,40 @@ export function StreamsTab() {
   const [tipo, setTipo] = useState("Actual");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [filtersReady, setFiltersReady] = useState(false);
 
   useEffect(() => {
-    getNexusFilters().then(f => {
-      setFilters(f);
-      setSelAnos(f.anos);
-      setSelEmpresas(f.empresas);
-      setSelStreams(f.streams);
-    });
+    getNexusFilters()
+      .then(f => {
+        setFilters(f);
+        setSelAnos(f.anos);
+        setSelEmpresas(f.empresas);
+        setSelStreams(f.streams);
+        setFiltersReady(true);
+      })
+      .catch(err => {
+        console.error("Nexus Filters Streams Error:", err);
+        message.error("Erro ao carregar filtros Nexus (Streams)");
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
+    if (!filtersReady) return;
     if (!selAnos.length && filters.anos.length) return;
     setLoading(true);
     const params: Record<string, string> = { tipo };
     if (selAnos.length) params.anos = selAnos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selStreams.length) params.streams = selStreams.join(",");
-    getStreams(params).then(d => { setData(d); setLoading(false); });
-  }, [selAnos, selEmpresas, selStreams, tipo, filters]);
+    getStreams(params)
+      .then(d => { setData(d); })
+      .catch(err => {
+        console.error("Streams Data Error:", err);
+        message.error("Erro ao carregar dados por Stream");
+      })
+      .finally(() => { setLoading(false); });
+  }, [filtersReady, selAnos, selEmpresas, selStreams, tipo]);
 
   return (
     <div>
@@ -136,18 +166,32 @@ export function MatricialTab() {
   const [tipo, setTipo] = useState("Actual");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [filtersReady, setFiltersReady] = useState(false);
 
   useEffect(() => {
-    getNexusFilters().then(f => { setFilters(f); setSelAnos(f.anos); });
+    getNexusFilters()
+      .then(f => { setFilters(f); setSelAnos(f.anos); setFiltersReady(true); })
+      .catch(err => {
+        console.error("Nexus Filters Matricial Error:", err);
+        message.error("Erro ao carregar filtros Nexus (Matricial)");
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
+    if (!filtersReady) return;
     if (!selAnos.length && filters.anos.length) return;
     setLoading(true);
     const params: Record<string, string> = { tipo };
     if (selAnos.length) params.anos = selAnos.join(",");
-    getMatricial(params).then(d => { setData(d); setLoading(false); });
-  }, [selAnos, tipo, filters]);
+    getMatricial(params)
+      .then(d => { setData(d); })
+      .catch(err => {
+        console.error("Matricial Data Error:", err);
+        message.error("Erro ao carregar dados de P&L Matricial");
+      })
+      .finally(() => { setLoading(false); });
+  }, [filtersReady, selAnos, tipo]);
 
   const pctCols: string[] = data?.pct_cols || [];
 

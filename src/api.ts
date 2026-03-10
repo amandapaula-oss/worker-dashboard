@@ -4,7 +4,7 @@ function getToken() {
   return localStorage.getItem("token") || "";
 }
 
-async function apiFetch(path: string, options: RequestInit = {}, retries = 10): Promise<any> {
+async function apiFetch(path: string, options: RequestInit = {}, retries = 36): Promise<any> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
