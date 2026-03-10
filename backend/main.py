@@ -259,15 +259,24 @@ def _preload_heavy():
         print("Carregando SAP...")
         get_sap()
         _ready["sap"] = True
-        print("SAP carregado.")
+        sap = get_sap()
+        print(f"SAP carregado. Rows={len(sap)}, agrupadores={sap['agrupador_fpa'].dropna().unique().tolist()[:5]}")
     except Exception as e:
+        import traceback; traceback.print_exc()
         print(f"Erro ao carregar SAP: {e}")
     try:
         print("Carregando Nexus...")
         get_nexus()
         _ready["nexus"] = True
-        print("Nexus carregado. Servidor pronto.")
+        nx = get_nexus()
+        print(f"Nexus carregado. Rows={len(nx)}, cols={list(nx.columns)}")
+        print(f"  Tipos: {nx['[Tipo]'].dropna().unique().tolist()}")
+        print(f"  Moedas: {nx['[Moeda]'].dropna().unique().tolist()}")
+        print(f"  Empresas: {nx['[Empresa]'].dropna().unique().tolist()}")
+        print(f"  Anos: {sorted(nx['Ano'].dropna().unique().tolist())}")
+        print("Servidor pronto.")
     except Exception as e:
+        import traceback; traceback.print_exc()
         print(f"Erro ao carregar Nexus: {e}")
 
 @app.on_event("startup")
@@ -520,16 +529,33 @@ def get_nexus_filters(user=Depends(get_current_user)):
         "streams": sorted(df["[Stream]"].dropna().unique().tolist()),
     }
 
-@app.get("/api/dre")
-def get_dre(anos="", tipo="Actual", empresas="", user=Depends(get_current_user)):
-    if not _ready["nexus"]:
-        raise HTTPException(status_code=503, detail="Nexus ainda carregando, aguarde...")
-    df = get_nexus()
+def _filter_nexus(df, anos="", tipo="Actual", empresas="", streams=""):
+    """Filtra DataFrame do Nexus com fallbacks robustos para tipo e moeda."""
     if anos:
         df = df[df["Ano"].isin([int(a) for a in anos.split(",")])]
     if empresas:
         df = df[df["[Empresa]"].isin(empresas.split(","))]
-    df = df[(df["[Tipo]"] == tipo) & (df["[Moeda]"] == "BRL")]
+    if streams:
+        df = df[df["[Stream]"].isin(streams.split(","))]
+    # Filtro de tipo: tenta exato, depois case-insensitive
+    if "[Tipo]" in df.columns:
+        mask = df["[Tipo]"].astype(str) == tipo
+        if not mask.any():
+            mask = df["[Tipo]"].astype(str).str.lower() == tipo.lower()
+        df = df[mask]
+    # Filtro de moeda: só aplica se existir coluna com valor BRL
+    if "[Moeda]" in df.columns:
+        moedas = df["[Moeda]"].dropna().astype(str).unique().tolist()
+        if "BRL" in moedas:
+            df = df[df["[Moeda]"].astype(str) == "BRL"]
+    return df
+
+@app.get("/api/dre")
+def get_dre(anos="", tipo="Actual", empresas="", user=Depends(get_current_user)):
+    if not _ready["nexus"]:
+        raise HTTPException(status_code=503, detail="Nexus ainda carregando, aguarde...")
+    df = _filter_nexus(get_nexus(), anos=anos, tipo=tipo, empresas=empresas)
+    print(f"DRE filtrado: {len(df)} rows (tipo={tipo}, anos={anos}, empresas={empresas})")
     if df.empty:
         return {"rows": [], "columns": []}
     return pl_to_json(compute_pl(df, "Período"))
@@ -538,14 +564,8 @@ def get_dre(anos="", tipo="Actual", empresas="", user=Depends(get_current_user))
 def get_streams(anos="", tipo="Actual", empresas="", streams="", user=Depends(get_current_user)):
     if not _ready["nexus"]:
         raise HTTPException(status_code=503, detail="Nexus ainda carregando, aguarde...")
-    df = get_nexus()
-    if anos:
-        df = df[df["Ano"].isin([int(a) for a in anos.split(",")])]
-    if empresas:
-        df = df[df["[Empresa]"].isin(empresas.split(","))]
-    if streams:
-        df = df[df["[Stream]"].isin(streams.split(","))]
-    df = df[(df["[Tipo]"] == tipo) & (df["[Moeda]"] == "BRL")]
+    df = _filter_nexus(get_nexus(), anos=anos, tipo=tipo, empresas=empresas, streams=streams)
+    print(f"Streams filtrado: {len(df)} rows")
     if df.empty:
         return {"rows": [], "columns": []}
     return pl_to_json(compute_pl(df, "[Stream]"))
@@ -554,10 +574,8 @@ def get_streams(anos="", tipo="Actual", empresas="", streams="", user=Depends(ge
 def get_matricial(anos="", tipo="Actual", user=Depends(get_current_user)):
     if not _ready["nexus"]:
         raise HTTPException(status_code=503, detail="Nexus ainda carregando, aguarde...")
-    df = get_nexus()
-    if anos:
-        df = df[df["Ano"].isin([int(a) for a in anos.split(",")])]
-    df = df[(df["[Tipo]"] == tipo) & (df["[Moeda]"] == "BRL")]
+    df = _filter_nexus(get_nexus(), anos=anos, tipo=tipo)
+    print(f"Matricial filtrado: {len(df)} rows")
     if df.empty:
         return {"rows": [], "columns": []}
     result = compute_pl(df, "[Empresa]")
