@@ -106,6 +106,9 @@ def get_sap() -> pd.DataFrame:
             "AmountInCompanyCodeCurrency", "vertical", "ProfitCenter"
         ])
         df["CompanyCode"] = df["CompanyCode"].map(COMPANY_NAMES).fillna(df["CompanyCode"])
+        for col in ["CompanyCode", "agrupador_fpa", "vertical", "ProfitCenter"]:
+            df[col] = df[col].astype("category")
+        df["AmountInCompanyCodeCurrency"] = df["AmountInCompanyCodeCurrency"].astype("float32")
         _cache["sap"] = df
     return _cache["sap"]
 
@@ -113,7 +116,6 @@ def get_nexus() -> pd.DataFrame:
     if _cache["nexus"] is None:
         if not os.path.exists("nexus.xlsx"):
             gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=False, fuzzy=True)
-        # Ler só o cabeçalho para detectar nomes reais das colunas (evita ler tudo na memória)
         header = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado", nrows=0)
         all_cols = list(header.columns)
         comp_col  = next((c for c in all_cols if "ompet"    in str(c)), "[Competência]")
@@ -125,7 +127,12 @@ def get_nexus() -> pd.DataFrame:
         df = df.rename(columns={comp_col: "[Competência]", agrup_col: "[Agrupador FP&A - COA]"})
         df["[Competência]"] = pd.to_datetime(df["[Competência]"], errors="coerce")
         df["Período"] = df["[Competência]"].dt.to_period("M").astype(str)
-        df["Ano"] = df["[Competência]"].dt.year
+        df["Ano"] = df["[Competência]"].dt.year.astype("int16")
+        df["[Valor]"] = df["[Valor]"].astype("float32")
+        for col in ["[Tipo]", "[Empresa]", "[Vertical]", "[Stream]", "[Moeda]",
+                    "[Agrupador FP&A - COA]", "Período"]:
+            if col in df.columns:
+                df[col] = df[col].astype("category")
         _cache["nexus"] = df
     return _cache["nexus"]
 
