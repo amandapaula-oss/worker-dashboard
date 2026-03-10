@@ -7,7 +7,6 @@ import KPICard from "../components/KPICard";
 import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
-import CltTab from "./CltTab";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 
 const { Header, Content } = Layout;
@@ -141,7 +140,7 @@ function WorkerTab() {
   );
 }
 
-type Section = "worker" | "cockpit" | null;
+type Section = "worker" | "cockpit" | "metas" | null;
 
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
@@ -189,6 +188,17 @@ export default function Dashboard() {
                 <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Cockpit Financeiro</Title>
                 <Text type="secondary">DRE, P&L por Stream, Matricial e Base SAP S4</Text>
               </Card>
+
+              <Card
+                hoverable
+                onClick={() => setSection("metas")}
+                style={{ width: 280, textAlign: "center", border: "2px solid #dde3f0", cursor: "pointer" }}
+                styles={{ body: { padding: "2.5rem 2rem" } }}
+              >
+                <div style={{ fontSize: 52, marginBottom: 16 }}>🎯</div>
+                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Apuração de Metas</Title>
+                <Text type="secondary">Acompanhamento e apuração de metas</Text>
+              </Card>
             </div>
           )}
 
@@ -199,9 +209,14 @@ export default function Dashboard() {
               size="large"
               items={[
                 { key: "worker", label: "👷 Worker", children: <WorkerTab /> },
-                { key: "clt",    label: "📄 CLT",    children: <CltTab /> },
               ]}
             />
+          )}
+
+          {section === "metas" && (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "40vh" }}>
+              <Text type="secondary" style={{ fontSize: "1.1rem" }}>Em construção 🚧</Text>
+            </div>
           )}
 
           {section === "cockpit" && (
