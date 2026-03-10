@@ -503,14 +503,22 @@ def debug_nexus(user=Depends(get_current_user)):
     if not _ready["nexus"]:
         return {"status": "not_ready"}
     df = get_nexus()
+    tipos  = df["[Tipo]"].dropna().astype(str).unique().tolist()   if "[Tipo]"    in df.columns else []
+    moedas = df["[Moeda]"].dropna().astype(str).unique().tolist()  if "[Moeda]"   in df.columns else []
+    empresas = df["[Empresa]"].dropna().astype(str).unique().tolist() if "[Empresa]" in df.columns else []
+    anos   = sorted(df["Ano"].dropna().astype(int).unique().tolist()) if "Ano" in df.columns else []
+    df_act = _filter_nexus(df, tipo="Actual")
+    sample = df.head(3).astype(str).to_dict(orient="records") if len(df) > 0 else []
     return {
         "status": "ready",
-        "rows": len(df),
+        "total_rows": len(df),
         "columns": list(df.columns),
-        "tipos": df["[Tipo]"].dropna().unique().tolist(),
-        "moedas": df["[Moeda]"].dropna().unique().tolist(),
-        "anos": sorted(df["Ano"].dropna().unique().tolist()),
-        "sample_tipo": str(df["[Tipo]"].iloc[0]) if len(df) > 0 else None,
+        "tipos": tipos,
+        "moedas": moedas,
+        "empresas": empresas,
+        "anos": anos,
+        "rows_after_actual_filter": len(df_act),
+        "sample": sample,
     }
 
 # ── Nexus endpoints ────────────────────────────────────────────────────────────
