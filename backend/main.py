@@ -393,6 +393,23 @@ def get_sap_data(companies="", verticals="", profit_centers="", user=Depends(get
         "data": pivot.to_dict(orient="records"),
     }
 
+# ── Debug endpoint ─────────────────────────────────────────────────────────────
+
+@app.get("/api/debug/nexus")
+def debug_nexus(user=Depends(get_current_user)):
+    if not _ready["nexus"]:
+        return {"status": "not_ready"}
+    df = get_nexus()
+    return {
+        "status": "ready",
+        "rows": len(df),
+        "columns": list(df.columns),
+        "tipos": df["[Tipo]"].dropna().unique().tolist(),
+        "moedas": df["[Moeda]"].dropna().unique().tolist(),
+        "anos": sorted(df["Ano"].dropna().unique().tolist()),
+        "sample_tipo": str(df["[Tipo]"].iloc[0]) if len(df) > 0 else None,
+    }
+
 # ── Nexus endpoints ────────────────────────────────────────────────────────────
 
 @app.get("/api/nexus/filters")
