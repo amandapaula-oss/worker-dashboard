@@ -174,7 +174,7 @@ export default function Dashboard() {
                 styles={{ body: { padding: "2.5rem 2rem" } }}
               >
                 <div style={{ fontSize: 52, marginBottom: 16 }}>👷</div>
-                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Worker & CLT</Title>
+                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Worker</Title>
                 <Text type="secondary">Base Worker, receitas e custos por colaborador</Text>
               </Card>
 
