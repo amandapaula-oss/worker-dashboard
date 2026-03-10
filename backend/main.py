@@ -113,21 +113,19 @@ def get_nexus() -> pd.DataFrame:
     if _cache["nexus"] is None:
         if not os.path.exists("nexus.xlsx"):
             gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=False, fuzzy=True)
-        df = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado")
-        # Detectar coluna de competência independente de encoding
-        comp_col = next((c for c in df.columns if "ompet" in str(c)), None)
-        agrup_col = next((c for c in df.columns if "grupador" in str(c)), None)
-        keep = ["[Tipo]", "[Empresa]", "[Vertical]", "[Stream]", "[Valor]", "[Moeda]"]
-        if comp_col: keep.append(comp_col)
-        if agrup_col: keep.append(agrup_col)
-        df = df[[c for c in keep if c in df.columns]]
-        if agrup_col and agrup_col != "[Agrupador FP&A - COA]":
-            df = df.rename(columns={agrup_col: "[Agrupador FP&A - COA]"})
-        if comp_col:
-            df[comp_col] = pd.to_datetime(df[comp_col], errors="coerce")
-            df["Período"] = df[comp_col].dt.to_period("M").astype(str)
-            df["Ano"] = df[comp_col].dt.year
-            df = df.rename(columns={comp_col: "[Competência]"})
+        # Ler só o cabeçalho para detectar nomes reais das colunas (evita ler tudo na memória)
+        header = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado", nrows=0)
+        all_cols = list(header.columns)
+        comp_col  = next((c for c in all_cols if "ompet"    in str(c)), "[Competência]")
+        agrup_col = next((c for c in all_cols if "grupador" in str(c)), "[Agrupador FP&A - COA]")
+        usecols = ["[Tipo]", "[Empresa]", "[Vertical]", "[Stream]", "[Valor]", "[Moeda]",
+                   comp_col, agrup_col]
+        usecols = list(dict.fromkeys(c for c in usecols if c in all_cols))
+        df = pd.read_excel("nexus.xlsx", sheet_name="Nexus_Consolidado", usecols=usecols)
+        df = df.rename(columns={comp_col: "[Competência]", agrup_col: "[Agrupador FP&A - COA]"})
+        df["[Competência]"] = pd.to_datetime(df["[Competência]"], errors="coerce")
+        df["Período"] = df["[Competência]"].dt.to_period("M").astype(str)
+        df["Ano"] = df["[Competência]"].dt.year
         _cache["nexus"] = df
     return _cache["nexus"]
 
