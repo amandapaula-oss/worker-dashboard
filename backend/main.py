@@ -97,122 +97,34 @@ def get_df() -> pd.DataFrame:
         _cache["df"] = df
     return _cache["df"]
 
-def _stream_excel(filepath, sheet_name=None):
-    """Abre Excel em modo streaming (read_only) e retorna (header, row_iterator, workbook)."""
-    import openpyxl
-    wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
-    ws = wb[sheet_name] if sheet_name else wb.active
-    it = ws.iter_rows(values_only=True)
-    header = [str(c) if c is not None else "" for c in next(it)]
-    return header, it, wb
-
-def _comp_to_periodo(val):
-    """Converte valor de competência (datetime, serial float ou string) em (ano, 'YYYY-MM')."""
-    if val is None:
-        return None, None
-    if hasattr(val, "year"):
-        return int(val.year), f"{val.year}-{val.month:02d}"
-    if isinstance(val, (int, float)):
-        # Excel serial date
-        base = pd.Timestamp("1899-12-30")
-        dt = base + pd.Timedelta(days=float(val))
-        return int(dt.year), f"{dt.year}-{dt.month:02d}"
-    try:
-        dt = pd.Timestamp(str(val))
-        return int(dt.year), f"{dt.year}-{dt.month:02d}"
-    except Exception:
-        return None, None
-
 def get_sap() -> pd.DataFrame:
     if _cache["sap"] is None:
-        if not os.path.exists("dados_sap.xlsx"):
-            gdown.download(id=SAP_ID, output="dados_sap.xlsx", quiet=False, fuzzy=True)
-        print("Lendo SAP via streaming...")
-        from collections import defaultdict
-        needed = ["CompanyCode", "agrupador_fpa", "FiscalPeriod",
-                  "AmountInCompanyCodeCurrency", "vertical", "ProfitCenter"]
-        header, rows, wb = _stream_excel("dados_sap.xlsx")
-        idx = {c: header.index(c) for c in needed if c in header}
-        agg = defaultdict(float)
-        amt_i = idx.get("AmountInCompanyCodeCurrency")
-        for row in rows:
-            if amt_i is None:
-                continue
-            amt = row[amt_i]
-            if not isinstance(amt, (int, float)):
-                continue
-            key = tuple(row[idx[c]] if c in idx else None
-                        for c in ["CompanyCode", "agrupador_fpa", "FiscalPeriod", "vertical", "ProfitCenter"])
-            agg[key] += float(amt)
-        wb.close()
-        print(f"SAP agregado: {len(agg)} grupos")
-        records = [{"CompanyCode": k[0], "agrupador_fpa": k[1], "FiscalPeriod": k[2],
-                    "vertical": k[3], "ProfitCenter": k[4],
-                    "AmountInCompanyCodeCurrency": v} for k, v in agg.items()]
-        df = pd.DataFrame(records)
+        print("Carregando sap_agg.csv...")
+        df = pd.read_csv("sap_agg.csv")
         df["CompanyCode"] = df["CompanyCode"].map(COMPANY_NAMES).fillna(df["CompanyCode"])
         for col in ["CompanyCode", "agrupador_fpa", "vertical", "ProfitCenter"]:
             if col in df.columns:
                 df[col] = df[col].astype("category")
         df["AmountInCompanyCodeCurrency"] = df["AmountInCompanyCodeCurrency"].astype("float32")
+        print(f"SAP carregado: {len(df)} linhas")
         _cache["sap"] = df
     return _cache["sap"]
 
 def get_nexus() -> pd.DataFrame:
     if _cache["nexus"] is None:
-        if not os.path.exists("nexus.xlsx"):
-            gdown.download(id=NEXUS_ID, output="nexus.xlsx", quiet=False, fuzzy=True)
-        print("Lendo Nexus via streaming...")
-        from collections import defaultdict
-        header, rows, wb = _stream_excel("nexus.xlsx", sheet_name="Nexus_Consolidado")
-        # Detecta índices por nome parcial/exato
-        def fi(kw): return next((i for i, c in enumerate(header) if kw in c), None)
-        idx = {
-            "tipo":     fi("[Tipo]"),
-            "moeda":    fi("[Moeda]"),
-            "empresa":  fi("[Empresa]"),
-            "vertical": fi("[Vertical]"),
-            "stream":   fi("[Stream]"),
-            "valor":    fi("[Valor]"),
-            "comp":     fi("ompet"),
-            "agrup":    fi("grupador"),
-        }
-        print(f"Nexus índices: {idx}")
-        agg = defaultdict(float)
-        for row in rows:
-            vi = idx["valor"]
-            if vi is None:
-                continue
-            val = row[vi]
-            if not isinstance(val, (int, float)):
-                continue
-            ci = idx["comp"]
-            ano, periodo = _comp_to_periodo(row[ci] if ci is not None else None)
-            if periodo is None:
-                continue
-            key = (
-                row[idx["tipo"]]     if idx["tipo"]     is not None else None,
-                row[idx["moeda"]]    if idx["moeda"]    is not None else None,
-                row[idx["empresa"]]  if idx["empresa"]  is not None else None,
-                row[idx["vertical"]] if idx["vertical"] is not None else None,
-                row[idx["stream"]]   if idx["stream"]   is not None else None,
-                row[idx["agrup"]]    if idx["agrup"]    is not None else None,
-                periodo, ano,
-            )
-            agg[key] += float(val)
-        wb.close()
-        print(f"Nexus agregado: {len(agg)} grupos")
-        records = [{"[Tipo]": k[0], "[Moeda]": k[1], "[Empresa]": k[2],
-                    "[Vertical]": k[3], "[Stream]": k[4], "[Agrupador FP&A - COA]": k[5],
-                    "Período": k[6], "Ano": k[7], "[Valor]": v} for k, v in agg.items()]
-        df = pd.DataFrame(records)
+        print("Carregando nexus_agg.csv...")
+        df = pd.read_csv("nexus_agg.csv")
+        df = df.rename(columns={"Agrupador": "[Agrupador FP&A - COA]", "Periodo": "Período"})
+        if "Ano" in df.columns:
+            df["Ano"] = pd.to_numeric(df["Ano"], errors="coerce").astype("Int16")
+        df["[Valor]"] = df["[Valor]"].astype("float32")
         for col in ["[Tipo]", "[Moeda]", "[Empresa]", "[Vertical]", "[Stream]",
                     "[Agrupador FP&A - COA]", "Período"]:
             if col in df.columns:
                 df[col] = df[col].astype("category")
-        if "Ano" in df.columns and df["Ano"].notna().any():
-            df["Ano"] = df["Ano"].astype("int16")
-        df["[Valor]"] = df["[Valor]"].astype("float32")
+        print(f"Nexus carregado: {len(df)} linhas")
+        print(f"  Tipos: {df['[Tipo]'].dropna().unique().tolist()}")
+        print(f"  Moedas: {df['[Moeda]'].dropna().unique().tolist()}")
         _cache["nexus"] = df
     return _cache["nexus"]
 
@@ -551,11 +463,9 @@ def _filter_nexus(df, anos="", tipo="Actual", empresas="", streams=""):
         if not mask.any():
             mask = df["[Tipo]"].astype(str).str.lower() == tipo.lower()
         df = df[mask]
-    # Filtro de moeda: só aplica se existir coluna com valor BRL
+    # Filtro de moeda: filtra BRL (e BLR, typo no dado)
     if "[Moeda]" in df.columns:
-        moedas = df["[Moeda]"].dropna().astype(str).unique().tolist()
-        if "BRL" in moedas:
-            df = df[df["[Moeda]"].astype(str) == "BRL"]
+        df = df[df["[Moeda]"].astype(str).isin(["BRL", "BLR"])]
     return df
 
 @app.get("/api/dre")
