@@ -185,7 +185,7 @@ export default function Dashboard() {
                 styles={{ body: { padding: "2.5rem 2rem" } }}
               >
                 <div style={{ fontSize: 52, marginBottom: 16 }}>🏢</div>
-                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Cockpit Financeiro</Title>
+                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Financeiro</Title>
                 <Text type="secondary">DRE, P&L por Stream, Matricial e Base SAP S4</Text>
               </Card>
 
