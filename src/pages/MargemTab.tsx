@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table, Spin, message, Button, Typography, Breadcrumb } from "antd";
+import { Select, Table, Spin, message, Button, Typography, Breadcrumb, Card, Statistic } from "antd";
 import { HomeOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas } from "../api";
 
@@ -235,6 +235,34 @@ export default function MargemTab() {
           * Custo rateado disponível para out–dez/2025. Períodos sem custo exibem receita apenas.
         </Text>
       </div>
+
+      {!selectedPep && (() => {
+        const receita       = projetos.reduce((s, r) => s + (Number(r.receita)       || 0), 0);
+        const custo_rateado = projetos.reduce((s, r) => s + (Number(r.custo_rateado) || 0), 0);
+        const margem        = projetos.reduce((s, r) => s + (Number(r.margem)        || 0), 0);
+        const margem_pct    = receita !== 0 ? margem / receita : 0;
+        return (
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+            {[
+              { label: "Receita Total",    value: receita,       color: "#1a2e5a", fmt: "brl" },
+              { label: "Custo Rateado",    value: custo_rateado, color: custo_rateado < 0 ? "#c0392b" : "#1a2e5a", fmt: "brl" },
+              { label: "Margem Bruta",     value: margem,        color: margem < 0 ? "#c0392b" : "#0a7a3e", fmt: "brl" },
+              { label: "Margem %",         value: margem_pct,    color: margem_pct < 0.1 ? "#c0392b" : margem_pct < 0.3 ? "#856404" : "#0a7a3e", fmt: "pct" },
+            ].map(k => (
+              <Card key={k.label} style={{ flex: 1, minWidth: 170, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+                styles={{ body: { padding: "1rem 1.2rem", textAlign: "center" } }}>
+                <Statistic
+                  title={<span style={{ color: "#6b7fa3", fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{k.label}</span>}
+                  value={k.fmt === "pct"
+                    ? `${(k.value * 100).toFixed(1)}%`
+                    : `R$ ${k.value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                  valueStyle={{ color: k.color, fontSize: "1.25rem", fontWeight: 700 }}
+                />
+              </Card>
+            ))}
+          </div>
+        );
+      })()}
 
       <Breadcrumb items={breadcrumb} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 16 }} />
 
