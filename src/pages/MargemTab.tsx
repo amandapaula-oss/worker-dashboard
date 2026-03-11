@@ -71,58 +71,54 @@ export default function MargemTab() {
   }, [selectedPep, selEmpresas]);
 
   const colProjetos = [
-    { title: "PEP", dataIndex: "pep", key: "pep", width: 190 },
-    { title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120 },
     {
-      title: "Receita",
-      dataIndex: "receita",
-      key: "receita",
-      width: 155,
+      title: "PEP", dataIndex: "pep", key: "pep", width: 190,
+      sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)),
+    },
+    {
+      title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true,
+      sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente)),
+    },
+    {
+      title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120,
+      sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)),
+    },
+    {
+      title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
       render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
-      title: "Custo Rateado",
-      dataIndex: "custo_rateado",
-      key: "custo_rateado",
-      width: 155,
+      title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
       align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
       render: (v: number) => (
         <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>
       ),
     },
     {
-      title: "Margem (R$)",
-      dataIndex: "margem",
-      key: "margem",
-      width: 155,
+      title: "Margem (R$)", dataIndex: "margem", key: "margem", width: 155,
       align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.margem) || 0) - (Number(b.margem) || 0),
       render: (v: number) => (
         <span style={{ color: v < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v)}</span>
       ),
     },
     {
-      title: "Margem %",
-      dataIndex: "margem_pct",
-      key: "margem_pct",
-      width: 100,
+      title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100,
       align: "center" as const,
-      render: (v: number | "") => <MargemTag value={v} />,
       sorter: (a: any, b: any) => (Number(a.margem_pct) || 0) - (Number(b.margem_pct) || 0),
+      render: (v: number | "") => <MargemTag value={v} />,
     },
     {
-      title: "Horas",
-      dataIndex: "horas_total",
-      key: "horas_total",
-      width: 80,
+      title: "Horas", dataIndex: "horas_total", key: "horas_total", width: 80,
       align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.horas_total) || 0) - (Number(b.horas_total) || 0),
       render: (v: number) => v > 0 ? v.toLocaleString("pt-BR") : "—",
     },
     {
-      title: "",
-      key: "action",
-      width: 90,
+      title: "", key: "action", width: 90,
       render: (_: any, row: any) =>
         row.horas_total > 0 ? (
           <Button size="small" type="link"
@@ -134,51 +130,50 @@ export default function MargemTab() {
   ];
 
   const colPessoas = [
-    { title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true },
-    { title: "CPF", dataIndex: "cpf", key: "cpf", width: 160 },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120 },
     {
-      title: "Horas",
-      dataIndex: "horas",
-      key: "horas",
-      width: 80,
+      title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true,
+      sorter: (a: any, b: any) => String(a.nome).localeCompare(String(b.nome)),
+    },
+    {
+      title: "CPF", dataIndex: "cpf", key: "cpf", width: 160,
+      sorter: (a: any, b: any) => String(a.cpf).localeCompare(String(b.cpf)),
+    },
+    {
+      title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120,
+      sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)),
+    },
+    {
+      title: "Horas", dataIndex: "horas", key: "horas", width: 80,
       align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.horas) || 0) - (Number(b.horas) || 0),
       render: (v: number) => v > 0 ? v.toLocaleString("pt-BR") : "—",
     },
     {
-      title: "Receita",
-      dataIndex: "receita",
-      key: "receita",
-      width: 155,
+      title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
       render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
-      title: "Custo Rateado",
-      dataIndex: "custo_rateado",
-      key: "custo_rateado",
-      width: 155,
+      title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
       align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
       render: (v: number) => (
         <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>
       ),
     },
     {
-      title: "Margem (R$)",
-      dataIndex: "margem",
-      key: "margem",
-      width: 155,
+      title: "Margem (R$)", dataIndex: "margem", key: "margem", width: 155,
       align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.margem) || 0) - (Number(b.margem) || 0),
       render: (v: number) => (
         <span style={{ color: v < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v)}</span>
       ),
     },
     {
-      title: "Margem %",
-      dataIndex: "margem_pct",
-      key: "margem_pct",
-      width: 100,
+      title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100,
       align: "center" as const,
+      sorter: (a: any, b: any) => (Number(a.margem_pct) || 0) - (Number(b.margem_pct) || 0),
       render: (v: number | "") => <MargemTag value={v} />,
     },
   ];
