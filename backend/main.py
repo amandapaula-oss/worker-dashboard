@@ -543,6 +543,61 @@ def get_metas_custo_pessoal(
     agg = agg.sort_values("custo")
     return agg.fillna("").to_dict(orient="records")
 
+# ── RAC Financial ──────────────────────────────────────────────────────────────
+
+_cache_rac: dict = {"proj": None, "pess": None}
+
+def get_rac_proj() -> pd.DataFrame:
+    if _cache_rac["proj"] is None:
+        _cache_rac["proj"] = pd.read_csv("rac_projetos.csv", dtype={"pep": str})
+    return _cache_rac["proj"]
+
+def get_rac_pess() -> pd.DataFrame:
+    if _cache_rac["pess"] is None:
+        _cache_rac["pess"] = pd.read_csv("rac_pessoas.csv", dtype={"pep": str, "cpf": str})
+    return _cache_rac["pess"]
+
+@app.get("/api/rac/filters")
+def get_rac_filters(user=Depends(get_current_user)):
+    df = get_rac_proj()
+    return {
+        "periodos": sorted(df["periodo"].dropna().unique().tolist()),
+        "empresas": sorted(df["empresa"].dropna().unique().tolist()),
+        "tipos":    sorted(df["tipo"].dropna().unique().tolist()),
+    }
+
+@app.get("/api/rac/projetos")
+def get_rac_projetos(
+    periodos: str = "", empresas: str = "", tipos: str = "",
+    user=Depends(get_current_user)
+):
+    df = get_rac_proj()
+    if periodos:
+        df = df[df["periodo"].isin(periodos.split(","))]
+    if empresas:
+        df = df[df["empresa"].isin(empresas.split(","))]
+    if tipos:
+        df = df[df["tipo"].isin(tipos.split(","))]
+    agg = df.groupby(["pep", "nome_cliente", "empresa"], as_index=False)["valor_liquido"].sum()
+    agg = agg.sort_values("valor_liquido", ascending=False)
+    return agg.fillna("").to_dict(orient="records")
+
+@app.get("/api/rac/pessoas")
+def get_rac_pessoas(
+    pep: str = "", periodos: str = "", empresas: str = "",
+    user=Depends(get_current_user)
+):
+    df = get_rac_pess()
+    if pep:
+        df = df[df["pep"] == pep]
+    if periodos:
+        df = df[df["periodo"].isin(periodos.split(","))]
+    if empresas:
+        df = df[df["empresa"].isin(empresas.split(","))]
+    agg = df.groupby(["cpf", "nome", "empresa", "pep"], as_index=False)["valor_liquido"].sum()
+    agg = agg.sort_values("valor_liquido", ascending=False)
+    return agg.fillna("").to_dict(orient="records")
+
 # ── CLT endpoints ──────────────────────────────────────────────────────────────
 
 @app.get("/api/clt/debug")

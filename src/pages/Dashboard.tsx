@@ -9,6 +9,7 @@ import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 import MetasTab from "./MetasTab";
+import RacTab from "./RacTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -216,11 +217,12 @@ export default function Dashboard() {
 
           {section === "metas" && (
             <Tabs
-              defaultActiveKey="metas"
+              defaultActiveKey="rac"
               type="card"
               size="large"
               items={[
-                { key: "metas", label: "🎯 Apuração de Metas", children: <MetasTab /> },
+                { key: "rac",   label: "📂 Receita por Projeto", children: <RacTab /> },
+                { key: "metas", label: "👥 Custo por Pessoa",    children: <MetasTab /> },
               ]}
             />
           )}

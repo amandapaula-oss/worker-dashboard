@@ -107,6 +107,20 @@ export async function getMetasCustoPessoal(params: Record<string, string>) {
   return apiFetch(`/api/metas/custo-pessoal${buildQuery(params)}`);
 }
 
+// ── RAC Financial ─────────────────────────────────────────────────────────────
+
+export async function getRacFilters() {
+  return apiFetch("/api/rac/filters");
+}
+
+export async function getRacProjetos(params: Record<string, string>) {
+  return apiFetch(`/api/rac/projetos${buildQuery(params)}`);
+}
+
+export async function getRacPessoas(params: Record<string, string>) {
+  return apiFetch(`/api/rac/pessoas${buildQuery(params)}`);
+}
+
 // ── CLT ───────────────────────────────────────────────────────────────────────
 
 export async function getCltData(params: Record<string, string>) {
