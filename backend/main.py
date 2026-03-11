@@ -508,6 +508,41 @@ def get_matricial(anos="", tipo="Actual", user=Depends(get_current_user)):
         "pct_cols": list(PCT_ROWS),
     }
 
+# ── Metas endpoints ────────────────────────────────────────────────────────────
+
+_cache_metas: dict = {"df": None}
+
+def get_metas_df() -> pd.DataFrame:
+    if _cache_metas["df"] is None:
+        df = pd.read_csv("metas_custo.csv", dtype={"numero_pessoal": str})
+        _cache_metas["df"] = df
+    return _cache_metas["df"]
+
+@app.get("/api/metas/filters")
+def get_metas_filters(user=Depends(get_current_user)):
+    df = get_metas_df()
+    return {
+        "competencias": sorted(df["competencia"].dropna().unique().tolist()),
+        "empresas":     sorted(df["empresa"].dropna().unique().tolist()),
+        "tipos":        sorted(df["tipo"].dropna().unique().tolist()),
+    }
+
+@app.get("/api/metas/custo-pessoal")
+def get_metas_custo_pessoal(
+    competencias: str = "", empresas: str = "", tipos: str = "",
+    user=Depends(get_current_user)
+):
+    df = get_metas_df()
+    if competencias:
+        df = df[df["competencia"].isin(competencias.split(","))]
+    if empresas:
+        df = df[df["empresa"].isin(empresas.split(","))]
+    if tipos:
+        df = df[df["tipo"].isin(tipos.split(","))]
+    agg = df.groupby(["numero_pessoal", "nome", "empresa", "tipo"], as_index=False)["custo"].sum()
+    agg = agg.sort_values("custo")
+    return agg.fillna("").to_dict(orient="records")
+
 # ── CLT endpoints ──────────────────────────────────────────────────────────────
 
 @app.get("/api/clt/debug")

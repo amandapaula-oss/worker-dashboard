@@ -8,6 +8,7 @@ import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
+import MetasTab from "./MetasTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -214,9 +215,14 @@ export default function Dashboard() {
           )}
 
           {section === "metas" && (
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "40vh" }}>
-              <Text type="secondary" style={{ fontSize: "1.1rem" }}>Em construção 🚧</Text>
-            </div>
+            <Tabs
+              defaultActiveKey="metas"
+              type="card"
+              size="large"
+              items={[
+                { key: "metas", label: "🎯 Apuração de Metas", children: <MetasTab /> },
+              ]}
+            />
           )}
 
           {section === "cockpit" && (

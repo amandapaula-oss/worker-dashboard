@@ -1,0 +1,109 @@
+import React, { useEffect, useState } from "react";
+import { Select, Table, Spin, message } from "antd";
+import { getMetasFilters, getMetasCustoPessoal } from "../api";
+
+const labelStyle: React.CSSProperties = {
+  color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
+  textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
+};
+
+export default function MetasTab() {
+  const [filters, setFilters] = useState<{ competencias: string[]; empresas: string[]; tipos: string[] }>({ competencias: [], empresas: [], tipos: [] });
+  const [selComp, setSelComp] = useState<string[]>([]);
+  const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
+  const [selTipos, setSelTipos] = useState<string[]>([]);
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtersReady, setFiltersReady] = useState(false);
+
+  useEffect(() => {
+    getMetasFilters()
+      .then(f => {
+        setFilters(f);
+        setSelComp(f.competencias);
+        setSelEmpresas(f.empresas);
+        setSelTipos(f.tipos);
+        setFiltersReady(true);
+      })
+      .catch(() => { message.error("Erro ao carregar filtros"); setLoading(false); });
+  }, []);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+    setLoading(true);
+    const params: Record<string, string> = {};
+    if (selComp.length) params.competencias = selComp.join(",");
+    if (selEmpresas.length) params.empresas = selEmpresas.join(",");
+    if (selTipos.length) params.tipos = selTipos.join(",");
+    getMetasCustoPessoal(params)
+      .then(d => setData(d))
+      .catch(() => message.error("Erro ao carregar dados"))
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersReady, selComp, selEmpresas, selTipos]);
+
+  const columns = [
+    { title: "Nº Pessoal", dataIndex: "numero_pessoal", key: "id", width: 120 },
+    { title: "Nome",       dataIndex: "nome",            key: "nome", ellipsis: true },
+    { title: "Empresa",    dataIndex: "empresa",         key: "empresa", width: 130 },
+    { title: "Tipo",       dataIndex: "tipo",            key: "tipo", width: 80 },
+    {
+      title: "Custo",
+      dataIndex: "custo",
+      key: "custo",
+      width: 150,
+      align: "right" as const,
+      render: (v: number) => (
+        <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>
+          {v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={labelStyle}>Competência</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selComp} onChange={setSelComp}
+            options={filters.competencias.map(c => ({ label: c, value: c }))} maxTagCount="responsive" />
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={labelStyle}>Empresa</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas} onChange={setSelEmpresas}
+            options={filters.empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
+        </div>
+        <div style={{ flex: 0, minWidth: 140 }}>
+          <div style={labelStyle}>Tipo</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selTipos} onChange={setSelTipos}
+            options={filters.tipos.map(t => ({ label: t, value: t }))} maxTagCount="responsive" />
+        </div>
+      </div>
+
+      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+        <Table
+          dataSource={data.map((d, i) => ({ ...d, key: i }))}
+          columns={columns}
+          pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+          size="small"
+          scroll={{ x: "max-content" }}
+          style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+          summary={rows => {
+            const total = rows.reduce((s, r) => s + (r.custo as number), 0);
+            return (
+              <Table.Summary.Row style={{ background: "#dce6f7", fontWeight: 700 }}>
+                <Table.Summary.Cell index={0} colSpan={4}>Total</Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align="right">
+                  <span style={{ color: total < 0 ? "#c0392b" : "#1a2e5a" }}>
+                    {total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </span>
+                </Table.Summary.Cell>
+              </Table.Summary.Row>
+            );
+          }}
+        />
+      )}
+    </div>
+  );
+}

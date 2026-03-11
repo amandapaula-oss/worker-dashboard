@@ -97,6 +97,16 @@ export async function getMatricial(params: Record<string, string>) {
   return apiFetch(`/api/matricial${buildQuery(params)}`);
 }
 
+// ── Metas ─────────────────────────────────────────────────────────────────────
+
+export async function getMetasFilters() {
+  return apiFetch("/api/metas/filters");
+}
+
+export async function getMetasCustoPessoal(params: Record<string, string>) {
+  return apiFetch(`/api/metas/custo-pessoal${buildQuery(params)}`);
+}
+
 // ── CLT ───────────────────────────────────────────────────────────────────────
 
 export async function getCltData(params: Record<string, string>) {
