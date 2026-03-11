@@ -677,46 +677,75 @@ def get_razao_filters(user=Depends(get_current_user)):
 @app.get("/api/razao/comparativo")
 def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
     razao = get_razao()
-    margem = get_margem_proj()
+    pess  = get_margem_pess()
 
     sel_periodos = [p for p in periodos.split(",") if p] if periodos else []
     sel_empresas = [e for e in empresas.split(",") if e] if empresas else []
 
     if sel_periodos:
-        razao  = razao[razao["periodo"].isin(sel_periodos)]
-        margem = margem[margem["periodo"].isin(sel_periodos)]
+        razao = razao[razao["periodo"].isin(sel_periodos)]
+        pess  = pess[pess["periodo"].isin(sel_periodos)]
     if sel_empresas:
-        razao  = razao[razao["empresa"].isin(sel_empresas)]
-        margem = margem[margem["empresa"].isin(sel_empresas)]
+        razao = razao[razao["empresa"].isin(sel_empresas)]
+        pess  = pess[pess["empresa"].isin(sel_empresas)]
 
-    RECEITA_AGR = ["Net Revenue"]
-    CUSTO_AGR   = ["Payroll costs", "Third-party costs"]
-
+    # Razão: receita, payroll (CLT), third-party (PJ)
     razao_receita = (
-        razao[razao["agrupador_fpa"].isin(RECEITA_AGR)]
+        razao[razao["agrupador_fpa"] == "Net Revenue"]
         .groupby(["empresa","periodo"], as_index=False)["AmountInCompanyCodeCurrency"]
         .sum().rename(columns={"AmountInCompanyCodeCurrency": "receita_razao"})
     )
-    razao_custo = (
-        razao[razao["agrupador_fpa"].isin(CUSTO_AGR)]
+    razao_payroll = (
+        razao[razao["agrupador_fpa"] == "Payroll costs"]
         .groupby(["empresa","periodo"], as_index=False)["AmountInCompanyCodeCurrency"]
-        .sum().rename(columns={"AmountInCompanyCodeCurrency": "custo_razao"})
+        .sum().rename(columns={"AmountInCompanyCodeCurrency": "payroll_razao"})
+    )
+    razao_3p = (
+        razao[razao["agrupador_fpa"] == "Third-party costs"]
+        .groupby(["empresa","periodo"], as_index=False)["AmountInCompanyCodeCurrency"]
+        .sum().rename(columns={"AmountInCompanyCodeCurrency": "thirdparty_razao"})
     )
 
-    margem_agg = margem.groupby(["empresa","periodo"], as_index=False).agg(
-        receita      =("receita",       "sum"),
-        custo_rateado=("custo_rateado", "sum"),
-        margem       =("margem",        "sum"),
+    # Nossos dados: PJ = CPF começa com BRCPF, CLT = resto
+    metas = read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str})
+    pj_cpfs = set(metas[metas["tipo"] == "PJ"]["numero_pessoal"].dropna().unique())
+
+    pess["is_pj"] = pess["cpf"].isin(pj_cpfs)
+
+    custo_pj = (
+        pess[pess["is_pj"]]
+        .groupby(["empresa","periodo"], as_index=False)["custo_rateado"]
+        .sum().rename(columns={"custo_rateado": "custo_pj"})
+    )
+    custo_clt = (
+        pess[~pess["is_pj"]]
+        .groupby(["empresa","periodo"], as_index=False)["custo_rateado"]
+        .sum().rename(columns={"custo_rateado": "custo_clt"})
+    )
+    receita_rac = (
+        pess.groupby(["empresa","periodo"], as_index=False)["receita"]
+        .sum()
     )
 
-    df = razao_receita.merge(razao_custo, on=["empresa","periodo"], how="outer")
-    df = df.merge(margem_agg, on=["empresa","periodo"], how="outer")
+    # Merge tudo
+    df = razao_receita \
+        .merge(razao_payroll,  on=["empresa","periodo"], how="outer") \
+        .merge(razao_3p,       on=["empresa","periodo"], how="outer") \
+        .merge(receita_rac,    on=["empresa","periodo"], how="outer") \
+        .merge(custo_clt,      on=["empresa","periodo"], how="outer") \
+        .merge(custo_pj,       on=["empresa","periodo"], how="outer")
+
     df = df.fillna(0)
 
-    df["margem_razao"] = df["receita_razao"] + df["custo_razao"]
-    df["diff_receita"] = df["receita"]       - df["receita_razao"]
-    df["diff_custo"]   = df["custo_rateado"] - df["custo_razao"]
-    df["diff_margem"]  = df["margem"]        - df["margem_razao"]
+    df["custo_total_rac"]    = df["custo_clt"] + df["custo_pj"]
+    df["custo_total_razao"]  = df["payroll_razao"] + df["thirdparty_razao"]
+    df["margem_rac"]         = df["receita"] + df["custo_total_rac"]
+    df["margem_razao"]       = df["receita_razao"] + df["custo_total_razao"]
+
+    df["diff_receita"]  = df["receita"]    - df["receita_razao"]
+    df["diff_clt"]      = df["custo_clt"]  - df["payroll_razao"]
+    df["diff_pj"]       = df["custo_pj"]   - df["thirdparty_razao"]
+    df["diff_margem"]   = df["margem_rac"] - df["margem_razao"]
 
     df = df.sort_values(["periodo","empresa"])
     return df.to_dict(orient="records")
