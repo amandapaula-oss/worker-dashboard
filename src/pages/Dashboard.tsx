@@ -10,6 +10,7 @@ import SapTab from "./SapTab";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 import MetasTab from "./MetasTab";
 import RacTab from "./RacTab";
+import MargemTab from "./MargemTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -221,8 +222,9 @@ export default function Dashboard() {
               type="card"
               size="large"
               items={[
-                { key: "rac",   label: "📂 Receita por Projeto", children: <RacTab /> },
-                { key: "metas", label: "👥 Custo por Pessoa",    children: <MetasTab /> },
+                { key: "margem", label: "📊 Margem por Projeto",  children: <MargemTab /> },
+                { key: "rac",    label: "📂 Receita por Projeto", children: <RacTab /> },
+                { key: "metas",  label: "👥 Custo por Pessoa",    children: <MetasTab /> },
               ]}
             />
           )}

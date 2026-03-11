@@ -598,6 +598,63 @@ def get_rac_pessoas(
     agg = agg.sort_values("valor_liquido", ascending=False)
     return agg.fillna("").to_dict(orient="records")
 
+# ── Margem por Projeto ─────────────────────────────────────────────────────────
+
+_cache_margem: dict = {"proj": None, "pess": None}
+
+def get_margem_proj() -> pd.DataFrame:
+    if _cache_margem["proj"] is None:
+        _cache_margem["proj"] = pd.read_csv("margem_projetos.csv", dtype={"pep": str})
+    return _cache_margem["proj"]
+
+def get_margem_pess() -> pd.DataFrame:
+    if _cache_margem["pess"] is None:
+        _cache_margem["pess"] = pd.read_csv("margem_pessoas.csv", dtype={"pep": str, "cpf": str})
+    return _cache_margem["pess"]
+
+@app.get("/api/margem/filters")
+def get_margem_filters(user=Depends(get_current_user)):
+    df = get_margem_proj()
+    return {
+        "empresas": sorted(df["empresa"].dropna().unique().tolist()),
+    }
+
+@app.get("/api/margem/projetos")
+def get_margem_projetos(empresas: str = "", user=Depends(get_current_user)):
+    df = get_margem_proj()
+    if empresas:
+        df = df[df["empresa"].isin(empresas.split(","))]
+    agg = df.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(
+        receita      =("receita",       "sum"),
+        custo_rateado=("custo_rateado", "sum"),
+        horas_total  =("horas_total",   "sum"),
+        margem       =("margem",        "sum"),
+    )
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+    )
+    agg = agg.sort_values("receita", ascending=False)
+    return agg.fillna("").to_dict(orient="records")
+
+@app.get("/api/margem/pessoas")
+def get_margem_pessoas(pep: str = "", empresas: str = "", user=Depends(get_current_user)):
+    df = get_margem_pess()
+    if pep:
+        df = df[df["pep"] == pep]
+    if empresas:
+        df = df[df["empresa"].isin(empresas.split(","))]
+    agg = df.groupby(["pep","cpf","nome","empresa"], as_index=False).agg(
+        receita      =("receita",       "sum"),
+        custo_rateado=("custo_rateado", "sum"),
+        horas        =("horas",         "sum"),
+        margem       =("margem",        "sum"),
+    )
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+    )
+    agg = agg.sort_values("receita", ascending=False)
+    return agg.fillna("").to_dict(orient="records")
+
 # ── CLT endpoints ──────────────────────────────────────────────────────────────
 
 @app.get("/api/clt/debug")

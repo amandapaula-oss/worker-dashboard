@@ -121,6 +121,20 @@ export async function getRacPessoas(params: Record<string, string>) {
   return apiFetch(`/api/rac/pessoas${buildQuery(params)}`);
 }
 
+// ── Margem ────────────────────────────────────────────────────────────────────
+
+export async function getMargemFilters() {
+  return apiFetch("/api/margem/filters");
+}
+
+export async function getMargemProjetos(params: Record<string, string>) {
+  return apiFetch(`/api/margem/projetos${buildQuery(params)}`);
+}
+
+export async function getMargemPessoas(params: Record<string, string>) {
+  return apiFetch(`/api/margem/pessoas${buildQuery(params)}`);
+}
+
 // ── CLT ───────────────────────────────────────────────────────────────────────
 
 export async function getCltData(params: Record<string, string>) {
