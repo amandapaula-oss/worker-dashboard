@@ -75,6 +75,8 @@ for _, row in df_pj.iterrows():
         competencia = f"{comp.year}-{comp.month:02d}"
     except Exception:
         continue
+    if competencia < "2025-10":
+        continue
     try:
         valor_str = str(row["valor_a_pagar"]).strip().replace(".", "").replace(",", ".")
         valor = -abs(float(valor_str))

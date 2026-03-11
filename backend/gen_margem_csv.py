@@ -65,6 +65,7 @@ te["empresa"]  = te["empresa_cod"].map(COMPANY_NAMES).fillna(te["empresa_cod"])
 te["cpf"]      = te["cpf_raw"].astype(str).str.strip()
 te["nome_norm"] = te["nome_raw"].apply(norm_nome)
 te = te.dropna(subset=["periodo"])
+te = te[te["periodo"] <= "2025-12"]
 print(f"  {len(te)} linhas com {te['pep'].nunique()} projetos únicos")
 
 # ── 2. Ler metas_custo (custo CLT + PJ por pessoa/mês) ────────────────────────
@@ -187,6 +188,8 @@ fw = fw.rename(columns={"Período":"periodo_raw","EMPRESA":"empresa_cod","PEP":"
 fw = fw[["periodo_raw","empresa_cod","pep","nome_cliente","receita"]].dropna(subset=["pep","receita"])
 fw = fw[pd.to_numeric(fw["receita"], errors="coerce").notna()]
 fw["receita"] = fw["receita"].astype(float)
+fw["periodo"] = fw["periodo_raw"].apply(fmt_periodo)
+fw = fw[fw["periodo"] <= "2025-12"]
 fw["empresa"] = fw["empresa_cod"].map(COMPANY_NAMES).fillna(fw["empresa_cod"])
 fw_agg = fw.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(receita=("receita","sum"))
 fw_agg["custo_rateado"] = 0.0
@@ -202,6 +205,8 @@ ub = ub.rename(columns={"Período":"periodo_raw","EMPRESA":"empresa_cod","PEP":"
 ub = ub[["periodo_raw","empresa_cod","pep","nome_cliente","receita"]].dropna(subset=["pep","receita"])
 ub = ub[pd.to_numeric(ub["receita"], errors="coerce").notna()]
 ub["receita"] = ub["receita"].astype(float)
+ub["periodo"] = ub["periodo_raw"].apply(fmt_periodo)
+ub = ub[ub["periodo"] <= "2025-12"]
 ub["empresa"] = ub["empresa_cod"].map(COMPANY_NAMES).fillna(ub["empresa_cod"])
 ub_agg = ub.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(receita=("receita","sum"))
 ub_agg["custo_rateado"] = 0.0

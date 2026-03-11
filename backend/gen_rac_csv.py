@@ -51,6 +51,7 @@ te["periodo"] = te["periodo_raw"].apply(fmt_periodo)
 te["empresa"] = te["empresa_cod"].map(COMPANY_NAMES).fillna(te["empresa_cod"])
 te["tipo"] = "TimeAndExpenses"
 te = te.dropna(subset=["periodo"])
+te = te[te["periodo"] <= "2025-12"]
 
 # projetos (nível PEP)
 for _, row in te.iterrows():
@@ -85,6 +86,7 @@ fw["valor_liquido"] = fw["valor_liquido"].astype(float)
 fw["periodo"] = fw["periodo_raw"].apply(fmt_periodo)
 fw["empresa"] = fw["empresa_cod"].map(COMPANY_NAMES).fillna(fw["empresa_cod"])
 fw = fw.dropna(subset=["periodo"])
+fw = fw[fw["periodo"] <= "2025-12"]
 
 for _, row in fw.iterrows():
     records_proj.append({
@@ -109,6 +111,7 @@ ub["valor_liquido"] = ub["valor_liquido"].astype(float)
 ub["periodo"] = ub["periodo_raw"].apply(fmt_periodo)
 ub["empresa"] = ub["empresa_cod"].map(COMPANY_NAMES).fillna(ub["empresa_cod"])
 ub = ub.dropna(subset=["periodo"])
+ub = ub[ub["periodo"] <= "2025-12"]
 
 for _, row in ub.iterrows():
     records_proj.append({
