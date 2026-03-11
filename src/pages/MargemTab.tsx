@@ -117,16 +117,6 @@ export default function MargemTab() {
       sorter: (a: any, b: any) => (Number(a.horas_total) || 0) - (Number(b.horas_total) || 0),
       render: (v: number) => v > 0 ? v.toLocaleString("pt-BR") : "—",
     },
-    {
-      title: "", key: "action", width: 90,
-      render: (_: any, row: any) =>
-        row.horas_total > 0 ? (
-          <Button size="small" type="link"
-            onClick={() => setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente })}>
-            Ver pessoas
-          </Button>
-        ) : null,
-    },
   ];
 
   const colPessoas = [
@@ -290,7 +280,11 @@ export default function MargemTab() {
           size="small"
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-          summary={rows => summaryRow([...rows], 3, 2)}
+          onRow={row => ({
+            onClick: () => row.horas_total > 0 && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
+            style: { cursor: row.horas_total > 0 ? "pointer" : "default" },
+          })}
+          summary={rows => summaryRow([...rows], 3, 1)}
         />
       )}
     </div>
