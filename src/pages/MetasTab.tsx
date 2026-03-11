@@ -83,25 +83,16 @@ export default function MetasTab() {
 
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
         <Table
-          dataSource={data.map((d, i) => ({ ...d, key: i }))}
+          dataSource={(() => {
+            const total = data.reduce((s, r) => s + (Number(r.custo) || 0), 0);
+            return [{ key:"__t__", numero_pessoal:"TOTAL", nome:"", empresa:"", tipo:"", custo: total, _isTotal:true }, ...data.map((d,i)=>({...d,key:i}))];
+          })()}
           columns={columns}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-          summary={rows => {
-            const total = rows.reduce((s, r) => s + (r.custo as number), 0);
-            return (
-              <Table.Summary.Row style={{ background: "#dce6f7", fontWeight: 700 }}>
-                <Table.Summary.Cell index={0} colSpan={4}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} align="right">
-                  <span style={{ color: total < 0 ? "#c0392b" : "#1a2e5a" }}>
-                    {total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </span>
-                </Table.Summary.Cell>
-              </Table.Summary.Row>
-            );
-          }}
+          onRow={row => row._isTotal ? { style: { background: "#dce6f7", fontWeight: 700 } } : {}}
         />
       )}
     </div>

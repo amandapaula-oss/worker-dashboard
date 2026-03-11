@@ -310,28 +310,38 @@ export default function MargemTab() {
             Voltar para projetos
           </Button>
           <Table
-            dataSource={pessoas.map((d, i) => ({ ...d, key: i }))}
+            dataSource={(() => {
+              const rec = pessoas.reduce((s,r)=>s+(Number(r.receita)||0),0);
+              const cus = pessoas.reduce((s,r)=>s+(Number(r.custo_rateado)||0),0);
+              const mar = pessoas.reduce((s,r)=>s+(Number(r.margem)||0),0);
+              return [{ key:"__t__", nome:"TOTAL", cpf:"", empresa:"", horas:0, receita:rec, custo_rateado:cus, margem:mar, margem_pct: rec!==0?mar/rec:null, _isTotal:true }, ...pessoas.map((d,i)=>({...d,key:i}))];
+            })()}
             columns={colPessoas}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
             style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-            summary={rows => summaryRow([...rows], 3, 0)}
+            onRow={row => row._isTotal ? { style: { background: "#dce6f7", fontWeight: 700 } } : {}}
           />
         </>
       ) : (
         <Table
-          dataSource={filteredProjetos.map((d, i) => ({ ...d, key: i }))}
+          dataSource={(() => {
+            const rec = filteredProjetos.reduce((s,r)=>s+(Number(r.receita)||0),0);
+            const cus = filteredProjetos.reduce((s,r)=>s+(Number(r.custo_rateado)||0),0);
+            const mar = filteredProjetos.reduce((s,r)=>s+(Number(r.margem)||0),0);
+            const pct = rec!==0 ? mar/rec : null;
+            return [{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, horas_total:0, _isTotal:true }, ...filteredProjetos.map((d,i)=>({...d,key:i}))];
+          })()}
           columns={colProjetos}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
           onRow={row => ({
-            onClick: () => row.horas_total > 0 && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
-            style: { cursor: row.horas_total > 0 ? "pointer" : "default" },
+            onClick: () => !row._isTotal && row.horas_total > 0 && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
+            style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: row.horas_total > 0 ? "pointer" : "default" },
           })}
-          summary={rows => summaryRow([...rows], 3, 1)}
         />
       )}
     </div>

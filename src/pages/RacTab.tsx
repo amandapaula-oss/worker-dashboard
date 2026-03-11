@@ -154,42 +154,27 @@ export default function RacTab() {
             </Button>
           </div>
           <Table
-            dataSource={pessoas.map((d, i) => ({ ...d, key: i }))}
+            dataSource={[{ key:"__t__", cpf:"TOTAL", nome:"", empresa:"", valor_liquido: totalPessoas, _isTotal:true }, ...pessoas.map((d,i)=>({...d,key:i}))]}
             columns={colPessoas}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
             style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-            summary={() => (
-              <Table.Summary.Row style={{ background: "#dce6f7", fontWeight: 700 }}>
-                <Table.Summary.Cell index={0} colSpan={3}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} align="right">
-                  <span style={{ color: totalPessoas < 0 ? "#c0392b" : "#1a2e5a" }}>{brl(totalPessoas)}</span>
-                </Table.Summary.Cell>
-              </Table.Summary.Row>
-            )}
+            onRow={row => row._isTotal ? { style: { background: "#dce6f7", fontWeight: 700 } } : {}}
           />
         </>
       ) : (
         <Table
-          dataSource={projetos.map((d, i) => ({ ...d, key: i }))}
+          dataSource={[{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", valor_liquido: totalProjetos, _isTotal:true }, ...projetos.map((d,i)=>({...d,key:i}))]}
           columns={colProjetos}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
           onRow={row => ({
-            onClick: () => setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
-            style: { cursor: "pointer" },
+            onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
+            style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
           })}
-          summary={() => (
-            <Table.Summary.Row style={{ background: "#dce6f7", fontWeight: 700 }}>
-              <Table.Summary.Cell index={0} colSpan={3}>Total</Table.Summary.Cell>
-              <Table.Summary.Cell index={1} align="right">
-                <span style={{ color: totalProjetos < 0 ? "#c0392b" : "#1a2e5a" }}>{brl(totalProjetos)}</span>
-              </Table.Summary.Cell>
-            </Table.Summary.Row>
-          )}
         />
       )}
     </div>
