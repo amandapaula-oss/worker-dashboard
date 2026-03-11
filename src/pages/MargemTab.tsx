@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { Select, Table, Spin, message, Button, Typography, Breadcrumb, Card, Statistic } from "antd";
-import { HomeOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import React, { useEffect, useState, useMemo } from "react";
+import { Select, Table, Spin, message, Button, Typography, Breadcrumb, Card, Statistic, Input } from "antd";
+import { HomeOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas } from "../api";
 
 const { Text } = Typography;
@@ -37,6 +37,8 @@ export default function MargemTab() {
   const [loading, setLoading]   = useState(true);
 
   const [selectedPep, setSelectedPep] = useState<{ pep: string; nome_cliente: string } | null>(null);
+  const [searchCliente, setSearchCliente] = useState<string>("");
+  const [searchPep, setSearchPep]         = useState<string>("");
 
   useEffect(() => {
     getMargemFilters()
@@ -75,6 +77,19 @@ export default function MargemTab() {
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPep, selPeriodos, selEmpresas]);
+
+  const filteredProjetos = useMemo(() => {
+    let rows = projetos;
+    if (searchCliente.trim()) {
+      const q = searchCliente.trim().toLowerCase();
+      rows = rows.filter(r => String(r.nome_cliente || "").toLowerCase().includes(q));
+    }
+    if (searchPep.trim()) {
+      const q = searchPep.trim().toLowerCase();
+      rows = rows.filter(r => String(r.pep || "").toLowerCase().includes(q));
+    }
+    return rows;
+  }, [projetos, searchCliente, searchPep]);
 
   const colProjetos = [
     {
@@ -233,15 +248,35 @@ export default function MargemTab() {
             onChange={v => { setSelEmpresas(v); setSelectedPep(null); }}
             options={empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
         </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={labelStyle}>Cliente</div>
+          <Input
+            allowClear
+            placeholder="Buscar cliente..."
+            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+            value={searchCliente}
+            onChange={e => { setSearchCliente(e.target.value); setSelectedPep(null); }}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={labelStyle}>Projeto (PEP)</div>
+          <Input
+            allowClear
+            placeholder="Buscar PEP..."
+            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+            value={searchPep}
+            onChange={e => { setSearchPep(e.target.value); setSelectedPep(null); }}
+          />
+        </div>
         <Text type="secondary" style={{ fontSize: "0.78rem", paddingBottom: 2 }}>
           * Custo rateado disponível para out–dez/2025. Períodos sem custo exibem receita apenas.
         </Text>
       </div>
 
       {!selectedPep && (() => {
-        const receita       = projetos.reduce((s, r) => s + (Number(r.receita)       || 0), 0);
-        const custo_rateado = projetos.reduce((s, r) => s + (Number(r.custo_rateado) || 0), 0);
-        const margem        = projetos.reduce((s, r) => s + (Number(r.margem)        || 0), 0);
+        const receita       = filteredProjetos.reduce((s, r) => s + (Number(r.receita)       || 0), 0);
+        const custo_rateado = filteredProjetos.reduce((s, r) => s + (Number(r.custo_rateado) || 0), 0);
+        const margem        = filteredProjetos.reduce((s, r) => s + (Number(r.margem)        || 0), 0);
         const margem_pct    = receita !== 0 ? margem / receita : 0;
         return (
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
@@ -286,7 +321,7 @@ export default function MargemTab() {
         </>
       ) : (
         <Table
-          dataSource={projetos.map((d, i) => ({ ...d, key: i }))}
+          dataSource={filteredProjetos.map((d, i) => ({ ...d, key: i }))}
           columns={colProjetos}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
