@@ -662,17 +662,21 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
 # ── Razão / Check Lucas endpoints ─────────────────────────────────────────────
 
 def get_razao() -> pd.DataFrame:
-    df = read_csv_cached("razao_agg.csv")
-    df["periodo"] = df.apply(lambda r: f"{int(r['FiscalYear'])}-{int(r['FiscalPeriod']):02d}", axis=1)
+    df = read_csv_cached("razao_agg.csv").copy()
+    df["periodo"] = df["FiscalYear"].astype(int).astype(str) + "-" + df["FiscalPeriod"].astype(int).apply(lambda x: f"{x:02d}")
     return df
 
 @app.get("/api/razao/filters")
 def get_razao_filters(user=Depends(get_current_user)):
-    df = get_razao()
-    margem = get_margem_proj()
-    periodos = sorted(set(df["periodo"].unique().tolist()) | set(margem["periodo"].dropna().unique().tolist()))
-    empresas = sorted(set(df["empresa"].dropna().unique().tolist()) | set(margem["empresa"].dropna().unique().tolist()))
-    return {"periodos": periodos, "empresas": empresas}
+    try:
+        df = get_razao()
+        margem = get_margem_proj()
+        periodos = sorted(set(df["periodo"].unique().tolist()) | set(margem["periodo"].dropna().unique().tolist()))
+        empresas = sorted(set(df["empresa"].dropna().unique().tolist()) | set(margem["empresa"].dropna().unique().tolist()))
+        return {"periodos": periodos, "empresas": empresas}
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/razao/comparativo")
 def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
