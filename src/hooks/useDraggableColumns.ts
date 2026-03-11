@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 
 /**
  * Hook que habilita reordenação de colunas por drag-and-drop em tabelas Ant Design.
@@ -7,11 +7,6 @@ import { useState, useRef, useCallback } from "react";
 export function useDraggableColumns<T extends { key?: string | number }>(columns: T[]): T[] {
   const [order, setOrder] = useState<number[]>(() => columns.map((_, i) => i));
   const dragFrom = useRef<number | null>(null);
-
-  const getOrderedIndex = useCallback(
-    (colIndex: number) => order.indexOf(colIndex),
-    [order]
-  );
 
   return order.map((colIdx, orderPos) => {
     const col = columns[colIdx];
