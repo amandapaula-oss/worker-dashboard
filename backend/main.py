@@ -710,7 +710,15 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
         .sum().rename(columns={"AmountInCompanyCodeCurrency": "thirdparty_razao"})
     )
 
-    # Nossos dados: PJ = CPF começa com BRCPF, CLT = resto
+    # Receita RAC vem de margem_projetos (TE + Fee_WIP + UsageBased)
+    proj = get_margem_proj()
+    if sel_periodos:
+        proj = proj[proj["periodo"].isin(sel_periodos)]
+    if sel_empresas:
+        proj = proj[proj["empresa"].isin(sel_empresas)]
+    receita_rac = proj.groupby(["empresa","periodo"], as_index=False)["receita"].sum()
+
+    # Custos RAC: PJ e CLT de margem_pessoas
     metas = read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str})
     pj_cpfs = set(metas[metas["tipo"] == "PJ"]["numero_pessoal"].dropna().unique())
 
@@ -725,10 +733,6 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
         pess[~pess["is_pj"]]
         .groupby(["empresa","periodo"], as_index=False)["custo_rateado"]
         .sum().rename(columns={"custo_rateado": "custo_clt"})
-    )
-    receita_rac = (
-        pess.groupby(["empresa","periodo"], as_index=False)["receita"]
-        .sum()
     )
 
     # Merge tudo
