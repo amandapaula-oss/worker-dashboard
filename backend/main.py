@@ -741,14 +741,18 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
 
     df = df.fillna(0)
 
-    # Inverte sinal dos custos RAC (negativos no sistema → positivos para comparação)
+    # Normaliza sinais: tudo positivo para comparação
+    # Net Revenue na Razão é negativo (convenção contábil) → inverte
+    df["receita_razao"] = df["receita_razao"] * -1
+    # Custos RAC são negativos → inverte
     df["custo_clt"] = df["custo_clt"] * -1
     df["custo_pj"]  = df["custo_pj"]  * -1
+    # Payroll e Third-party na Razão já são positivos ✓
 
-    df["custo_total_rac"]    = df["custo_clt"] + df["custo_pj"]
-    df["custo_total_razao"]  = df["payroll_razao"] + df["thirdparty_razao"]
-    df["margem_rac"]         = df["receita"] - df["custo_total_rac"]
-    df["margem_razao"]       = df["receita_razao"] + df["custo_total_razao"]
+    df["custo_total_rac"]   = df["custo_clt"] + df["custo_pj"]
+    df["custo_total_razao"] = df["payroll_razao"] + df["thirdparty_razao"]
+    df["margem_rac"]        = df["receita"]        - df["custo_total_rac"]
+    df["margem_razao"]      = df["receita_razao"]  - df["custo_total_razao"]
 
     df["diff_receita"]  = df["receita"]    - df["receita_razao"]
     df["diff_clt"]      = df["custo_clt"]  - df["payroll_razao"]
