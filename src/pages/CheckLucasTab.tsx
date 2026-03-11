@@ -195,6 +195,25 @@ export default function CheckLucasTab() {
         ))}
       </div>
 
+      {/* Linha de total */}
+      {!loading && rows.length > 0 && (
+        <div style={{ background: "#dce6f7", border: "1px solid #b8c9e8", borderRadius: 10, padding: "0.75rem 1.2rem", marginBottom: 12, display: "flex", flexWrap: "wrap", gap: 24, fontWeight: 700, fontSize: "0.85rem", color: "#1a2e5a" }}>
+          <span style={{ minWidth: 80 }}>TOTAL</span>
+          <span>Receita RAC: <span style={{ color: "#1a2e5a" }}>{brl(totReceita)}</span></span>
+          <span>Net Revenue: <span style={{ color: "#1a2e5a" }}>{brl(totRecRazao)}</span></span>
+          <span>Δ Receita: <span style={{ color: Math.abs(totReceita - totRecRazao) < 1 ? "#888" : totReceita > totRecRazao ? "#0a7a3e" : "#c0392b" }}>{totReceita - totRecRazao >= 0 ? "+" : ""}{brl(totReceita - totRecRazao)}</span></span>
+          <span style={{ borderLeft: "1px solid #b8c9e8", paddingLeft: 24 }}>Custo CLT: <span style={{ color: totCusClt < 0 ? "#c0392b" : "#1a2e5a" }}>{brl(totCusClt)}</span></span>
+          <span>Payroll: <span style={{ color: totPayroll < 0 ? "#c0392b" : "#1a2e5a" }}>{brl(totPayroll)}</span></span>
+          <span>Δ CLT: <span style={{ color: Math.abs(totCusClt - totPayroll) < 1 ? "#888" : totCusClt > totPayroll ? "#0a7a3e" : "#c0392b" }}>{totCusClt - totPayroll >= 0 ? "+" : ""}{brl(totCusClt - totPayroll)}</span></span>
+          <span style={{ borderLeft: "1px solid #b8c9e8", paddingLeft: 24 }}>Custo PJ: <span style={{ color: totCusPj < 0 ? "#c0392b" : "#1a2e5a" }}>{brl(totCusPj)}</span></span>
+          <span>3P: <span style={{ color: totThirdParty < 0 ? "#c0392b" : "#1a2e5a" }}>{brl(totThirdParty)}</span></span>
+          <span>Δ PJ: <span style={{ color: Math.abs(totCusPj - totThirdParty) < 1 ? "#888" : totCusPj > totThirdParty ? "#0a7a3e" : "#c0392b" }}>{totCusPj - totThirdParty >= 0 ? "+" : ""}{brl(totCusPj - totThirdParty)}</span></span>
+          <span style={{ borderLeft: "1px solid #b8c9e8", paddingLeft: 24 }}>Margem RAC: <span style={{ color: totMargemRac < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(totMargemRac)}</span></span>
+          <span>Margem Razão: <span style={{ color: totMargemRazao < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(totMargemRazao)}</span></span>
+          <span>Δ Margem: <span style={{ color: Math.abs(totMargemRac - totMargemRazao) < 1 ? "#888" : totMargemRac > totMargemRazao ? "#0a7a3e" : "#c0392b" }}>{totMargemRac - totMargemRazao >= 0 ? "+" : ""}{brl(totMargemRac - totMargemRazao)}</span></span>
+        </div>
+      )}
+
       {/* Tabela */}
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
         <Table
