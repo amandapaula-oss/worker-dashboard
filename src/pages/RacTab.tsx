@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table, Spin, message, Button, Typography, Breadcrumb } from "antd";
+import { Select, Table, Spin, message, Button, Breadcrumb } from "antd";
 import { HomeOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { getRacFilters, getRacProjetos, getRacPessoas } from "../api";
 
