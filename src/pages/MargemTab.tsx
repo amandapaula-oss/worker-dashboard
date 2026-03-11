@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table, Spin, message, Button, Typography, Breadcrumb, Tag } from "antd";
+import { Select, Table, Spin, message, Button, Typography, Breadcrumb } from "antd";
 import { HomeOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas } from "../api";
 
@@ -12,11 +12,6 @@ const labelStyle: React.CSSProperties = {
 
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-const pct = (v: number | "") =>
-  v === "" || v === null || v === undefined
-    ? "—"
-    : `${(Number(v) * 100).toFixed(1)}%`;
 
 function MargemTag({ value }: { value: number | "" }) {
   if (value === "" || value === null || value === undefined) return <span>—</span>;

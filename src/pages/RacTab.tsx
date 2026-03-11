@@ -3,7 +3,6 @@ import { Select, Table, Spin, message, Button, Typography, Breadcrumb } from "an
 import { HomeOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { getRacFilters, getRacProjetos, getRacPessoas } from "../api";
 
-const { Text } = Typography;
 
 const labelStyle: React.CSSProperties = {
   color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
