@@ -98,7 +98,8 @@ def get_df() -> pd.DataFrame:
     return _cache["df"]
 
 def get_sap() -> pd.DataFrame:
-    if _cache["sap"] is None:
+    mtime = os.path.getmtime("sap_agg.csv")
+    if _cache["sap"] is None or _cache.get("sap_mtime") != mtime:
         print("Carregando sap_agg.csv...")
         df = pd.read_csv("sap_agg.csv")
         df["CompanyCode"] = df["CompanyCode"].map(COMPANY_NAMES).fillna(df["CompanyCode"])
@@ -108,10 +109,12 @@ def get_sap() -> pd.DataFrame:
         df["AmountInCompanyCodeCurrency"] = df["AmountInCompanyCodeCurrency"].astype("float32")
         print(f"SAP carregado: {len(df)} linhas")
         _cache["sap"] = df
+        _cache["sap_mtime"] = mtime
     return _cache["sap"]
 
 def get_nexus() -> pd.DataFrame:
-    if _cache["nexus"] is None:
+    mtime = os.path.getmtime("nexus_agg.csv")
+    if _cache["nexus"] is None or _cache.get("nexus_mtime") != mtime:
         print("Carregando nexus_agg.csv...")
         df = pd.read_csv("nexus_agg.csv")
         df = df.rename(columns={"Agrupador": "[Agrupador FP&A - COA]", "Periodo": "Período"})
@@ -126,6 +129,7 @@ def get_nexus() -> pd.DataFrame:
         print(f"  Tipos: {df['[Tipo]'].dropna().unique().tolist()}")
         print(f"  Moedas: {df['[Moeda]'].dropna().unique().tolist()}")
         _cache["nexus"] = df
+        _cache["nexus_mtime"] = mtime
     return _cache["nexus"]
 
 def get_clt() -> dict:
@@ -508,15 +512,21 @@ def get_matricial(anos="", tipo="Actual", user=Depends(get_current_user)):
         "pct_cols": list(PCT_ROWS),
     }
 
+# ── Cache helper ───────────────────────────────────────────────────────────────
+
+_file_cache: dict = {}
+
+def read_csv_cached(path: str, **kwargs) -> pd.DataFrame:
+    mtime = os.path.getmtime(path)
+    entry = _file_cache.get(path)
+    if entry is None or entry["mtime"] != mtime:
+        _file_cache[path] = {"df": pd.read_csv(path, **kwargs), "mtime": mtime}
+    return _file_cache[path]["df"]
+
 # ── Metas endpoints ────────────────────────────────────────────────────────────
 
-_cache_metas: dict = {"df": None}
-
 def get_metas_df() -> pd.DataFrame:
-    if _cache_metas["df"] is None:
-        df = pd.read_csv("metas_custo.csv", dtype={"numero_pessoal": str})
-        _cache_metas["df"] = df
-    return _cache_metas["df"]
+    return read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str})
 
 @app.get("/api/metas/filters")
 def get_metas_filters(user=Depends(get_current_user)):
@@ -545,17 +555,11 @@ def get_metas_custo_pessoal(
 
 # ── RAC Financial ──────────────────────────────────────────────────────────────
 
-_cache_rac: dict = {"proj": None, "pess": None}
-
 def get_rac_proj() -> pd.DataFrame:
-    if _cache_rac["proj"] is None:
-        _cache_rac["proj"] = pd.read_csv("rac_projetos.csv", dtype={"pep": str})
-    return _cache_rac["proj"]
+    return read_csv_cached("rac_projetos.csv", dtype={"pep": str})
 
 def get_rac_pess() -> pd.DataFrame:
-    if _cache_rac["pess"] is None:
-        _cache_rac["pess"] = pd.read_csv("rac_pessoas.csv", dtype={"pep": str, "cpf": str})
-    return _cache_rac["pess"]
+    return read_csv_cached("rac_pessoas.csv", dtype={"pep": str, "cpf": str})
 
 @app.get("/api/rac/filters")
 def get_rac_filters(user=Depends(get_current_user)):
@@ -600,17 +604,11 @@ def get_rac_pessoas(
 
 # ── Margem por Projeto ─────────────────────────────────────────────────────────
 
-_cache_margem: dict = {"proj": None, "pess": None}
-
 def get_margem_proj() -> pd.DataFrame:
-    if _cache_margem["proj"] is None:
-        _cache_margem["proj"] = pd.read_csv("margem_projetos.csv", dtype={"pep": str})
-    return _cache_margem["proj"]
+    return read_csv_cached("margem_projetos.csv", dtype={"pep": str})
 
 def get_margem_pess() -> pd.DataFrame:
-    if _cache_margem["pess"] is None:
-        _cache_margem["pess"] = pd.read_csv("margem_pessoas.csv", dtype={"pep": str, "cpf": str})
-    return _cache_margem["pess"]
+    return read_csv_cached("margem_pessoas.csv", dtype={"pep": str, "cpf": str})
 
 @app.get("/api/margem/filters")
 def get_margem_filters(user=Depends(get_current_user)):
