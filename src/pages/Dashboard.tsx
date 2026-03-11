@@ -11,6 +11,7 @@ import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 import MetasTab from "./MetasTab";
 import RacTab from "./RacTab";
 import MargemTab from "./MargemTab";
+import CheckLucasTab from "./CheckLucasTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -225,6 +226,7 @@ export default function Dashboard() {
                 { key: "margem", label: "📊 Margem por Projeto",  children: <MargemTab /> },
                 { key: "rac",    label: "📂 Receita por Projeto", children: <RacTab /> },
                 { key: "metas",  label: "👥 Custo por Pessoa",    children: <MetasTab /> },
+                { key: "check",  label: "🔍 Check Lucas",         children: <CheckLucasTab /> },
               ]}
             />
           )}

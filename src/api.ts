@@ -135,6 +135,16 @@ export async function getMargemPessoas(params: Record<string, string>) {
   return apiFetch(`/api/margem/pessoas${buildQuery(params)}`);
 }
 
+// ── Razão / Check Lucas ────────────────────────────────────────────────────────
+
+export async function getRazaoFilters() {
+  return apiFetch("/api/razao/filters");
+}
+
+export async function getRazaoComparativo(params: Record<string, string>) {
+  return apiFetch(`/api/razao/comparativo${buildQuery(params)}`);
+}
+
 // ── CLT ───────────────────────────────────────────────────────────────────────
 
 export async function getCltData(params: Record<string, string>) {

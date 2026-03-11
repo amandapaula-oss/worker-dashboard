@@ -659,6 +659,68 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
     agg = agg.sort_values("receita", ascending=False)
     return agg.fillna("").to_dict(orient="records")
 
+# ── Razão / Check Lucas endpoints ─────────────────────────────────────────────
+
+def get_razao() -> pd.DataFrame:
+    df = read_csv_cached("razao_agg.csv")
+    df["periodo"] = df.apply(lambda r: f"{int(r['FiscalYear'])}-{int(r['FiscalPeriod']):02d}", axis=1)
+    return df
+
+@app.get("/api/razao/filters")
+def get_razao_filters(user=Depends(get_current_user)):
+    df = get_razao()
+    margem = get_margem_proj()
+    periodos = sorted(set(df["periodo"].unique().tolist()) | set(margem["periodo"].dropna().unique().tolist()))
+    empresas = sorted(set(df["empresa"].dropna().unique().tolist()) | set(margem["empresa"].dropna().unique().tolist()))
+    return {"periodos": periodos, "empresas": empresas}
+
+@app.get("/api/razao/comparativo")
+def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
+    razao = get_razao()
+    margem = get_margem_proj()
+
+    sel_periodos = [p for p in periodos.split(",") if p] if periodos else []
+    sel_empresas = [e for e in empresas.split(",") if e] if empresas else []
+
+    if sel_periodos:
+        razao  = razao[razao["periodo"].isin(sel_periodos)]
+        margem = margem[margem["periodo"].isin(sel_periodos)]
+    if sel_empresas:
+        razao  = razao[razao["empresa"].isin(sel_empresas)]
+        margem = margem[margem["empresa"].isin(sel_empresas)]
+
+    RECEITA_AGR = ["Net Revenue"]
+    CUSTO_AGR   = ["Payroll costs", "Third-party costs"]
+
+    razao_receita = (
+        razao[razao["agrupador_fpa"].isin(RECEITA_AGR)]
+        .groupby(["empresa","periodo"], as_index=False)["AmountInCompanyCodeCurrency"]
+        .sum().rename(columns={"AmountInCompanyCodeCurrency": "receita_razao"})
+    )
+    razao_custo = (
+        razao[razao["agrupador_fpa"].isin(CUSTO_AGR)]
+        .groupby(["empresa","periodo"], as_index=False)["AmountInCompanyCodeCurrency"]
+        .sum().rename(columns={"AmountInCompanyCodeCurrency": "custo_razao"})
+    )
+
+    margem_agg = margem.groupby(["empresa","periodo"], as_index=False).agg(
+        receita      =("receita",       "sum"),
+        custo_rateado=("custo_rateado", "sum"),
+        margem       =("margem",        "sum"),
+    )
+
+    df = razao_receita.merge(razao_custo, on=["empresa","periodo"], how="outer")
+    df = df.merge(margem_agg, on=["empresa","periodo"], how="outer")
+    df = df.fillna(0)
+
+    df["margem_razao"] = df["receita_razao"] + df["custo_razao"]
+    df["diff_receita"] = df["receita"]       - df["receita_razao"]
+    df["diff_custo"]   = df["custo_rateado"] - df["custo_razao"]
+    df["diff_margem"]  = df["margem"]        - df["margem_razao"]
+
+    df = df.sort_values(["periodo","empresa"])
+    return df.to_dict(orient="records")
+
 # ── CLT endpoints ──────────────────────────────────────────────────────────────
 
 @app.get("/api/clt/debug")
