@@ -741,9 +741,13 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
 
     df = df.fillna(0)
 
+    # Inverte sinal dos custos RAC (negativos no sistema → positivos para comparação)
+    df["custo_clt"] = df["custo_clt"] * -1
+    df["custo_pj"]  = df["custo_pj"]  * -1
+
     df["custo_total_rac"]    = df["custo_clt"] + df["custo_pj"]
     df["custo_total_razao"]  = df["payroll_razao"] + df["thirdparty_razao"]
-    df["margem_rac"]         = df["receita"] + df["custo_total_rac"]
+    df["margem_rac"]         = df["receita"] - df["custo_total_rac"]
     df["margem_razao"]       = df["receita_razao"] + df["custo_total_razao"]
 
     df["diff_receita"]  = df["receita"]    - df["receita_razao"]
