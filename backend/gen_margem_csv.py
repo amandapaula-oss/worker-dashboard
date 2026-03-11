@@ -6,6 +6,8 @@ Lógica:
   3. Custo rateado = custo_total_pessoa * (horas_projeto / horas_totais_pessoa)
   4. Receita = valor_liquido do RacFinancial (TE + Fee_WIP + UsageBased)
   5. Margem = Receita - Custo rateado
+  5b. Para pessoas sem horas no RacFinancial: ratear custo por receita dos projetos
+      via worker_project_20260310.xlsx
 
 Execute com: py gen_margem_csv.py
 """
@@ -23,6 +25,11 @@ RAC_PATH = (
     / "Dados para apuração de metas" / "RacFinancial_Consolidado.xlsx"
 )
 METAS_CSV = os.path.join(os.path.dirname(__file__), "metas_custo.csv")
+WP_PATH   = (
+    BASE / "FCamara Files - CONTROLADORIA" / "30. FP&A NOVO"
+    / "06. Cockpit - Desenvolvimentos" / "NewDashboard"
+    / "Dados para apuração de metas" / "worker_project_20260310.xlsx"
+)
 
 COMPANY_NAMES = {
     "BR01": "FCamara", "BR02": "FCamara", "BR03": "FCamara",
@@ -166,16 +173,9 @@ te_pj["custo_rateado"] = te_pj["custo_pessoa"] * te_pj["fator"]
 
 matched = (te_pj["custo_pessoa"] != 0).sum()
 total   = len(te_pj)
-print(f"\nMatch custo: {matched}/{total} linhas ({matched/total*100:.1f}%)")
+print(f"\nMatch custo (por horas): {matched}/{total} linhas ({matched/total*100:.1f}%)")
 
-# ── 6. Agregar por projeto + período ──────────────────────────────────────────
-proj = te_pj.groupby(["periodo","pep","nome_cliente","empresa"], as_index=False).agg(
-    receita      = ("receita",       "sum"),
-    custo_rateado= ("custo_rateado", "sum"),
-    horas_total  = ("horas",         "sum"),
-)
-
-# Adiciona Fee_WIP e UsageBased (receita sem custo rateado)
+# ── 5b. Ler Fee_WIP e UsageBased para calcular receita por projeto ─────────────
 print("Lendo Fee_WIP e UsageBased...")
 fw = pd.read_excel(RAC_PATH, sheet_name="Fee_WIP", header=1)
 fw.columns = [c.strip() for c in fw.columns]
@@ -205,22 +205,170 @@ ub_agg = ub.groupby(["periodo","pep","nome_cliente","empresa"], as_index=False).
 ub_agg["custo_rateado"] = 0.0
 ub_agg["horas_total"]   = 0.0
 
+# Receita total por (periodo, pep) — usada para rateio por receita abaixo
+proj_te_receita = te_pj.groupby(["periodo","pep"], as_index=False)["receita"].sum()
+proj_fw_receita = fw_agg[["periodo","pep","receita"]].copy()
+proj_ub_receita = ub_agg[["periodo","pep","receita"]].copy()
+proj_receita_all = pd.concat([proj_te_receita, proj_fw_receita, proj_ub_receita], ignore_index=True)
+proj_receita_all = proj_receita_all.groupby(["periodo","pep"], as_index=False)["receita"].sum()
+proj_receita_all = proj_receita_all.rename(columns={"receita": "receita_proj"})
+
+# ── 5c. Complementar rateio para pessoas sem horas (via worker_project) ────────
+print("\nComplementando rateio via worker_project...")
+wp = pd.read_excel(WP_PATH, sheet_name="Dados")
+wp.columns = [c.strip() for c in wp.columns]
+wp["periodo"] = wp["competencia"].apply(fmt_periodo)
+wp = wp[wp["periodo"].notna()]
+wp = wp[wp["periodo"].between("2025-10", "2025-12")]
+wp["cpf"]     = wp["worker_id"].astype(str).str.strip()
+wp["pep"]     = wp["wbs_element"].astype(str).str.strip()
+wp["nome_wp"] = wp["worker_name"].astype(str).str.strip()
+wp["nome_norm_wp"] = wp["nome_wp"].apply(norm_nome)
+wp["empresa_wp"] = wp["Empresa"].astype(str).str.strip().map(COMPANY_NAMES).fillna(
+    wp["Empresa"].astype(str).str.strip()
+)
+print(f"  worker_project: {len(wp)} registros, {wp['cpf'].nunique()} workers")
+
+# Conjunto de (periodo, cpf) que JÁ têm custo rateado via horas
+pessoas_com_horas = set(
+    zip(te_pj[te_pj["horas"] > 0]["periodo"], te_pj[te_pj["horas"] > 0]["cpf"])
+)
+
+# ── PJ sem horas: identificados por CPF ───────────────────────────────────────
+pj_sem_horas = custo_pj.rename(columns={"competencia":"periodo","numero_pessoal":"cpf"})[
+    ["periodo","cpf","nome_norm","custo"]
+].copy()
+pj_sem_horas = pj_sem_horas[
+    ~pj_sem_horas.apply(lambda r: (r["periodo"], r["cpf"]) in pessoas_com_horas, axis=1)
+]
+print(f"  PJ sem horas no RacFinancial: {len(pj_sem_horas)} registros pessoa/mês")
+
+# Juntar PJ sem horas com worker_project por CPF
+if len(pj_sem_horas) > 0:
+    complement_pj = pj_sem_horas.merge(
+        wp[["periodo","cpf","pep","empresa_wp","nome_wp"]].drop_duplicates(subset=["periodo","cpf","pep"]),
+        on=["periodo","cpf"], how="inner"
+    )
+    complement_pj = complement_pj.rename(columns={"nome_norm":"nome_metas","empresa_wp":"empresa"})
+    complement_pj["nome"] = complement_pj["nome_wp"]
+else:
+    complement_pj = pd.DataFrame(columns=["periodo","cpf","pep","empresa","nome","custo"])
+
+# ── CLT sem horas: identificados por nome normalizado ─────────────────────────
+# Conjunto de (periodo, nome_norm_join) com horas
+pessoas_clt_com_horas = set(
+    zip(te_pj[te_pj["horas"] > 0]["periodo"], te_pj[te_pj["horas"] > 0]["nome_norm_join"])
+)
+
+clt_sem_horas = custo_clt.rename(columns={"competencia":"periodo"})[
+    ["periodo","nome_norm","custo"]
+].copy()
+clt_sem_horas = clt_sem_horas[
+    ~clt_sem_horas.apply(lambda r: (r["periodo"], r["nome_norm"]) in pessoas_clt_com_horas, axis=1)
+]
+print(f"  CLT sem horas no RacFinancial: {len(clt_sem_horas)} registros pessoa/mês")
+
+# Juntar CLT sem horas com worker_project por nome normalizado
+if len(clt_sem_horas) > 0:
+    complement_clt = clt_sem_horas.merge(
+        wp[["periodo","nome_norm_wp","cpf","pep","empresa_wp","nome_wp"]].rename(
+            columns={"nome_norm_wp":"nome_norm"}
+        ).drop_duplicates(subset=["periodo","nome_norm","pep"]),
+        on=["periodo","nome_norm"], how="inner"
+    )
+    complement_clt = complement_clt.rename(columns={"empresa_wp":"empresa"})
+    complement_clt["nome"] = complement_clt["nome_wp"]
+else:
+    complement_clt = pd.DataFrame(columns=["periodo","cpf","pep","empresa","nome","custo"])
+
+# Unir complementos PJ + CLT
+complement_all = pd.concat([
+    complement_pj[["periodo","cpf","pep","empresa","nome","custo"]],
+    complement_clt[["periodo","cpf","pep","empresa","nome","custo"]],
+], ignore_index=True).drop_duplicates(subset=["periodo","cpf","pep"])
+print(f"  Complemento total: {len(complement_all)} registros pessoa/projeto")
+
+# Ratear custo por receita do projeto
+complement_all = complement_all.merge(proj_receita_all, on=["periodo","pep"], how="left")
+complement_all["receita_proj"] = complement_all["receita_proj"].fillna(0)
+
+# Receita total dos projetos onde cada pessoa está alocada naquele período
+receita_total_pessoa = complement_all.groupby(["periodo","cpf"])["receita_proj"].sum().reset_index()
+receita_total_pessoa = receita_total_pessoa.rename(columns={"receita_proj": "receita_total_pessoa"})
+complement_all = complement_all.merge(receita_total_pessoa, on=["periodo","cpf"], how="left")
+
+complement_all["fator_receita"] = complement_all.apply(
+    lambda r: r["receita_proj"] / r["receita_total_pessoa"]
+    if r["receita_total_pessoa"] > 0 else 1.0 / max(1, len(complement_all[
+        (complement_all["periodo"] == r["periodo"]) & (complement_all["cpf"] == r["cpf"])
+    ])),
+    axis=1
+)
+complement_all["custo_rateado"] = complement_all["custo"] * complement_all["fator_receita"]
+complement_all["receita"] = 0.0
+complement_all["horas"]   = 0.0
+
+n_matched = (complement_all["receita_proj"] > 0).sum()
+print(f"  Complemento com receita de projeto: {n_matched}/{len(complement_all)}")
+
+# ── 6. Agregar por projeto + período ──────────────────────────────────────────
+proj = te_pj.groupby(["periodo","pep","nome_cliente","empresa"], as_index=False).agg(
+    receita      = ("receita",       "sum"),
+    custo_rateado= ("custo_rateado", "sum"),
+    horas_total  = ("horas",         "sum"),
+)
+
+# Adicionar custo rateado do complemento por projeto (via nome_cliente lookup)
+pep_info = te[["pep","nome_cliente","empresa"]].drop_duplicates(subset=["pep"]).copy()
+complement_proj = complement_all.groupby(["periodo","pep"], as_index=False)["custo_rateado"].sum()
+complement_proj = complement_proj.rename(columns={"custo_rateado": "custo_complement"})
+complement_proj = complement_proj.merge(pep_info, on="pep", how="left")
+# Para projetos sem nome no TE, buscar no fw/ub
+fw_pep_info = fw[["pep","nome_cliente","empresa"]].drop_duplicates(subset=["pep"])
+ub_pep_info = ub[["pep","nome_cliente","empresa"]].drop_duplicates(subset=["pep"])
+all_pep_info = pd.concat([pep_info, fw_pep_info, ub_pep_info]).drop_duplicates(subset=["pep"])
+complement_proj_with_info = complement_all.groupby(["periodo","pep"], as_index=False)["custo_rateado"].sum()
+complement_proj_with_info = complement_proj_with_info.rename(columns={"custo_rateado": "custo_complement"})
+complement_proj_with_info = complement_proj_with_info.merge(all_pep_info, on="pep", how="left")
+
 proj_final = pd.concat([proj, fw_agg, ub_agg], ignore_index=True)
 proj_final = proj_final.groupby(["periodo","pep","nome_cliente","empresa"], as_index=False).agg(
     receita      = ("receita",       "sum"),
     custo_rateado= ("custo_rateado", "sum"),
     horas_total  = ("horas_total",   "sum"),
-).assign(
+)
+
+# Somar custo do complemento ao proj_final
+if len(complement_proj_with_info) > 0:
+    proj_final = proj_final.merge(
+        complement_proj_with_info[["periodo","pep","custo_complement"]],
+        on=["periodo","pep"], how="left"
+    )
+    proj_final["custo_complement"] = proj_final["custo_complement"].fillna(0)
+    proj_final["custo_rateado"] = proj_final["custo_rateado"] + proj_final["custo_complement"]
+    proj_final = proj_final.drop(columns=["custo_complement"])
+
+proj_final = proj_final.assign(
     margem    = lambda d: d["receita"] + d["custo_rateado"],
     margem_pct= lambda d: d.apply(lambda r: r["margem"]/r["receita"] if r["receita"]!=0 else None, axis=1),
 )
 
 # ── 7. Agregar por pessoa/projeto/período ──────────────────────────────────────
-pess_final = te_pj.groupby(["periodo","pep","cpf","nome_raw","empresa"], as_index=False).agg(
+pess_te = te_pj.groupby(["periodo","pep","cpf","nome_raw","empresa"], as_index=False).agg(
     receita      = ("receita",       "sum"),
     custo_rateado= ("custo_rateado", "sum"),
     horas        = ("horas",         "sum"),
 ).rename(columns={"nome_raw":"nome"})
+
+# Adicionar pessoas do complemento
+pess_complement = complement_all[["periodo","pep","cpf","nome","empresa","receita","custo_rateado","horas"]].copy()
+
+pess_final = pd.concat([pess_te, pess_complement], ignore_index=True)
+pess_final = pess_final.groupby(["periodo","pep","cpf","nome","empresa"], as_index=False).agg(
+    receita      = ("receita",       "sum"),
+    custo_rateado= ("custo_rateado", "sum"),
+    horas        = ("horas",         "sum"),
+)
 pess_final["margem"] = pess_final["receita"] + pess_final["custo_rateado"]
 
 # ── 8. Salvar ──────────────────────────────────────────────────────────────────
@@ -241,3 +389,5 @@ print(f"  Margem total:        R$ {proj_final['margem'].sum():>15,.0f}")
 margem_pct = proj_final['margem'].sum() / proj_final['receita'].sum() * 100
 print(f"  Margem %:            {margem_pct:.1f}%")
 print(f"\nProjetos sem custo rateado: {(proj_final['custo_rateado']==0).sum()}")
+custo_complement_total = complement_all["custo_rateado"].sum()
+print(f"Custo complementado (sem horas): R$ {custo_complement_total:,.0f} ({len(complement_all)} registros)")
