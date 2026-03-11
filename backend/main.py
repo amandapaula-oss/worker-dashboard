@@ -29,6 +29,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 USERS = {
     "amanda": {"name": "Amanda", "hashed_password": "$2b$12$mfHiyBw/auw.B745JxG2eO5Qlw/urUAOOVwi5x2koGXqWhUDhZv/a"},
     "paola":  {"name": "Paola",  "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC"},
+    "yuri":   {"name": "Yuri",   "hashed_password": "$2b$12$lafxeoNomlDKRwz5seUPUe72xx06URZiuxTx2vbhJ6pFVy1HQpuhG"},
 }
 
 def verify_password(plain: str, hashed: str) -> bool:
