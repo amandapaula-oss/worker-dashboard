@@ -168,15 +168,11 @@ matched = (te_pj["custo_pessoa"] != 0).sum()
 total   = len(te_pj)
 print(f"\nMatch custo: {matched}/{total} linhas ({matched/total*100:.1f}%)")
 
-# ── 6. Agregar por projeto ─────────────────────────────────────────────────────
-proj = te_pj.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(
+# ── 6. Agregar por projeto + período ──────────────────────────────────────────
+proj = te_pj.groupby(["periodo","pep","nome_cliente","empresa"], as_index=False).agg(
     receita      = ("receita",       "sum"),
     custo_rateado= ("custo_rateado", "sum"),
     horas_total  = ("horas",         "sum"),
-)
-proj["margem"]     = proj["receita"] + proj["custo_rateado"]  # custo já é negativo
-proj["margem_pct"] = proj.apply(
-    lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
 )
 
 # Adiciona Fee_WIP e UsageBased (receita sem custo rateado)
@@ -191,12 +187,9 @@ fw["receita"] = fw["receita"].astype(float)
 fw["periodo"] = fw["periodo_raw"].apply(fmt_periodo)
 fw = fw[fw["periodo"] <= "2025-12"]
 fw["empresa"] = fw["empresa_cod"].map(COMPANY_NAMES).fillna(fw["empresa_cod"])
-fw_agg = fw.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(receita=("receita","sum"))
+fw_agg = fw.groupby(["periodo","pep","nome_cliente","empresa"], as_index=False).agg(receita=("receita","sum"))
 fw_agg["custo_rateado"] = 0.0
 fw_agg["horas_total"]   = 0.0
-fw_agg["margem"]        = fw_agg["receita"]
-fw_agg["margem_pct"]    = 1.0
-fw_agg["tipo"]          = "Fee_WIP"
 
 ub = pd.read_excel(RAC_PATH, sheet_name="UsageBased", header=1)
 ub.columns = [c.strip() for c in ub.columns]
@@ -208,17 +201,12 @@ ub["receita"] = ub["receita"].astype(float)
 ub["periodo"] = ub["periodo_raw"].apply(fmt_periodo)
 ub = ub[ub["periodo"] <= "2025-12"]
 ub["empresa"] = ub["empresa_cod"].map(COMPANY_NAMES).fillna(ub["empresa_cod"])
-ub_agg = ub.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(receita=("receita","sum"))
+ub_agg = ub.groupby(["periodo","pep","nome_cliente","empresa"], as_index=False).agg(receita=("receita","sum"))
 ub_agg["custo_rateado"] = 0.0
 ub_agg["horas_total"]   = 0.0
-ub_agg["margem"]        = ub_agg["receita"]
-ub_agg["margem_pct"]    = 1.0
-ub_agg["tipo"]          = "UsageBased"
-
-proj["tipo"] = "TimeAndExpenses"
 
 proj_final = pd.concat([proj, fw_agg, ub_agg], ignore_index=True)
-proj_final = proj_final.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(
+proj_final = proj_final.groupby(["periodo","pep","nome_cliente","empresa"], as_index=False).agg(
     receita      = ("receita",       "sum"),
     custo_rateado= ("custo_rateado", "sum"),
     horas_total  = ("horas_total",   "sum"),
@@ -227,8 +215,8 @@ proj_final = proj_final.groupby(["pep","nome_cliente","empresa"], as_index=False
     margem_pct= lambda d: d.apply(lambda r: r["margem"]/r["receita"] if r["receita"]!=0 else None, axis=1),
 )
 
-# ── 7. Agregar por pessoa/projeto ──────────────────────────────────────────────
-pess_final = te_pj.groupby(["pep","cpf","nome_raw","empresa"], as_index=False).agg(
+# ── 7. Agregar por pessoa/projeto/período ──────────────────────────────────────
+pess_final = te_pj.groupby(["periodo","pep","cpf","nome_raw","empresa"], as_index=False).agg(
     receita      = ("receita",       "sum"),
     custo_rateado= ("custo_rateado", "sum"),
     horas        = ("horas",         "sum"),

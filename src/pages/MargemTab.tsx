@@ -26,7 +26,9 @@ function MargemTag({ value }: { value: number | "" }) {
 }
 
 export default function MargemTab() {
-  const [empresas, setEmpresas]     = useState<string[]>([]);
+  const [periodos, setPeriodos]       = useState<string[]>([]);
+  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
+  const [empresas, setEmpresas]       = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [filtersReady, setFiltersReady] = useState(false);
 
@@ -39,6 +41,8 @@ export default function MargemTab() {
   useEffect(() => {
     getMargemFilters()
       .then(f => {
+        setPeriodos(f.periodos);
+        setSelPeriodos(f.periodos);
         setEmpresas(f.empresas);
         setSelEmpresas(f.empresas);
         setFiltersReady(true);
@@ -50,25 +54,27 @@ export default function MargemTab() {
     if (!filtersReady || selectedPep) return;
     setLoading(true);
     const params: Record<string, string> = {};
+    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     getMargemProjetos(params)
       .then(d => setProjetos(d))
       .catch(() => message.error("Erro ao carregar projetos"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selEmpresas, selectedPep]);
+  }, [filtersReady, selPeriodos, selEmpresas, selectedPep]);
 
   useEffect(() => {
     if (!selectedPep) return;
     setLoading(true);
     const params: Record<string, string> = { pep: selectedPep.pep };
+    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     getMargemPessoas(params)
       .then(d => setPessoas(d))
       .catch(() => message.error("Erro ao carregar pessoas"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPep, selEmpresas]);
+  }, [selectedPep, selPeriodos, selEmpresas]);
 
   const colProjetos = [
     {
@@ -215,7 +221,13 @@ export default function MargemTab() {
   return (
     <div>
       <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={labelStyle}>Período</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
+            onChange={v => { setSelPeriodos(v); setSelectedPep(null); }}
+            options={periodos.map(p => ({ label: p, value: p }))} maxTagCount="responsive" />
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
           <div style={labelStyle}>Empresa</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas}
             onChange={v => { setSelEmpresas(v); setSelectedPep(null); }}

@@ -614,12 +614,15 @@ def get_margem_pess() -> pd.DataFrame:
 def get_margem_filters(user=Depends(get_current_user)):
     df = get_margem_proj()
     return {
+        "periodos": sorted(df["periodo"].dropna().unique().tolist()),
         "empresas": sorted(df["empresa"].dropna().unique().tolist()),
     }
 
 @app.get("/api/margem/projetos")
-def get_margem_projetos(empresas: str = "", user=Depends(get_current_user)):
+def get_margem_projetos(periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
     df = get_margem_proj()
+    if periodos:
+        df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
     agg = df.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(
@@ -635,10 +638,12 @@ def get_margem_projetos(empresas: str = "", user=Depends(get_current_user)):
     return agg.fillna("").to_dict(orient="records")
 
 @app.get("/api/margem/pessoas")
-def get_margem_pessoas(pep: str = "", empresas: str = "", user=Depends(get_current_user)):
+def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
     df = get_margem_pess()
     if pep:
         df = df[df["pep"] == pep]
+    if periodos:
+        df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
     agg = df.groupby(["pep","cpf","nome","empresa"], as_index=False).agg(
