@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Button, Typography, Breadcrumb, Card, Statistic, Input } from "antd";
 import { HomeOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas } from "../api";
+import { useDraggableColumns } from "../hooks/useDraggableColumns";
 
 const { Text } = Typography;
 
@@ -36,6 +37,7 @@ export default function MargemTab() {
   const [pessoas, setPessoas]   = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
 
+  const [selectedCliente, setSelectedCliente] = useState<string | null>(null);
   const [selectedPep, setSelectedPep] = useState<{ pep: string; nome_cliente: string } | null>(null);
   const [searchCliente, setSearchCliente] = useState<string>("");
   const [searchPep, setSearchPep]         = useState<string>("");
@@ -78,6 +80,7 @@ export default function MargemTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPep, selPeriodos, selEmpresas]);
 
+  // Projetos filtrados por texto
   const filteredProjetos = useMemo(() => {
     let rows = projetos;
     if (searchCliente.trim()) {
@@ -91,14 +94,74 @@ export default function MargemTab() {
     return rows;
   }, [projetos, searchCliente, searchPep]);
 
+  // Agrupado por cliente (view principal)
+  const clientesData = useMemo(() => {
+    const map = new Map<string, { nome_cliente: string; receita: number; custo_rateado: number; margem: number; num_projetos: number }>();
+    for (const r of filteredProjetos) {
+      const k = r.nome_cliente || "";
+      if (!map.has(k)) map.set(k, { nome_cliente: k, receita: 0, custo_rateado: 0, margem: 0, num_projetos: 0 });
+      const e = map.get(k)!;
+      e.receita       += Number(r.receita)       || 0;
+      e.custo_rateado += Number(r.custo_rateado) || 0;
+      e.margem        += Number(r.margem)        || 0;
+      e.num_projetos  += 1;
+    }
+    return Array.from(map.values())
+      .map(r => ({ ...r, margem_pct: r.receita !== 0 ? r.margem / r.receita : null }))
+      .sort((a, b) => a.nome_cliente.localeCompare(b.nome_cliente, "pt-BR"));
+  }, [filteredProjetos]);
+
+  // Projetos do cliente selecionado
+  const projetosCliente = useMemo(() => {
+    if (!selectedCliente) return [];
+    return filteredProjetos.filter(r => r.nome_cliente === selectedCliente);
+  }, [filteredProjetos, selectedCliente]);
+
+  const colClientes = [
+    {
+      title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true,
+      sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
+    },
+    {
+      title: "Projetos", dataIndex: "num_projetos", key: "num_projetos", width: 90,
+      align: "center" as const,
+      sorter: (a: any, b: any) => (a.num_projetos || 0) - (b.num_projetos || 0),
+      render: (v: number) => v || "—",
+    },
+    {
+      title: "Receita", dataIndex: "receita", key: "receita", width: 155,
+      align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
+      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
+    },
+    {
+      title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
+      align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
+      render: (v: number) => (
+        <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>
+      ),
+    },
+    {
+      title: "Margem (R$)", dataIndex: "margem", key: "margem", width: 155,
+      align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.margem) || 0) - (Number(b.margem) || 0),
+      render: (v: number) => (
+        <span style={{ color: v < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v)}</span>
+      ),
+    },
+    {
+      title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100,
+      align: "center" as const,
+      sorter: (a: any, b: any) => (Number(a.margem_pct) || 0) - (Number(b.margem_pct) || 0),
+      render: (v: number | "") => <MargemTag value={v} />,
+    },
+  ];
+
   const colProjetos = [
     {
       title: "PEP", dataIndex: "pep", key: "pep", width: 190,
       sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)),
-    },
-    {
-      title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true,
-      sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente)),
     },
     {
       title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120,
@@ -189,49 +252,66 @@ export default function MargemTab() {
     },
   ];
 
-  function summaryRow(rows: any[], colSpan: number, extraCols: number) {
-    const receita       = rows.reduce((s, r) => s + (Number(r.receita)       || 0), 0);
-    const custo_rateado = rows.reduce((s, r) => s + (Number(r.custo_rateado) || 0), 0);
-    const margem        = rows.reduce((s, r) => s + (Number(r.margem)        || 0), 0);
-    const margem_pct    = receita !== 0 ? margem / receita : null;
-    return (
-      <Table.Summary.Row style={{ background: "#dce6f7", fontWeight: 700 }}>
-        <Table.Summary.Cell index={0} colSpan={colSpan}>Total</Table.Summary.Cell>
-        <Table.Summary.Cell index={1} align="right">
-          <span style={{ color: "#1a2e5a" }}>{brl(receita)}</span>
-        </Table.Summary.Cell>
-        <Table.Summary.Cell index={2} align="right">
-          <span style={{ color: custo_rateado < 0 ? "#c0392b" : "#1a2e5a" }}>{brl(custo_rateado)}</span>
-        </Table.Summary.Cell>
-        <Table.Summary.Cell index={3} align="right">
-          <span style={{ color: margem < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(margem)}</span>
-        </Table.Summary.Cell>
-        <Table.Summary.Cell index={4} align="center">
-          <MargemTag value={margem_pct ?? ""} />
-        </Table.Summary.Cell>
-        {Array.from({ length: extraCols }).map((_, i) => (
-          <Table.Summary.Cell key={i} index={5 + i} />
-        ))}
-      </Table.Summary.Row>
-    );
-  }
+  const draggableClientes = useDraggableColumns(colClientes);
+  const draggableProjetos = useDraggableColumns(colProjetos);
+  const draggablePessoas  = useDraggableColumns(colPessoas);
 
   const breadcrumb = [
     {
       title: (
-        <span style={{ cursor: "pointer", color: "#2d50a0" }} onClick={() => setSelectedPep(null)}>
-          <HomeOutlined /> Projetos
+        <span style={{ cursor: "pointer", color: "#2d50a0" }}
+          onClick={() => { setSelectedCliente(null); setSelectedPep(null); }}>
+          <HomeOutlined /> Clientes
         </span>
       ),
     },
+    ...(selectedCliente ? [{
+      title: selectedPep ? (
+        <span style={{ cursor: "pointer", color: "#2d50a0" }}
+          onClick={() => setSelectedPep(null)}>
+          {selectedCliente}
+        </span>
+      ) : (
+        <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{selectedCliente}</span>
+      ),
+    }] : []),
     ...(selectedPep ? [{
       title: (
         <span style={{ color: "#1a2e5a", fontWeight: 600 }}>
-          {selectedPep.pep} — {selectedPep.nome_cliente}
+          {selectedPep.pep}
         </span>
       ),
     }] : []),
   ];
+
+  // KPI cards (visíveis só na view de clientes)
+  const kpiBlock = !selectedCliente && !selectedPep && (() => {
+    const receita       = clientesData.reduce((s, r) => s + r.receita, 0);
+    const custo_rateado = clientesData.reduce((s, r) => s + r.custo_rateado, 0);
+    const margem        = clientesData.reduce((s, r) => s + r.margem, 0);
+    const margem_pct    = receita !== 0 ? margem / receita : 0;
+    return (
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+        {[
+          { label: "Receita Total",    value: receita,       color: "#1a2e5a", fmt: "brl" },
+          { label: "Custo Rateado",    value: custo_rateado, color: custo_rateado < 0 ? "#c0392b" : "#1a2e5a", fmt: "brl" },
+          { label: "Margem Bruta",     value: margem,        color: margem < 0 ? "#c0392b" : "#0a7a3e", fmt: "brl" },
+          { label: "Margem %",         value: margem_pct,    color: margem_pct < 0.1 ? "#c0392b" : margem_pct < 0.3 ? "#856404" : "#0a7a3e", fmt: "pct" },
+        ].map(k => (
+          <Card key={k.label} style={{ flex: 1, minWidth: 170, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+            styles={{ body: { padding: "1rem 1.2rem", textAlign: "center" } }}>
+            <Statistic
+              title={<span style={{ color: "#6b7fa3", fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{k.label}</span>}
+              value={k.fmt === "pct"
+                ? `${(k.value * 100).toFixed(1)}%`
+                : `R$ ${k.value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+              valueStyle={{ color: k.color, fontSize: "1.25rem", fontWeight: 700 }}
+            />
+          </Card>
+        ))}
+      </div>
+    );
+  })();
 
   return (
     <div>
@@ -239,13 +319,13 @@ export default function MargemTab() {
         <div style={{ flex: 1, minWidth: 180 }}>
           <div style={labelStyle}>Período</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
-            onChange={v => { setSelPeriodos(v); setSelectedPep(null); }}
+            onChange={v => { setSelPeriodos(v); setSelectedCliente(null); setSelectedPep(null); }}
             options={periodos.map(p => ({ label: p, value: p }))} maxTagCount="responsive" />
         </div>
         <div style={{ flex: 1, minWidth: 180 }}>
           <div style={labelStyle}>Empresa</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas}
-            onChange={v => { setSelEmpresas(v); setSelectedPep(null); }}
+            onChange={v => { setSelEmpresas(v); setSelectedCliente(null); setSelectedPep(null); }}
             options={empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
         </div>
         <div style={{ flex: 1, minWidth: 180 }}>
@@ -255,7 +335,7 @@ export default function MargemTab() {
             placeholder="Buscar cliente..."
             prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
             value={searchCliente}
-            onChange={e => { setSearchCliente(e.target.value); setSelectedPep(null); }}
+            onChange={e => { setSearchCliente(e.target.value); setSelectedCliente(null); setSelectedPep(null); }}
           />
         </div>
         <div style={{ flex: 1, minWidth: 180 }}>
@@ -265,7 +345,7 @@ export default function MargemTab() {
             placeholder="Buscar PEP..."
             prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
             value={searchPep}
-            onChange={e => { setSearchPep(e.target.value); setSelectedPep(null); }}
+            onChange={e => { setSearchPep(e.target.value); setSelectedCliente(null); setSelectedPep(null); }}
           />
         </div>
         <Text type="secondary" style={{ fontSize: "0.78rem", paddingBottom: 2 }}>
@@ -273,33 +353,7 @@ export default function MargemTab() {
         </Text>
       </div>
 
-      {!selectedPep && (() => {
-        const receita       = filteredProjetos.reduce((s, r) => s + (Number(r.receita)       || 0), 0);
-        const custo_rateado = filteredProjetos.reduce((s, r) => s + (Number(r.custo_rateado) || 0), 0);
-        const margem        = filteredProjetos.reduce((s, r) => s + (Number(r.margem)        || 0), 0);
-        const margem_pct    = receita !== 0 ? margem / receita : 0;
-        return (
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
-            {[
-              { label: "Receita Total",    value: receita,       color: "#1a2e5a", fmt: "brl" },
-              { label: "Custo Rateado",    value: custo_rateado, color: custo_rateado < 0 ? "#c0392b" : "#1a2e5a", fmt: "brl" },
-              { label: "Margem Bruta",     value: margem,        color: margem < 0 ? "#c0392b" : "#0a7a3e", fmt: "brl" },
-              { label: "Margem %",         value: margem_pct,    color: margem_pct < 0.1 ? "#c0392b" : margem_pct < 0.3 ? "#856404" : "#0a7a3e", fmt: "pct" },
-            ].map(k => (
-              <Card key={k.label} style={{ flex: 1, minWidth: 170, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-                styles={{ body: { padding: "1rem 1.2rem", textAlign: "center" } }}>
-                <Statistic
-                  title={<span style={{ color: "#6b7fa3", fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{k.label}</span>}
-                  value={k.fmt === "pct"
-                    ? `${(k.value * 100).toFixed(1)}%`
-                    : `R$ ${k.value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-                  valueStyle={{ color: k.color, fontSize: "1.25rem", fontWeight: 700 }}
-                />
-              </Card>
-            ))}
-          </div>
-        );
-      })()}
+      {kpiBlock}
 
       <Breadcrumb items={breadcrumb} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 16 }} />
 
@@ -316,7 +370,7 @@ export default function MargemTab() {
               const mar = pessoas.reduce((s,r)=>s+(Number(r.margem)||0),0);
               return [{ key:"__t__", nome:"TOTAL", cpf:"", empresa:"", horas:0, receita:rec, custo_rateado:cus, margem:mar, margem_pct: rec!==0?mar/rec:null, _isTotal:true }, ...pessoas.map((d,i)=>({...d,key:i}))];
             })()}
-            columns={colPessoas}
+            columns={draggablePessoas}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
@@ -324,23 +378,48 @@ export default function MargemTab() {
             onRow={row => row._isTotal ? { style: { background: "#dce6f7", fontWeight: 700 } } : {}}
           />
         </>
+      ) : selectedCliente ? (
+        <>
+          <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0, marginBottom: 12 }}
+            onClick={() => setSelectedCliente(null)}>
+            Voltar para clientes
+          </Button>
+          <Table
+            dataSource={(() => {
+              const rec = projetosCliente.reduce((s,r)=>s+(Number(r.receita)||0),0);
+              const cus = projetosCliente.reduce((s,r)=>s+(Number(r.custo_rateado)||0),0);
+              const mar = projetosCliente.reduce((s,r)=>s+(Number(r.margem)||0),0);
+              const pct = rec!==0 ? mar/rec : null;
+              return [{ key:"__t__", pep:"TOTAL", empresa:"", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, horas_total:0, _isTotal:true }, ...projetosCliente.map((d,i)=>({...d,key:i}))];
+            })()}
+            columns={draggableProjetos}
+            pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+            size="small"
+            scroll={{ x: "max-content" }}
+            style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+            onRow={row => ({
+              onClick: () => !row._isTotal && row.horas_total > 0 && setSelectedPep({ pep: row.pep, nome_cliente: selectedCliente }),
+              style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: row.horas_total > 0 ? "pointer" : "default" },
+            })}
+          />
+        </>
       ) : (
         <Table
           dataSource={(() => {
-            const rec = filteredProjetos.reduce((s,r)=>s+(Number(r.receita)||0),0);
-            const cus = filteredProjetos.reduce((s,r)=>s+(Number(r.custo_rateado)||0),0);
-            const mar = filteredProjetos.reduce((s,r)=>s+(Number(r.margem)||0),0);
+            const rec = clientesData.reduce((s,r)=>s+r.receita,0);
+            const cus = clientesData.reduce((s,r)=>s+r.custo_rateado,0);
+            const mar = clientesData.reduce((s,r)=>s+r.margem,0);
             const pct = rec!==0 ? mar/rec : null;
-            return [{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, horas_total:0, _isTotal:true }, ...filteredProjetos.map((d,i)=>({...d,key:i}))];
+            return [{ key:"__t__", nome_cliente:"TOTAL", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, num_projetos: clientesData.reduce((s,r)=>s+r.num_projetos,0), _isTotal:true }, ...clientesData.map((d,i)=>({...d,key:i}))];
           })()}
-          columns={colProjetos}
+          columns={draggableClientes}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
           onRow={row => ({
-            onClick: () => !row._isTotal && row.horas_total > 0 && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
-            style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: row.horas_total > 0 ? "pointer" : "default" },
+            onClick: () => !(row as any)._isTotal && setSelectedCliente(row.nome_cliente),
+            style: (row as any)._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
           })}
         />
       )}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Select, Table, Spin, message, Button, Breadcrumb } from "antd";
 import { HomeOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { getRacFilters, getRacProjetos, getRacPessoas } from "../api";
+import { useDraggableColumns } from "../hooks/useDraggableColumns";
 
 
 const labelStyle: React.CSSProperties = {
@@ -105,6 +106,9 @@ export default function RacTab() {
   const totalProjetos = projetos.reduce((s, r) => s + r.valor_liquido, 0);
   const totalPessoas  = pessoas.reduce((s, r) => s + r.valor_liquido, 0);
 
+  const draggableProjetos = useDraggableColumns(colProjetos);
+  const draggablePessoas  = useDraggableColumns(colPessoas);
+
   const breadcrumb = [
     {
       title: (
@@ -155,7 +159,7 @@ export default function RacTab() {
           </div>
           <Table
             dataSource={[{ key:"__t__", cpf:"TOTAL", nome:"", empresa:"", valor_liquido: totalPessoas, _isTotal:true }, ...pessoas.map((d,i)=>({...d,key:i}))]}
-            columns={colPessoas}
+            columns={draggablePessoas}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
@@ -166,7 +170,7 @@ export default function RacTab() {
       ) : (
         <Table
           dataSource={[{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", valor_liquido: totalProjetos, _isTotal:true }, ...projetos.map((d,i)=>({...d,key:i}))]}
-          columns={colProjetos}
+          columns={draggableProjetos}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
           scroll={{ x: "max-content" }}

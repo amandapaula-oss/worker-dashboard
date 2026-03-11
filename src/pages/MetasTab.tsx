@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Select, Table, Spin, message } from "antd";
 import { getMetasFilters, getMetasCustoPessoal } from "../api";
+import { useDraggableColumns } from "../hooks/useDraggableColumns";
 
 const labelStyle: React.CSSProperties = {
   color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
@@ -42,7 +43,7 @@ export default function MetasTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selComp, selEmpresas, selTipos]);
 
-  const columns = [
+  const columnsDef = [
     { title: "Nº Pessoal", dataIndex: "numero_pessoal", key: "id", width: 120 },
     { title: "Nome",       dataIndex: "nome",            key: "nome", ellipsis: true },
     { title: "Empresa",    dataIndex: "empresa",         key: "empresa", width: 130 },
@@ -60,6 +61,8 @@ export default function MetasTab() {
       ),
     },
   ];
+
+  const columns = useDraggableColumns(columnsDef);
 
   return (
     <div>
