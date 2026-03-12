@@ -6,3 +6,4 @@ gdown
 python-jose[cryptography]
 bcrypt
 python-multipart
+reportlab

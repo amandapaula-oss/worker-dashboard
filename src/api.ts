@@ -150,3 +150,33 @@ export async function getRazaoComparativo(params: Record<string, string>) {
 export async function getCltData(params: Record<string, string>) {
   return apiFetch(`/api/clt/data${buildQuery(params)}`);
 }
+
+// ── Apuração de Metas ─────────────────────────────────────────────────────────
+
+export async function getApuracaoPessoas() {
+  return apiFetch("/api/apuracao/pessoas");
+}
+
+export async function getApuracaoCalcular(nome: string) {
+  return apiFetch(`/api/apuracao/calcular${buildQuery({ nome })}`);
+}
+
+export async function getApuracaoVisaoMaster() {
+  return apiFetch("/api/apuracao/visao-master");
+}
+
+export async function downloadApuracaoPdf(nome: string): Promise<void> {
+  const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+  const res = await fetch(
+    `${BASE_URL}/api/apuracao/pdf?nome=${encodeURIComponent(nome)}`,
+    { headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `apuracao_q4_${nome.replace(/ /g, "_")}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

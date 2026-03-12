@@ -81,7 +81,7 @@ export default function CheckLucasTab() {
       render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
-      title: "Net Revenue (Razão)", dataIndex: "receita_razao", key: "receita_razao", width: 170,
+      title: "Receita (Razão)", dataIndex: "receita_razao", key: "receita_razao", width: 170,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita_razao) || 0) - (Number(b.receita_razao) || 0),
       render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
@@ -94,13 +94,13 @@ export default function CheckLucasTab() {
     },
     // ── Custo CLT ─────────────────────────────────────────────────────────────
     {
-      title: "Custo CLT (RAC)", dataIndex: "custo_clt", key: "custo_clt", width: 150,
+      title: "Custo CLT (DP)", dataIndex: "custo_clt", key: "custo_clt", width: 150,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_clt) || 0) - (Number(b.custo_clt) || 0),
       render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
-      title: "Payroll Costs (Razão)", dataIndex: "payroll_razao", key: "payroll_razao", width: 175,
+      title: "Custo CLT (Razão)", dataIndex: "payroll_razao", key: "payroll_razao", width: 175,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.payroll_razao) || 0) - (Number(b.payroll_razao) || 0),
       render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
@@ -113,13 +113,13 @@ export default function CheckLucasTab() {
     },
     // ── Custo PJ ──────────────────────────────────────────────────────────────
     {
-      title: "Custo PJ (RAC)", dataIndex: "custo_pj", key: "custo_pj", width: 150,
+      title: "Custo PJ (Arq. Lucas)", dataIndex: "custo_pj", key: "custo_pj", width: 170,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_pj) || 0) - (Number(b.custo_pj) || 0),
       render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
-      title: "Third-party Costs (Razão)", dataIndex: "thirdparty_razao", key: "thirdparty_razao", width: 200,
+      title: "Custo PJ (Razão)", dataIndex: "thirdparty_razao", key: "thirdparty_razao", width: 170,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.thirdparty_razao) || 0) - (Number(b.thirdparty_razao) || 0),
       render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
@@ -132,7 +132,7 @@ export default function CheckLucasTab() {
     },
     // ── Margem ────────────────────────────────────────────────────────────────
     {
-      title: "Margem (RAC)", dataIndex: "margem_rac", key: "margem_rac", width: 150,
+      title: "Margem (RAC + DP + Arq. Lucas)", dataIndex: "margem_rac", key: "margem_rac", width: 230,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.margem_rac) || 0) - (Number(b.margem_rac) || 0),
       render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span>,
@@ -152,14 +152,14 @@ export default function CheckLucasTab() {
   ];
 
   const kpis = [
-    { label: "Receita RAC",    value: totReceita,               sub: `Razão: ${brl(totRecRazao)}`,   color: "#1a2e5a" },
-    { label: "Δ Receita",      value: totReceita - totRecRazao, sub: "RAC − Razão",                  color: Math.abs(totReceita - totRecRazao) < 1 ? "#888" : totReceita > totRecRazao ? "#0a7a3e" : "#c0392b" },
-    { label: "Custo CLT (RAC)",value: totCusClt,                sub: `Payroll: ${brl(totPayroll)}`,  color: totCusClt < 0 ? "#c0392b" : "#1a2e5a" },
-    { label: "Δ CLT",          value: totCusClt - totPayroll,   sub: "RAC − Razão",                  color: Math.abs(totCusClt - totPayroll) < 1 ? "#888" : totCusClt > totPayroll ? "#0a7a3e" : "#c0392b" },
-    { label: "Custo PJ (RAC)", value: totCusPj,                 sub: `3P: ${brl(totThirdParty)}`,    color: totCusPj < 0 ? "#c0392b" : "#1a2e5a" },
-    { label: "Δ PJ",           value: totCusPj - totThirdParty, sub: "RAC − Razão",                  color: Math.abs(totCusPj - totThirdParty) < 1 ? "#888" : totCusPj > totThirdParty ? "#0a7a3e" : "#c0392b" },
-    { label: "Margem RAC",     value: totMargemRac,             sub: `Razão: ${brl(totMargemRazao)}`,color: totMargemRac < 0 ? "#c0392b" : "#0a7a3e" },
-    { label: "Δ Margem",       value: totMargemRac - totMargemRazao, sub: "RAC − Razão",             color: Math.abs(totMargemRac - totMargemRazao) < 1 ? "#888" : totMargemRac > totMargemRazao ? "#0a7a3e" : "#c0392b" },
+    { label: "Receita (RAC)",         value: totReceita,               sub: `Razão: ${brl(totRecRazao)}`,          color: "#1a2e5a" },
+    { label: "Δ Receita",             value: totReceita - totRecRazao, sub: "RAC − Razão",                         color: Math.abs(totReceita - totRecRazao) < 1 ? "#888" : totReceita > totRecRazao ? "#0a7a3e" : "#c0392b" },
+    { label: "Custo CLT (DP)",        value: totCusClt,                sub: `Razão: ${brl(totPayroll)}`,           color: totCusClt < 0 ? "#c0392b" : "#1a2e5a" },
+    { label: "Δ CLT",                 value: totCusClt - totPayroll,   sub: "DP − Razão",                         color: Math.abs(totCusClt - totPayroll) < 1 ? "#888" : totCusClt > totPayroll ? "#0a7a3e" : "#c0392b" },
+    { label: "Custo PJ (Arq. Lucas)", value: totCusPj,                 sub: `Razão: ${brl(totThirdParty)}`,        color: totCusPj < 0 ? "#c0392b" : "#1a2e5a" },
+    { label: "Δ PJ",                  value: totCusPj - totThirdParty, sub: "Arq. Lucas − Razão",                 color: Math.abs(totCusPj - totThirdParty) < 1 ? "#888" : totCusPj > totThirdParty ? "#0a7a3e" : "#c0392b" },
+    { label: "Margem (RAC+DP+Lucas)", value: totMargemRac,             sub: `Razão: ${brl(totMargemRazao)}`,       color: totMargemRac < 0 ? "#c0392b" : "#0a7a3e" },
+    { label: "Δ Margem",              value: totMargemRac - totMargemRazao, sub: "Bases − Razão",                  color: Math.abs(totMargemRac - totMargemRazao) < 1 ? "#888" : totMargemRac > totMargemRazao ? "#0a7a3e" : "#c0392b" },
   ];
 
   return (

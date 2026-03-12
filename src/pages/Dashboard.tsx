@@ -12,6 +12,7 @@ import MetasTab from "./MetasTab";
 import RacTab from "./RacTab";
 import MargemTab from "./MargemTab";
 import CheckLucasTab from "./CheckLucasTab";
+import VistaMasterTab from "./VistaMasterTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -219,14 +220,15 @@ export default function Dashboard() {
 
           {section === "metas" && (
             <Tabs
-              defaultActiveKey="rac"
+              defaultActiveKey="visao-master"
               type="card"
               size="large"
               items={[
-                { key: "margem", label: "📊 Margem por Projeto",  children: <MargemTab /> },
-                { key: "rac",    label: "📂 Receita por Projeto", children: <RacTab /> },
-                { key: "metas",  label: "👥 Custo por Pessoa",    children: <MetasTab /> },
-                { key: "check",  label: "🔍 Check Lucas",         children: <CheckLucasTab /> },
+                { key: "visao-master", label: "🎯 Visão Master Q4",     children: <VistaMasterTab /> },
+                { key: "margem",       label: "📊 Margem por Projeto",   children: <MargemTab /> },
+                { key: "rac",          label: "📂 Receita por Projeto",  children: <RacTab /> },
+                { key: "metas",        label: "👥 Custo por Pessoa",     children: <MetasTab /> },
+                { key: "check",        label: "🔍 Check Lucas",          children: <CheckLucasTab /> },
               ]}
             />
           )}

@@ -720,7 +720,10 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
 
     # Custos RAC: PJ e CLT de margem_pessoas
     metas = read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str})
-    pj_cpfs = set(metas[metas["tipo"] == "PJ"]["numero_pessoal"].dropna().unique())
+    pj_cpfs = set(
+        metas[(metas["tipo"] == "PJ") & (metas["categoria"] == "PJs - Core")]
+        ["numero_pessoal"].dropna().unique()
+    )
 
     pess["is_pj"] = pess["cpf"].isin(pj_cpfs)
 
@@ -804,3 +807,82 @@ def get_clt_data(meses: str = "", user=Depends(get_current_user)):
     total = sum(r["totalizador"] for r in rows)
     rows.append({"empresa": "Total", "totalizador": total})
     return {"meses": all_meses, "data": rows}
+
+# ── Apuração de Metas endpoints ───────────────────────────────────────────────
+
+from apuracao_engine import (
+    calc_bonus_ae, calc_bonus_diretor, get_visao_master,
+    _load_all, norm as eng_norm
+)
+
+@app.get("/api/apuracao/pessoas")
+def get_apuracao_pessoas(user=Depends(get_current_user)):
+    """Lista todos os avaliados com posição, contrato e salário Q4."""
+    d = _load_all()
+    pessoas = d["pessoas"]
+    result = []
+    for _, p in pessoas.iterrows():
+        sal = float(p["Sal_Q4"]) if not __import__("math").isnan(float(p["Sal_Q4"] or 0)) else 0.0
+        if sal == 0:
+            continue
+        result.append({
+            "nome":     p["Nome"],
+            "posicao":  str(p["Posicao"]),
+            "contrato": str(p.get("Contrato", "")),
+            "salario":  round(sal, 2),
+        })
+    return result
+
+@app.get("/api/apuracao/calcular")
+def get_apuracao_calcular(nome: str, user=Depends(get_current_user)):
+    """Calcula bônus Q4 para uma pessoa específica."""
+    d = _load_all()
+    pessoas = d["pessoas"]
+    nome_n = eng_norm(nome)
+    pessoa = pessoas[pessoas["nome_norm"] == nome_n]
+    if pessoa.empty:
+        pessoa = pessoas[pessoas["nome_norm"].str.contains(nome_n.split()[0])]
+    if pessoa.empty:
+        raise HTTPException(status_code=404, detail=f"Pessoa não encontrada: {nome}")
+    pos = str(pessoa.iloc[0]["Posicao"]).upper().strip()
+    try:
+        if pos == "DIRETOR":
+            return calc_bonus_diretor(nome)
+        else:
+            return calc_bonus_ae(nome)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/apuracao/visao-master")
+def get_apuracao_visao_master(user=Depends(get_current_user)):
+    """Retorna todos os avaliados com bônus calculado (visão consolidada)."""
+    try:
+        return get_visao_master()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/apuracao/pdf")
+def get_apuracao_pdf(nome: str, user=Depends(get_current_user)):
+    """Gera PDF com memória de cálculo individual (Q4 2025)."""
+    from fastapi.responses import Response
+    from pdf_apuracao import gerar_pdf
+    d = _load_all()
+    pessoas = d["pessoas"]
+    nome_n = eng_norm(nome)
+    pessoa = pessoas[pessoas["nome_norm"] == nome_n]
+    if pessoa.empty:
+        pessoa = pessoas[pessoas["nome_norm"].str.contains(nome_n.split()[0])]
+    if pessoa.empty:
+        raise HTTPException(status_code=404, detail=f"Pessoa não encontrada: {nome}")
+    pos = str(pessoa.iloc[0]["Posicao"]).upper().strip()
+    try:
+        dados = calc_bonus_diretor(nome) if pos == "DIRETOR" else calc_bonus_ae(nome)
+        pdf_bytes = gerar_pdf(dados)
+        nome_arquivo = nome.replace(" ", "_").replace("/", "_")
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="apuracao_q4_{nome_arquivo}.pdf"'}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

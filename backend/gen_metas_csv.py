@@ -60,6 +60,7 @@ for filepath in sorted(glob(CLT_PATH + "Custo Gerencial Grupo *.xlsx")):
             "nome":            str(row["Nome"]).strip(),
             "empresa":         COMPANY_NAMES.get(str(row["Empresa"]).strip(), str(row["Empresa"]).strip()),
             "custo":           float(row[custo_col]),
+            "categoria":       "CLT",
         })
     print(f"  {filename}: {len(df_valid)} registros, competencia={competencia}")
 
@@ -91,6 +92,7 @@ for _, row in df_pj.iterrows():
         "nome":            str(row["worker_name"]).strip(),
         "empresa":         COMPANY_NAMES.get(sap, name_company),
         "custo":           valor,
+        "categoria":       str(row.get("categoria", "")).strip(),
     })
 
 print(f"PJ: {len([r for r in records if r['tipo'] == 'PJ'])} registros")
