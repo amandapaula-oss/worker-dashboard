@@ -719,21 +719,28 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
     receita_rac = proj.groupby(["empresa","periodo"], as_index=False)["receita"].sum()
 
     # Custos RAC: PJ e CLT de margem_pessoas
+    # Classificacao: billable/nao_classificado -> custo (entra na MB); non-billable -> despesa
     metas = read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str})
     pj_cpfs = set(
         metas[(metas["tipo"] == "PJ") & (metas["categoria"] == "PJs - Core")]
         ["numero_pessoal"].dropna().unique()
     )
 
-    pess["is_pj"] = pess["cpf"].isin(pj_cpfs)
+    classif = read_csv_cached("classificacao_pessoas.csv")
+    despesa_cpfs = set(classif[classif["classificacao"] == "despesa"]["cpf_brcpf"].dropna().unique())
 
+    pess["is_pj"]      = pess["cpf"].isin(pj_cpfs)
+    pess["is_despesa"] = pess["cpf"].isin(despesa_cpfs)
+
+    # Custo PJ: PJs-Core que são custo (billable/nao_classificado)
     custo_pj = (
-        pess[pess["is_pj"]]
+        pess[pess["is_pj"] & ~pess["is_despesa"]]
         .groupby(["empresa","periodo"], as_index=False)["custo_rateado"]
         .sum().rename(columns={"custo_rateado": "custo_pj"})
     )
+    # Custo CLT: CLTs que são custo (billable/nao_classificado)
     custo_clt = (
-        pess[~pess["is_pj"]]
+        pess[~pess["is_pj"] & ~pess["is_despesa"]]
         .groupby(["empresa","periodo"], as_index=False)["custo_rateado"]
         .sum().rename(columns={"custo_rateado": "custo_clt"})
     )
