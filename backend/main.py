@@ -670,9 +670,9 @@ def get_razao() -> pd.DataFrame:
 def get_razao_filters(user=Depends(get_current_user)):
     try:
         df = get_razao()
-        margem = get_margem_proj()
-        periodos = sorted(set(df["periodo"].unique().tolist()) | set(margem["periodo"].dropna().unique().tolist()))
-        empresas = sorted(set(df["empresa"].dropna().unique().tolist()) | set(margem["empresa"].dropna().unique().tolist()))
+        rac = get_rac_proj()
+        periodos = sorted(set(df["periodo"].unique().tolist()) | set(rac["periodo"].dropna().unique().tolist()))
+        empresas = sorted(set(df["empresa"].dropna().unique().tolist()) | set(rac["empresa"].dropna().unique().tolist()))
         return {"periodos": periodos, "empresas": empresas}
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -710,13 +710,16 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
         .sum().rename(columns={"AmountInCompanyCodeCurrency": "thirdparty_razao"})
     )
 
-    # Receita RAC vem de margem_projetos (TE + Fee_WIP + UsageBased)
-    proj = get_margem_proj()
+    # Receita RAC vem de rac_projetos (MapaReceita "Efeito Receita Competência")
+    proj = get_rac_proj()
     if sel_periodos:
         proj = proj[proj["periodo"].isin(sel_periodos)]
     if sel_empresas:
         proj = proj[proj["empresa"].isin(sel_empresas)]
-    receita_rac = proj.groupby(["empresa","periodo"], as_index=False)["receita"].sum()
+    receita_rac = (
+        proj.groupby(["empresa","periodo"], as_index=False)["valor_liquido"]
+        .sum().rename(columns={"valor_liquido": "receita"})
+    )
 
     # Custos RAC: PJ e CLT de margem_pessoas
     # Classificacao: billable/nao_classificado -> custo (entra na MB); non-billable -> despesa
