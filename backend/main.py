@@ -74,7 +74,8 @@ SAP_ID      = "1Lm-G9ZJUC2Hzc9iIKIb6LCemYJqtzNQO"
 NEXUS_ID    = "1BBjfSYTGLAeuxMih4CDMgyfmVDGfkxkW"
 
 COMPANY_NAMES = {
-    "BR02": "FCamara", "BR07": "Hyper", "BR09": "NextGen",
+    "BR02": "FCamara", "BRO2": "FCamara",
+    "BR07": "Hyper", "BR09": "NextGen",
     "BR05": "SGA", "BR06": "Dojo", "BR04": "Nação Digital",
 }
 SAP_NAMES = {"BR02": "FCamara", "BR07": "Hyper", "BR09": "NextGen"}
@@ -670,7 +671,8 @@ def get_razao() -> pd.DataFrame:
 def get_razao_filters(user=Depends(get_current_user)):
     try:
         df = get_razao()
-        rac = get_rac_proj()
+        rac = get_rac_proj().copy()
+        rac["empresa"] = rac["empresa"].map(COMPANY_NAMES).fillna(rac["empresa"])
         periodos = sorted(set(df["periodo"].unique().tolist()) | set(rac["periodo"].dropna().unique().tolist()))
         empresas = sorted(set(df["empresa"].dropna().unique().tolist()) | set(rac["empresa"].dropna().unique().tolist()))
         return {"periodos": periodos, "empresas": empresas}
@@ -711,7 +713,8 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
     )
 
     # Receita RAC vem de rac_projetos (MapaReceita "Efeito Receita Competência")
-    proj = get_rac_proj()
+    proj = get_rac_proj().copy()
+    proj["empresa"] = proj["empresa"].map(COMPANY_NAMES).fillna(proj["empresa"])
     if sel_periodos:
         proj = proj[proj["periodo"].isin(sel_periodos)]
     if sel_empresas:
