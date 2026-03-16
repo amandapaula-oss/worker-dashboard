@@ -18,8 +18,10 @@ brl = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", 
 wp       = pd.read_excel(WP_PATH)
 rp       = pd.read_excel("relacao_pessoas.xlsx")
 metas    = pd.read_csv("metas_custo.csv", dtype={"numero_pessoal": str})
-rac_proj = pd.read_csv("rac_projetos.csv", dtype={"pep": str})
-rac_pess = pd.read_csv("rac_pessoas.csv",  dtype={"pep": str, "cpf": str})
+rac_proj  = pd.read_csv("rac_projetos.csv",  dtype={"pep": str})
+rac_pess  = pd.read_csv("rac_pessoas.csv",   dtype={"pep": str, "cpf": str})
+marg_pess = pd.read_csv("margem_pessoas.csv", dtype={"pep": str, "cpf": str})
+marg_proj = pd.read_csv("margem_projetos.csv", dtype={"pep": str})
 clt_bu   = pd.read_excel(BUILD_UP, sheet_name="CLT - DP")
 pj_bu    = pd.read_excel(BUILD_UP, sheet_name="Base Pgto PJs")
 clt_bu.columns = [c.strip() for c in clt_bu.columns]
@@ -151,13 +153,30 @@ batimento_df = pd.DataFrame(batimento).sort_values(['tipo', 'nome_base'])
 print(f"\nBatimento por nome (diferente): {len(batimento_df)} pares")
 
 # SHEET: Receita sem custo
-rp_q4      = rac_proj[rac_proj['periodo'].astype(str).str.startswith('2025-1')]
-rp_pess_q4 = rac_pess[rac_pess['periodo'].astype(str).str.startswith('2025-1')]
-peps_com_custo   = set(rp_pess_q4['pep'].dropna())
-peps_com_receita = set(rp_q4[rp_q4['valor_liquido'].fillna(0) != 0]['pep'].dropna())
+# Usa PEP base (sem sufixo .0.x) para casar entre fontes
+def pep_base(p): return str(p).split('.')[0] if pd.notna(p) else ''
+
+rp_q4      = rac_proj[rac_proj['periodo'].astype(str).str.startswith('2025-1')].copy()
+rp_pess_q4 = rac_pess[rac_pess['periodo'].astype(str).str.startswith('2025-1')].copy()
+
+rp_q4['pep_base']      = rp_q4['pep'].apply(pep_base)
+rp_pess_q4['pep_base'] = rp_pess_q4['pep'].apply(pep_base)
+
+# Fontes de custo: rac_pessoas + margem_pessoas + margem_projetos (todas com PEP base)
+mp_q4 = marg_pess[marg_pess['periodo'].astype(str).str.startswith('2025-1')].copy()
+mpr_q4 = marg_proj[marg_proj['periodo'].astype(str).str.startswith('2025-1')].copy()
+mp_q4['pep_base']  = mp_q4['pep'].apply(pep_base)
+mpr_q4['pep_base'] = mpr_q4['pep'].apply(pep_base)
+
+peps_com_custo = (
+    set(rp_pess_q4['pep_base'].dropna()) |
+    set(mp_q4['pep_base'].dropna()) |
+    set(mpr_q4['pep_base'].dropna())
+)
+peps_com_receita = set(rp_q4[rp_q4['valor_liquido'].fillna(0) != 0]['pep_base'].dropna())
 
 sem_custo_grp = (
-    rp_q4[~rp_q4['pep'].isin(peps_com_custo) & (rp_q4['valor_liquido'].fillna(0) != 0)]
+    rp_q4[~rp_q4['pep_base'].isin(peps_com_custo) & (rp_q4['valor_liquido'].fillna(0) != 0)]
     .groupby(['empresa', 'nome_cliente', 'pep', 'tipo'], as_index=False)
     .agg(receita_q4=('valor_liquido', 'sum'),
          meses=('periodo', lambda x: ', '.join(sorted(x.unique()))))
@@ -167,7 +186,7 @@ sem_custo_grp['receita_q4_fmt'] = sem_custo_grp['receita_q4'].apply(brl)
 
 # SHEET: Custo sem receita
 pess_sem_rec = (
-    rp_pess_q4[~rp_pess_q4['pep'].isin(peps_com_receita)]
+    rp_pess_q4[~rp_pess_q4['pep_base'].isin(peps_com_receita)]
     .groupby(['empresa', 'pep', 'cpf', 'nome'], as_index=False)
     .agg(custo_q4=('valor_liquido', 'sum'),
          meses=('periodo', lambda x: ', '.join(sorted(x.unique()))))
@@ -197,8 +216,8 @@ n_custo        = (sem_link['classificacao'] == 'custo').sum()
 n_desp         = (sem_link['classificacao'] == 'despesa').sum()
 
 resumo = pd.DataFrame([
-    {"Categoria": "RECEITA",  "Indicador": "Receita total Q4",                   "Valor": brl(total_receita), "Detalhe": f"{rp_q4['pep'].nunique()} PEPs"},
-    {"Categoria": "RECEITA",  "Indicador": "Receita sem custo atrelado",          "Valor": brl(total_sc),      "Detalhe": f"{len(sem_custo_grp)} PEPs ({100*total_sc/total_receita:.1f}%)"},
+    {"Categoria": "RECEITA",  "Indicador": "Receita total Q4",                   "Valor": brl(total_receita), "Detalhe": f"{rp_q4['pep_base'].nunique()} PEPs"},
+    {"Categoria": "RECEITA",  "Indicador": "Receita sem custo atrelado",          "Valor": brl(total_sc),      "Detalhe": f"{len(sem_custo_grp)} PEPs ({100*total_sc/total_receita:.1f}%) — principalmente Usage Based"},
     {"Categoria": "CUSTO",    "Indicador": "Custo sem projeto (billable/nao classif.)", "Valor": brl(custo_sem_proj), "Detalhe": f"{n_custo} pessoas — entra na Margem Bruta"},
     {"Categoria": "DESPESA",  "Indicador": "Despesa sem projeto (non-billable)",  "Valor": brl(desp_sem_proj), "Detalhe": f"{n_desp} pessoas — abaixo da Margem Bruta"},
     {"Categoria": "CUSTO",    "Indicador": "Custo em PEPs sem receita",           "Valor": brl(total_psr),     "Detalhe": f"{pess_sem_rec['nome'].nunique()} pessoas"},
