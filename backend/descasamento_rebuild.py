@@ -184,14 +184,38 @@ sem_custo_grp = (
 )
 sem_custo_grp['receita_q4_fmt'] = sem_custo_grp['receita_q4'].apply(brl)
 
-# SHEET: Custo sem receita
-pess_sem_rec = (
+# SHEET: Custo sem receita — todas as fontes de custo
+# rac_pessoas: custo por pessoa/PEP (T&E)
+pess_sr = (
     rp_pess_q4[~rp_pess_q4['pep_base'].isin(peps_com_receita)]
     .groupby(['empresa', 'pep', 'cpf', 'nome'], as_index=False)
     .agg(custo_q4=('valor_liquido', 'sum'),
          meses=('periodo', lambda x: ', '.join(sorted(x.unique()))))
-    .sort_values('custo_q4')
 )
+pess_sr['fonte'] = 'rac_pessoas'
+
+# margem_pessoas: custo rateado por pessoa/PEP
+mp_sr = (
+    mp_q4[~mp_q4['pep_base'].isin(peps_com_receita)]
+    .groupby(['empresa', 'pep', 'cpf', 'nome'], as_index=False)
+    .agg(custo_q4=('custo_rateado', 'sum'),
+         meses=('periodo', lambda x: ', '.join(sorted(x.unique()))))
+)
+mp_sr['fonte'] = 'margem_pessoas'
+
+# margem_projetos: custo rateado por projeto/PEP (sem pessoa)
+mpr_sr = (
+    mpr_q4[~mpr_q4['pep_base'].isin(peps_com_receita) & (mpr_q4['custo_rateado'].fillna(0) != 0)]
+    .groupby(['empresa', 'pep', 'nome_cliente'], as_index=False)
+    .agg(custo_q4=('custo_rateado', 'sum'),
+         meses=('periodo', lambda x: ', '.join(sorted(x.unique()))))
+)
+mpr_sr = mpr_sr.rename(columns={'nome_cliente': 'nome'})
+mpr_sr['cpf'] = ''
+mpr_sr['fonte'] = 'margem_projetos'
+
+pess_sem_rec = pd.concat([pess_sr, mp_sr, mpr_sr], ignore_index=True)
+pess_sem_rec = pess_sem_rec[pess_sem_rec['custo_q4'].fillna(0) != 0].sort_values('custo_q4')
 pess_sem_rec['custo_q4_fmt'] = pess_sem_rec['custo_q4'].apply(brl)
 
 # SHEET: Classificacao Billable
@@ -220,7 +244,7 @@ resumo = pd.DataFrame([
     {"Categoria": "RECEITA",  "Indicador": "Receita sem custo atrelado",          "Valor": brl(total_sc),      "Detalhe": f"{len(sem_custo_grp)} PEPs ({100*total_sc/total_receita:.1f}%) — principalmente Usage Based"},
     {"Categoria": "CUSTO",    "Indicador": "Custo sem projeto (billable/nao classif.)", "Valor": brl(custo_sem_proj), "Detalhe": f"{n_custo} pessoas — entra na Margem Bruta"},
     {"Categoria": "DESPESA",  "Indicador": "Despesa sem projeto (non-billable)",  "Valor": brl(desp_sem_proj), "Detalhe": f"{n_desp} pessoas — abaixo da Margem Bruta"},
-    {"Categoria": "CUSTO",    "Indicador": "Custo em PEPs sem receita",           "Valor": brl(total_psr),     "Detalhe": f"{pess_sem_rec['nome'].nunique()} pessoas"},
+    {"Categoria": "CUSTO",    "Indicador": "Custo em PEPs sem receita",           "Valor": brl(total_psr),     "Detalhe": f"{pess_sem_rec['pep'].nunique()} PEPs — rac_pessoas + margem_pessoas + margem_projetos"},
 ])
 
 # Export
