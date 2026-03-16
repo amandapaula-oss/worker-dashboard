@@ -87,7 +87,8 @@ export default function MargemTab() {
     if (!q) return pessoas;
     return pessoas.filter(r =>
       String(r.nome || "").toLowerCase().includes(q) ||
-      String(r.cpf || "").toLowerCase().includes(q)
+      String(r.cpf || "").toLowerCase().includes(q) ||
+      String(r.numero_pessoal || "").toLowerCase().includes(q)
     );
   }, [pessoas, searchPessoa]);
 
@@ -215,6 +216,10 @@ export default function MargemTab() {
   ];
 
   const colPessoas = [
+    {
+      title: "ID", dataIndex: "numero_pessoal", key: "numero_pessoal", width: 120,
+      sorter: (a: any, b: any) => String(a.numero_pessoal).localeCompare(String(b.numero_pessoal)),
+    },
     {
       title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true,
       sorter: (a: any, b: any) => String(a.nome).localeCompare(String(b.nome)),

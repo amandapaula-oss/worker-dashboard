@@ -664,6 +664,12 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
+    # join numero_pessoal (ID SAP) via cpf lookup from rac_pessoas
+    rp = get_rac_pess()[["cpf","numero_pessoal"]].copy()
+    rp["cpf"] = rp["cpf"].fillna("")
+    rp["numero_pessoal"] = rp["numero_pessoal"].fillna("")
+    cpf_to_id = rp[rp["cpf"] != ""].drop_duplicates("cpf").set_index("cpf")["numero_pessoal"]
+    agg["numero_pessoal"] = agg["cpf"].map(cpf_to_id).fillna("")
     agg = agg.sort_values("receita", ascending=False)
     return agg.fillna("").to_dict(orient="records")
 
