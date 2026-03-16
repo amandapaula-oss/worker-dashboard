@@ -78,7 +78,7 @@ COMPANY_NAMES = {
     "BR03": "Dojo",
     "BR04": "Nação Digital",
     "BR05": "SGA", "BR06": "Dojo",
-    "BR07": "Hyper",
+    "BR07": "Hyper", "BR0C": "Hyper",
     "BR08": "Omnik",
     "BR09": "NextGen",
 }
