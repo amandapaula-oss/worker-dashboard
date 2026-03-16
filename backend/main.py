@@ -716,6 +716,38 @@ def get_rac_pessoa_projetos(
     agg = agg.sort_values("valor_liquido", ascending=False)
     return agg.fillna("").to_dict(orient="records")
 
+@app.get("/api/margem/pessoa_projetos")
+def get_margem_pessoa_projetos(
+    cpf: str = "", periodos: str = "", empresas: str = "",
+    user=Depends(get_current_user)
+):
+    if not cpf:
+        return []
+    df = get_margem_pess()
+    df["cpf_clean"] = df["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
+    df = df[df["cpf_clean"] == cpf]
+    if periodos:
+        df = df[df["periodo"].isin(periodos.split(","))]
+    if empresas:
+        df = df[df["empresa"].isin(empresas.split(","))]
+    df["pep_base"] = df["pep"].str.split(".").str[0]
+    agg = df.groupby(["pep_base", "empresa"], as_index=False).agg(
+        receita      =("receita",       "sum"),
+        custo_rateado=("custo_rateado", "sum"),
+        horas        =("horas",         "sum"),
+        margem       =("margem",        "sum"),
+    )
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+    )
+    proj = get_margem_proj()[["pep", "nome_cliente"]].copy()
+    proj["pep_base"] = proj["pep"].str.split(".").str[0]
+    proj = proj.drop_duplicates("pep_base")[["pep_base", "nome_cliente"]]
+    agg = agg.merge(proj, on="pep_base", how="left")
+    agg = agg.rename(columns={"pep_base": "pep"})
+    agg = agg.sort_values("receita", ascending=False)
+    return agg.fillna("").to_dict(orient="records")
+
 # ── Razão / Check Lucas endpoints ─────────────────────────────────────────────
 
 def get_razao() -> pd.DataFrame:

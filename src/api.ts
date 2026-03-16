@@ -139,6 +139,10 @@ export async function getMargemPessoas(params: Record<string, string>) {
   return apiFetch(`/api/margem/pessoas${buildQuery(params)}`);
 }
 
+export async function getMargemPessoaProjetos(params: Record<string, string>) {
+  return apiFetch(`/api/margem/pessoa_projetos${buildQuery(params)}`);
+}
+
 // ── Razão / Check Lucas ────────────────────────────────────────────────────────
 
 export async function getRazaoFilters() {
