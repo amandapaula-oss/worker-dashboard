@@ -666,8 +666,8 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
-    # build cpf→ID lookup: rac_pessoas (primary) + relacao_pessoas.xlsx (fallback)
-    rp = get_rac_pess()[["cpf","numero_pessoal"]].copy()
+    # build cpf→ID lookup: rac_pessoas (primary) + relacao_pessoas.xlsx + nome match (fallbacks)
+    rp = get_rac_pess()[["cpf","numero_pessoal","nome"]].copy()
     rp["cpf"] = rp["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
     rp["numero_pessoal"] = rp["numero_pessoal"].fillna("")
     cpf_to_id = rp[rp["cpf"] != ""].drop_duplicates("cpf").set_index("cpf")["numero_pessoal"].to_dict()
@@ -677,7 +677,13 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
         xl["id_sap"] = xl["ID SAP"].fillna("")
         for _, row in xl[(xl["cpf_c"] != "") & (xl["id_sap"] != "")].drop_duplicates("cpf_c").iterrows():
             cpf_to_id.setdefault(row["cpf_c"], row["id_sap"])
-    agg["numero_pessoal"] = agg["cpf"].map(cpf_to_id).fillna("")
+    # nome fallback: for CPFs still without ID, match by exact name against rac_pessoas
+    nome_to_id = (rp[rp["numero_pessoal"] != ""]
+                  .assign(nome_key=lambda d: d["nome"].str.lower().str.strip())
+                  .drop_duplicates("nome_key").set_index("nome_key")["numero_pessoal"].to_dict())
+    agg["numero_pessoal"] = agg.apply(
+        lambda r: cpf_to_id.get(r["cpf"]) or nome_to_id.get(str(r["nome"]).lower().strip()) or "", axis=1
+    )
     agg = agg.sort_values("receita", ascending=False)
     return agg.fillna("").to_dict(orient="records")
 
