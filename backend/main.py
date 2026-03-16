@@ -588,6 +588,7 @@ def get_rac_projetos(
         df = df[df["empresa"].isin(empresas.split(","))]
     if tipos:
         df = df[df["tipo"].isin(tipos.split(","))]
+    df["pep"] = df["pep"].str.split(".").str[0]
     agg = df.groupby(["pep", "nome_cliente", "empresa"], as_index=False)["valor_liquido"].sum()
     agg = agg.sort_values("valor_liquido", ascending=False)
     return agg.fillna("").to_dict(orient="records")
@@ -599,7 +600,7 @@ def get_rac_pessoas(
 ):
     df = get_rac_pess()
     if pep:
-        df = df[df["pep"] == pep]
+        df = df[df["pep"].str.split(".").str[0] == pep]
     if periodos:
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
@@ -633,6 +634,7 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", user=Depends(get
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
+    df["pep"] = df["pep"].str.split(".").str[0]
     agg = df.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(
         receita      =("receita",       "sum"),
         custo_rateado=("custo_rateado", "sum"),
@@ -649,7 +651,7 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", user=Depends(get
 def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
     df = get_margem_pess()
     if pep:
-        df = df[df["pep"] == pep]
+        df = df[df["pep"].str.split(".").str[0] == pep]
     if periodos:
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
