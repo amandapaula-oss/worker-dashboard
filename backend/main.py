@@ -604,7 +604,9 @@ def get_rac_pessoas(
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
-    agg = df.groupby(["cpf", "nome", "empresa", "pep"], as_index=False)["valor_liquido"].sum()
+    df["cpf"] = df["cpf"].fillna("")
+    df["numero_pessoal"] = df["numero_pessoal"].fillna("")
+    agg = df.groupby(["cpf", "numero_pessoal", "nome", "empresa"], as_index=False)["valor_liquido"].sum()
     agg = agg.sort_values("valor_liquido", ascending=False)
     return agg.fillna("").to_dict(orient="records")
 
@@ -652,7 +654,8 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
-    agg = df.groupby(["pep","cpf","nome","empresa"], as_index=False).agg(
+    df["cpf"] = df["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
+    agg = df.groupby(["cpf","nome","empresa"], as_index=False).agg(
         receita      =("receita",       "sum"),
         custo_rateado=("custo_rateado", "sum"),
         horas        =("horas",         "sum"),

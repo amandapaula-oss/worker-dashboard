@@ -60,19 +60,18 @@ export default function RacTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selPeriodos, selEmpresas, selTipos, selectedPep]);
 
-  // load pessoas when a project is selected
+  // load all pessoas (for search) or specific PEP (for drill-down)
   useEffect(() => {
-    if (!selectedPep) return;
-    setLoading(true);
-    const params: Record<string, string> = { pep: selectedPep.pep };
+    if (!filtersReady) return;
+    const params: Record<string, string> = {};
+    if (selectedPep) params.pep = selectedPep.pep;
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     getRacPessoas(params)
       .then(d => setPessoas(d))
-      .catch(() => message.error("Erro ao carregar pessoas"))
-      .finally(() => setLoading(false));
+      .catch(() => message.error("Erro ao carregar pessoas"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPep, selPeriodos, selEmpresas]);
+  }, [filtersReady, selectedPep, selPeriodos, selEmpresas]);
 
   const colProjetos = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 200 },
@@ -91,6 +90,7 @@ export default function RacTab() {
   ];
 
   const colPessoas = [
+    { title: "ID", dataIndex: "numero_pessoal", key: "numero_pessoal", width: 120 },
     { title: "CPF", dataIndex: "cpf", key: "cpf", width: 160 },
     { title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true },
     { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 130 },
@@ -124,7 +124,8 @@ export default function RacTab() {
     if (!q) return pessoas;
     return pessoas.filter(r =>
       String(r.nome || "").toLowerCase().includes(q) ||
-      String(r.cpf || "").toLowerCase().includes(q)
+      String(r.cpf || "").toLowerCase().includes(q) ||
+      String(r.numero_pessoal || "").toLowerCase().includes(q)
     );
   }, [pessoas, searchPessoa]);
 
@@ -187,19 +188,17 @@ export default function RacTab() {
       {/* Breadcrumb */}
       <Breadcrumb items={breadcrumb} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 16 }} />
 
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : selectedPep ? (
+      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (selectedPep || searchPessoa.trim()) ? (
         <>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12 }}>
-            <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0 }} onClick={() => setSelectedPep(null)}>
-              Voltar para projetos
-            </Button>
-            <Input allowClear placeholder="Buscar por nome ou CPF..."
-              prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
-              value={searchPessoa} onChange={e => setSearchPessoa(e.target.value)}
-              style={{ maxWidth: 280 }} />
-          </div>
+          {selectedPep && (
+            <div style={{ marginBottom: 12 }}>
+              <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0 }} onClick={() => setSelectedPep(null)}>
+                Voltar para projetos
+              </Button>
+            </div>
+          )}
           <Table
-            dataSource={[{ key:"__t__", cpf:"TOTAL", nome:"", empresa:"", valor_liquido: totalPessoas, _isTotal:true }, ...filteredPessoas.map((d,i)=>({...d,key:i}))]}
+            dataSource={[{ key:"__t__", numero_pessoal:"TOTAL", cpf:"", nome:"", empresa:"", valor_liquido: totalPessoas, _isTotal:true }, ...filteredPessoas.map((d,i)=>({...d,key:i}))]}
             columns={draggablePessoas}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"

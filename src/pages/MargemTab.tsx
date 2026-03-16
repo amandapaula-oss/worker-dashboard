@@ -68,18 +68,18 @@ export default function MargemTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selPeriodos, selEmpresas, selectedPep]);
 
+  // load all pessoas (for global search) or specific PEP (for drill-down)
   useEffect(() => {
-    if (!selectedPep) return;
-    setLoading(true);
-    const params: Record<string, string> = { pep: selectedPep.pep };
+    if (!filtersReady) return;
+    const params: Record<string, string> = {};
+    if (selectedPep) params.pep = selectedPep.pep;
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     getMargemPessoas(params)
       .then(d => setPessoas(d))
-      .catch(() => message.error("Erro ao carregar pessoas"))
-      .finally(() => setLoading(false));
+      .catch(() => message.error("Erro ao carregar pessoas"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPep, selPeriodos, selEmpresas]);
+  }, [filtersReady, selectedPep, selPeriodos, selEmpresas]);
 
   // Pessoas filtradas por nome/CPF
   const filteredPessoas = useMemo(() => {
@@ -378,12 +378,14 @@ export default function MargemTab() {
 
       <Breadcrumb items={breadcrumb} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 16 }} />
 
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : selectedPep ? (
+      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (selectedPep || searchPessoa.trim()) ? (
         <>
-          <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0, marginBottom: 12 }}
-            onClick={() => setSelectedPep(null)}>
-            Voltar para projetos
-          </Button>
+          {selectedPep && (
+            <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0, marginBottom: 12 }}
+              onClick={() => setSelectedPep(null)}>
+              Voltar para projetos
+            </Button>
+          )}
           <Table
             dataSource={(() => {
               const rec = filteredPessoas.reduce((s,r)=>s+(Number(r.receita)||0),0);
