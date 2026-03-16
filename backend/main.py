@@ -666,11 +666,17 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
-    # join numero_pessoal (ID SAP) via cpf lookup from rac_pessoas
+    # build cpf→ID lookup: rac_pessoas (primary) + relacao_pessoas.xlsx (fallback)
     rp = get_rac_pess()[["cpf","numero_pessoal"]].copy()
     rp["cpf"] = rp["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
     rp["numero_pessoal"] = rp["numero_pessoal"].fillna("")
-    cpf_to_id = rp[rp["cpf"] != ""].drop_duplicates("cpf").set_index("cpf")["numero_pessoal"]
+    cpf_to_id = rp[rp["cpf"] != ""].drop_duplicates("cpf").set_index("cpf")["numero_pessoal"].to_dict()
+    if os.path.exists("relacao_pessoas.xlsx"):
+        xl = pd.read_excel("relacao_pessoas.xlsx", dtype=str)
+        xl["cpf_c"] = xl["CPF / Worker ID"].str.replace(r"^BRCPF", "", regex=True).fillna("")
+        xl["id_sap"] = xl["ID SAP"].fillna("")
+        for _, row in xl[(xl["cpf_c"] != "") & (xl["id_sap"] != "")].drop_duplicates("cpf_c").iterrows():
+            cpf_to_id.setdefault(row["cpf_c"], row["id_sap"])
     agg["numero_pessoal"] = agg["cpf"].map(cpf_to_id).fillna("")
     agg = agg.sort_values("receita", ascending=False)
     return agg.fillna("").to_dict(orient="records")
