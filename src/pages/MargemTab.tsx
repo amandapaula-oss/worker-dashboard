@@ -85,11 +85,15 @@ export default function MargemTab() {
   const filteredPessoas = useMemo(() => {
     const q = searchPessoa.trim().toLowerCase();
     if (!q) return pessoas;
-    return pessoas.filter(r =>
-      String(r.nome || "").toLowerCase().includes(q) ||
-      String(r.cpf || "").toLowerCase().includes(q) ||
-      String(r.numero_pessoal || "").toLowerCase().includes(q)
-    );
+    const qDigits = q.replace(/\D/g, "");
+    return pessoas.filter(r => {
+      const cpfDigits = String(r.cpf || "").replace(/\D/g, "");
+      return (
+        String(r.nome || "").toLowerCase().includes(q) ||
+        (qDigits && cpfDigits.includes(qDigits)) ||
+        String(r.numero_pessoal || "").toLowerCase().includes(q)
+      );
+    });
   }, [pessoas, searchPessoa]);
 
   // Projetos filtrados por texto

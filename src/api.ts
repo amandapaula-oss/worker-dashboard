@@ -121,6 +121,10 @@ export async function getRacPessoas(params: Record<string, string>) {
   return apiFetch(`/api/rac/pessoas${buildQuery(params)}`);
 }
 
+export async function getRacPessoaProjetos(params: Record<string, string>) {
+  return apiFetch(`/api/rac/pessoa_projetos${buildQuery(params)}`);
+}
+
 // ── Margem ────────────────────────────────────────────────────────────────────
 
 export async function getMargemFilters() {
