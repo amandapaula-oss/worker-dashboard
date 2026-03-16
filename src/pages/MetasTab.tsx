@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { Select, Table, Spin, message } from "antd";
+import React, { useEffect, useState, useMemo } from "react";
+import { Select, Table, Spin, message, Input } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
 import { getMetasFilters, getMetasCustoPessoal } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
 
@@ -16,6 +17,7 @@ export default function MetasTab() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtersReady, setFiltersReady] = useState(false);
+  const [searchPessoa, setSearchPessoa] = useState("");
 
   useEffect(() => {
     getMetasFilters()
@@ -62,6 +64,15 @@ export default function MetasTab() {
     },
   ];
 
+  const filteredData = useMemo(() => {
+    const q = searchPessoa.trim().toLowerCase();
+    if (!q) return data;
+    return data.filter(r =>
+      String(r.nome || "").toLowerCase().includes(q) ||
+      String(r.numero_pessoal || "").toLowerCase().includes(q)
+    );
+  }, [data, searchPessoa]);
+
   const columns = useDraggableColumns(columnsDef);
 
   return (
@@ -82,13 +93,19 @@ export default function MetasTab() {
           <Select mode="multiple" style={{ width: "100%" }} value={selTipos} onChange={setSelTipos}
             options={filters.tipos.map(t => ({ label: t, value: t }))} maxTagCount="responsive" />
         </div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={labelStyle}>Pessoa (nome ou nº)</div>
+          <Input allowClear placeholder="Buscar pessoa..."
+            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+            value={searchPessoa} onChange={e => setSearchPessoa(e.target.value)} />
+        </div>
       </div>
 
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
         <Table
           dataSource={(() => {
-            const total = data.reduce((s, r) => s + (Number(r.custo) || 0), 0);
-            return [{ key:"__t__", numero_pessoal:"TOTAL", nome:"", empresa:"", tipo:"", custo: total, _isTotal:true }, ...data.map((d,i)=>({...d,key:i}))];
+            const total = filteredData.reduce((s, r) => s + (Number(r.custo) || 0), 0);
+            return [{ key:"__t__", numero_pessoal:"TOTAL", nome:"", empresa:"", tipo:"", custo: total, _isTotal:true }, ...filteredData.map((d,i)=>({...d,key:i}))];
           })()}
           columns={columns}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}

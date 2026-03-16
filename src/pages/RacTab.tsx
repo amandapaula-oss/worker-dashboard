@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { Select, Table, Spin, message, Button, Breadcrumb } from "antd";
-import { HomeOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import React, { useEffect, useState, useMemo } from "react";
+import { Select, Table, Spin, message, Button, Breadcrumb, Input } from "antd";
+import { HomeOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
 import { getRacFilters, getRacProjetos, getRacPessoas } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
 
@@ -28,6 +28,9 @@ export default function RacTab() {
 
   // drill-down state
   const [selectedPep, setSelectedPep] = useState<{ pep: string; nome_cliente: string } | null>(null);
+  const [searchCliente, setSearchCliente] = useState("");
+  const [searchPep, setSearchPep]         = useState("");
+  const [searchPessoa, setSearchPessoa]   = useState("");
 
   // load filters
   useEffect(() => {
@@ -103,8 +106,30 @@ export default function RacTab() {
     },
   ];
 
-  const totalProjetos = projetos.reduce((s, r) => s + r.valor_liquido, 0);
-  const totalPessoas  = pessoas.reduce((s, r) => s + r.valor_liquido, 0);
+  const filteredProjetos = useMemo(() => {
+    let rows = projetos;
+    if (searchCliente.trim()) {
+      const q = searchCliente.trim().toLowerCase();
+      rows = rows.filter(r => String(r.nome_cliente || "").toLowerCase().includes(q));
+    }
+    if (searchPep.trim()) {
+      const q = searchPep.trim().toLowerCase();
+      rows = rows.filter(r => String(r.pep || "").toLowerCase().includes(q));
+    }
+    return rows;
+  }, [projetos, searchCliente, searchPep]);
+
+  const filteredPessoas = useMemo(() => {
+    const q = searchPessoa.trim().toLowerCase();
+    if (!q) return pessoas;
+    return pessoas.filter(r =>
+      String(r.nome || "").toLowerCase().includes(q) ||
+      String(r.cpf || "").toLowerCase().includes(q)
+    );
+  }, [pessoas, searchPessoa]);
+
+  const totalProjetos = filteredProjetos.reduce((s, r) => s + r.valor_liquido, 0);
+  const totalPessoas  = filteredPessoas.reduce((s, r) => s + r.valor_liquido, 0);
 
   const draggableProjetos = useDraggableColumns(colProjetos);
   const draggablePessoas  = useDraggableColumns(colPessoas);
@@ -145,6 +170,18 @@ export default function RacTab() {
           <Select mode="multiple" style={{ width: "100%" }} value={selTipos} onChange={v => { setSelTipos(v); setSelectedPep(null); }}
             options={filters.tipos.map(t => ({ label: t, value: t }))} maxTagCount="responsive" />
         </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={labelStyle}>Cliente</div>
+          <Input allowClear placeholder="Buscar cliente..."
+            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+            value={searchCliente} onChange={e => { setSearchCliente(e.target.value); setSelectedPep(null); }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={labelStyle}>Projeto (PEP)</div>
+          <Input allowClear placeholder="Buscar PEP..."
+            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+            value={searchPep} onChange={e => { setSearchPep(e.target.value); setSelectedPep(null); }} />
+        </div>
       </div>
 
       {/* Breadcrumb */}
@@ -152,13 +189,17 @@ export default function RacTab() {
 
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : selectedPep ? (
         <>
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12 }}>
             <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0 }} onClick={() => setSelectedPep(null)}>
               Voltar para projetos
             </Button>
+            <Input allowClear placeholder="Buscar por nome ou CPF..."
+              prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+              value={searchPessoa} onChange={e => setSearchPessoa(e.target.value)}
+              style={{ maxWidth: 280 }} />
           </div>
           <Table
-            dataSource={[{ key:"__t__", cpf:"TOTAL", nome:"", empresa:"", valor_liquido: totalPessoas, _isTotal:true }, ...pessoas.map((d,i)=>({...d,key:i}))]}
+            dataSource={[{ key:"__t__", cpf:"TOTAL", nome:"", empresa:"", valor_liquido: totalPessoas, _isTotal:true }, ...filteredPessoas.map((d,i)=>({...d,key:i}))]}
             columns={draggablePessoas}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
@@ -169,7 +210,7 @@ export default function RacTab() {
         </>
       ) : (
         <Table
-          dataSource={[{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", valor_liquido: totalProjetos, _isTotal:true }, ...projetos.map((d,i)=>({...d,key:i}))]}
+          dataSource={[{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", valor_liquido: totalProjetos, _isTotal:true }, ...filteredProjetos.map((d,i)=>({...d,key:i}))]}
           columns={draggableProjetos}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"

@@ -41,6 +41,7 @@ export default function MargemTab() {
   const [selectedPep, setSelectedPep] = useState<{ pep: string; nome_cliente: string } | null>(null);
   const [searchCliente, setSearchCliente] = useState<string>("");
   const [searchPep, setSearchPep]         = useState<string>("");
+  const [searchPessoa, setSearchPessoa]   = useState<string>("");
 
   useEffect(() => {
     getMargemFilters()
@@ -79,6 +80,16 @@ export default function MargemTab() {
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPep, selPeriodos, selEmpresas]);
+
+  // Pessoas filtradas por nome/CPF
+  const filteredPessoas = useMemo(() => {
+    const q = searchPessoa.trim().toLowerCase();
+    if (!q) return pessoas;
+    return pessoas.filter(r =>
+      String(r.nome || "").toLowerCase().includes(q) ||
+      String(r.cpf || "").toLowerCase().includes(q)
+    );
+  }, [pessoas, searchPessoa]);
 
   // Projetos filtrados por texto
   const filteredProjetos = useMemo(() => {
@@ -348,6 +359,16 @@ export default function MargemTab() {
             onChange={e => { setSearchPep(e.target.value); setSelectedCliente(null); setSelectedPep(null); }}
           />
         </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={labelStyle}>Pessoa (nome ou CPF)</div>
+          <Input
+            allowClear
+            placeholder="Buscar pessoa..."
+            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+            value={searchPessoa}
+            onChange={e => setSearchPessoa(e.target.value)}
+          />
+        </div>
         <Text type="secondary" style={{ fontSize: "0.78rem", paddingBottom: 2 }}>
           * Custo rateado disponível para out–dez/2025. Períodos sem custo exibem receita apenas.
         </Text>
@@ -365,10 +386,10 @@ export default function MargemTab() {
           </Button>
           <Table
             dataSource={(() => {
-              const rec = pessoas.reduce((s,r)=>s+(Number(r.receita)||0),0);
-              const cus = pessoas.reduce((s,r)=>s+(Number(r.custo_rateado)||0),0);
-              const mar = pessoas.reduce((s,r)=>s+(Number(r.margem)||0),0);
-              return [{ key:"__t__", nome:"TOTAL", cpf:"", empresa:"", horas:0, receita:rec, custo_rateado:cus, margem:mar, margem_pct: rec!==0?mar/rec:null, _isTotal:true }, ...pessoas.map((d,i)=>({...d,key:i}))];
+              const rec = filteredPessoas.reduce((s,r)=>s+(Number(r.receita)||0),0);
+              const cus = filteredPessoas.reduce((s,r)=>s+(Number(r.custo_rateado)||0),0);
+              const mar = filteredPessoas.reduce((s,r)=>s+(Number(r.margem)||0),0);
+              return [{ key:"__t__", nome:"TOTAL", cpf:"", empresa:"", horas:0, receita:rec, custo_rateado:cus, margem:mar, margem_pct: rec!==0?mar/rec:null, _isTotal:true }, ...filteredPessoas.map((d,i)=>({...d,key:i}))];
             })()}
             columns={draggablePessoas}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
