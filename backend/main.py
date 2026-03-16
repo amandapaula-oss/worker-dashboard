@@ -75,11 +75,11 @@ NEXUS_ID    = "1BBjfSYTGLAeuxMih4CDMgyfmVDGfkxkW"
 
 COMPANY_NAMES = {
     "BR02": "FCamara", "BRO2": "FCamara",
-    "BR03": "Omnik",
+    "BR03": "Dojo",
     "BR04": "Nação Digital",
     "BR05": "SGA", "BR06": "Dojo",
     "BR07": "Hyper",
-    "BR08": "Dojo",
+    "BR08": "Omnik",
     "BR09": "NextGen",
 }
 SAP_NAMES = {"BR02": "FCamara", "BR07": "Hyper", "BR09": "NextGen"}
