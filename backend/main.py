@@ -604,7 +604,7 @@ def get_rac_pessoas(
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
-    df["cpf"] = df["cpf"].fillna("")
+    df["cpf"] = df["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
     df["numero_pessoal"] = df["numero_pessoal"].fillna("")
     agg = df.groupby(["cpf", "numero_pessoal", "nome", "empresa"], as_index=False)["valor_liquido"].sum()
     agg = agg.sort_values("valor_liquido", ascending=False)
@@ -666,7 +666,7 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
     )
     # join numero_pessoal (ID SAP) via cpf lookup from rac_pessoas
     rp = get_rac_pess()[["cpf","numero_pessoal"]].copy()
-    rp["cpf"] = rp["cpf"].fillna("")
+    rp["cpf"] = rp["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
     rp["numero_pessoal"] = rp["numero_pessoal"].fillna("")
     cpf_to_id = rp[rp["cpf"] != ""].drop_duplicates("cpf").set_index("cpf")["numero_pessoal"]
     agg["numero_pessoal"] = agg["cpf"].map(cpf_to_id).fillna("")
