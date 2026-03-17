@@ -532,7 +532,9 @@ def read_csv_cached(path: str, **kwargs) -> pd.DataFrame:
 # ── Metas endpoints ────────────────────────────────────────────────────────────
 
 def get_metas_df() -> pd.DataFrame:
-    return read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str})
+    df = read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str}).copy()
+    df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    return df
 
 @app.get("/api/metas/filters")
 def get_metas_filters(user=Depends(get_current_user)):
@@ -562,10 +564,14 @@ def get_metas_custo_pessoal(
 # ── RAC Financial ──────────────────────────────────────────────────────────────
 
 def get_rac_proj() -> pd.DataFrame:
-    return read_csv_cached("rac_projetos.csv", dtype={"pep": str})
+    df = read_csv_cached("rac_projetos.csv", dtype={"pep": str}).copy()
+    df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    return df
 
 def get_rac_pess() -> pd.DataFrame:
-    return read_csv_cached("rac_pessoas.csv", dtype={"pep": str, "cpf": str})
+    df = read_csv_cached("rac_pessoas.csv", dtype={"pep": str, "cpf": str}).copy()
+    df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    return df
 
 @app.get("/api/rac/filters")
 def get_rac_filters(user=Depends(get_current_user)):
@@ -614,10 +620,14 @@ def get_rac_pessoas(
 # ── Margem por Projeto ─────────────────────────────────────────────────────────
 
 def get_margem_proj() -> pd.DataFrame:
-    return read_csv_cached("margem_projetos.csv", dtype={"pep": str})
+    df = read_csv_cached("margem_projetos.csv", dtype={"pep": str}).copy()
+    df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    return df
 
 def get_margem_pess() -> pd.DataFrame:
-    return read_csv_cached("margem_pessoas.csv", dtype={"pep": str, "cpf": str})
+    df = read_csv_cached("margem_pessoas.csv", dtype={"pep": str, "cpf": str}).copy()
+    df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    return df
 
 @app.get("/api/margem/filters")
 def get_margem_filters(user=Depends(get_current_user)):
@@ -759,8 +769,7 @@ def get_razao() -> pd.DataFrame:
 def get_razao_filters(user=Depends(get_current_user)):
     try:
         df = get_razao()
-        rac = get_rac_proj().copy()
-        rac["empresa"] = rac["empresa"].map(COMPANY_NAMES).fillna(rac["empresa"])
+        rac = get_rac_proj()
         periodos = sorted(set(df["periodo"].unique().tolist()) | set(rac["periodo"].dropna().unique().tolist()))
         empresas = sorted(set(df["empresa"].dropna().unique().tolist()) | set(rac["empresa"].dropna().unique().tolist()))
         return {"periodos": periodos, "empresas": empresas}
@@ -801,8 +810,7 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
     )
 
     # Receita RAC vem de rac_projetos (MapaReceita "Efeito Receita Competência")
-    proj = get_rac_proj().copy()
-    proj["empresa"] = proj["empresa"].map(COMPANY_NAMES).fillna(proj["empresa"])
+    proj = get_rac_proj()
     if sel_periodos:
         proj = proj[proj["periodo"].isin(sel_periodos)]
     if sel_empresas:
