@@ -349,9 +349,57 @@ if len(complement_proj_with_info) > 0:
     proj_final = proj_final.drop(columns=["custo_complement"])
 
 proj_final = proj_final.assign(
+    receita_rac  = lambda d: d["receita"],   # guarda original para fator depois
+    margem       = lambda d: d["receita"] + d["custo_rateado"],
+    margem_pct   = lambda d: d.apply(lambda r: r["margem"]/r["receita"] if r["receita"]!=0 else None, axis=1),
+)
+
+# ── 6b. Substituir receita pelo MapaReceita (rac_projetos.csv) ─────────────────
+# Agregar proj_final por pep_base para evitar dupla contagem (múltiplos sub-PEPs)
+print("\nSubstituindo receita pelo MapaReceita (rac_projetos.csv)...")
+RAC_PROJ_CSV = os.path.join(os.path.dirname(__file__), "rac_projetos.csv")
+mapa = pd.read_csv(RAC_PROJ_CSV, dtype={"pep": str})
+mapa["pep_base"] = mapa["pep"].str.split(".").str[0]
+mapa_agg = mapa.groupby(["periodo","pep_base"], as_index=False)["valor_liquido"].sum()
+mapa_agg = mapa_agg.rename(columns={"valor_liquido": "receita_mapa"})
+
+# Normalizar PEPs de proj_final para pep_base e reagregar (elimina sub-PEPs duplicados)
+proj_final["pep_base"] = proj_final["pep"].str.split(".").str[0]
+pep_meta = (proj_final.sort_values("receita_rac", ascending=False)
+            .drop_duplicates(subset=["periodo","pep_base"])[["periodo","pep_base","nome_cliente","empresa"]])
+proj_base = proj_final.groupby(["periodo","pep_base"], as_index=False).agg(
+    receita_rac  = ("receita_rac",   "sum"),
+    custo_rateado= ("custo_rateado", "sum"),
+    horas_total  = ("horas_total",   "sum"),
+)
+proj_base = proj_base.merge(pep_meta, on=["periodo","pep_base"], how="left")
+
+# Outer join: inclui PEPs só no mapa (receita sem custo) e PEPs só no RAC (custo sem receita)
+proj_base = proj_base.merge(mapa_agg, on=["periodo","pep_base"], how="outer")
+mapa_info = mapa[["pep_base","nome_cliente","empresa"]].drop_duplicates("pep_base").rename(
+    columns={"nome_cliente":"nc_m","empresa":"emp_m"}
+)
+proj_base = proj_base.merge(mapa_info, on="pep_base", how="left")
+proj_base["nome_cliente"] = proj_base["nome_cliente"].fillna(proj_base["nc_m"])
+proj_base["empresa"]      = proj_base["empresa"].fillna(proj_base["emp_m"])
+proj_base = proj_base.drop(columns=["nc_m","emp_m"])
+
+proj_base["custo_rateado"] = proj_base["custo_rateado"].fillna(0)
+proj_base["horas_total"]   = proj_base["horas_total"].fillna(0)
+proj_base["receita_rac"]   = proj_base["receita_rac"].fillna(0)
+proj_base["receita"]       = proj_base["receita_mapa"].fillna(0)  # sem fallback: receita vem só do mapa
+proj_base["fator_mapa"]    = proj_base.apply(
+    lambda r: r["receita"] / r["receita_rac"] if r["receita_rac"] != 0 else 1.0, axis=1
+)
+proj_base["pep"] = proj_base["pep_base"]  # usar pep_base como chave
+
+proj_final = proj_base.assign(
     margem    = lambda d: d["receita"] + d["custo_rateado"],
     margem_pct= lambda d: d.apply(lambda r: r["margem"]/r["receita"] if r["receita"]!=0 else None, axis=1),
 )
+print(f"  Receita MapaReceita total: R$ {proj_final['receita'].sum():,.0f}")
+print(f"  PEPs com receita mapa: {proj_final['receita_mapa'].notna().sum()}")
+print(f"  PEPs só com custo (sem receita mapa): {proj_final['receita_mapa'].isna().sum()}")
 
 # ── 7. Agregar por pessoa/projeto/período ──────────────────────────────────────
 pess_te = te_pj.groupby(["periodo","pep","cpf","nome_raw","empresa"], as_index=False).agg(
@@ -371,11 +419,21 @@ pess_final = pess_final.groupby(["periodo","pep","cpf","nome","empresa"], as_ind
 )
 pess_final["margem"] = pess_final["receita"] + pess_final["custo_rateado"]
 
+# Escalar receita das pessoas pelo fator MapaReceita
+fator_lookup = proj_final.set_index(["periodo","pep_base"])["fator_mapa"].to_dict()
+pess_final["pep_base"] = pess_final["pep"].str.split(".").str[0]
+pess_final["receita"] = pess_final.apply(
+    lambda r: r["receita"] * fator_lookup.get((r["periodo"], r["pep_base"]), 1.0), axis=1
+)
+pess_final["margem"] = pess_final["receita"] + pess_final["custo_rateado"]
+pess_final = pess_final.drop(columns=["pep_base"], errors="ignore")
+
 # ── 8. Salvar ──────────────────────────────────────────────────────────────────
 out_dir = os.path.dirname(__file__)
 
+proj_cols = ["periodo","pep","nome_cliente","empresa","receita","custo_rateado","horas_total","margem","margem_pct"]
 proj_path = os.path.join(out_dir, "margem_projetos.csv")
-proj_final.to_csv(proj_path, index=False)
+proj_final[proj_cols].to_csv(proj_path, index=False)
 print(f"\nSalvo: {proj_path} ({len(proj_final)} projetos)")
 
 pess_path = os.path.join(out_dir, "margem_pessoas.csv")
