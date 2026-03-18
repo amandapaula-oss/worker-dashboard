@@ -15,10 +15,38 @@ COMPANY_NAMES = {
     "BR05": "SGA", "BR06": "Dojo", "BR04": "Nação Digital", "BR08": "Omnik",
 }
 
+# Mapeamento de nome da aba → empresa
+SHEET_EMPRESA = {
+    "HYPER":    "Hyper",
+    "FCAMARA":  "FCamara",
+    "NEXT":     "NextGen",
+    "SGA":      "SGA",
+    "DOJO":     "Dojo",
+    "OMNIK":    "Omnik",
+}
+# NAÇÃO tem acento variável — match por prefixo
+def sheet_to_empresa(sheet_name: str) -> str | None:
+    key = sheet_name.upper().strip()
+    if key in SHEET_EMPRESA:
+        return SHEET_EMPRESA[key]
+    if key.startswith("NA"):  # NAÇÃO / NA��O / NACAO
+        return "Nação Digital"
+    return None
+
+def parse_id(val) -> str:
+    """Retorna número pessoal como string se for numérico, senão vazio."""
+    if pd.isna(val):
+        return ""
+    s = str(val).strip()
+    try:
+        return str(int(float(s)))
+    except (ValueError, OverflowError):
+        return ""  # textos como "não localizado no SAP"
+
 records = []
 
 # ── CLT ───────────────────────────────────────────────────────────────────────
-print("Lendo CLT...")
+print("Lendo CLT (abas por empresa)...")
 for filepath in sorted(glob(CLT_PATH + "Custo Gerencial Grupo *.xlsx")):
     filename = os.path.basename(filepath)
     m = re.search(r'(\d{2})\.(\d{2})\.xlsx', filename)
@@ -29,40 +57,52 @@ for filepath in sorted(glob(CLT_PATH + "Custo Gerencial Grupo *.xlsx")):
     competencia = f"20{ano_num}-{mes_num}"
 
     xl = pd.ExcelFile(filepath)
-    sheet = next((s for s in xl.sheet_names if s.lower() == "consolidado"), None)
-    if not sheet:
-        print(f"  Ignorado (sem aba Consolidado): {filename}")
-        continue
+    total_file = 0
 
-    df = pd.read_excel(filepath, sheet_name=sheet)
+    for sheet_name in xl.sheet_names:
+        empresa = sheet_to_empresa(sheet_name)
+        if empresa is None:
+            continue  # pula Consolidado e outras abas desconhecidas
 
-    id_col = next((c for c in df.columns
-                   if "pessoal" in str(c).lower()
-                   or ("id" in str(c).lower() and "sap" in str(c).lower())), None)
-    custo_col = next((c for c in df.columns if "gerencial" in str(c).lower()), None)
-    if not custo_col:
-        custo_col = next((c for c in df.columns if "valor custo" in str(c).lower()), None)
-    if not custo_col:
-        custo_col = next((c for c in df.columns if "custo dp" in str(c).lower()), None)
+        df = pd.read_excel(filepath, sheet_name=sheet_name)
 
-    if not id_col or not custo_col:
-        print(f"  Aviso: colunas não encontradas em {filename} — id={id_col}, custo={custo_col}")
-        continue
+        # Encontrar coluna de ID (número pessoal/SAP)
+        id_col = next((c for c in df.columns
+                       if "pessoal" in str(c).lower()
+                       or ("id" in str(c).lower() and "sap" in str(c).lower())), None)
 
-    df_valid = df.dropna(subset=["Empresa", "Nome"])
-    df_valid = df_valid[pd.to_numeric(df_valid[custo_col], errors="coerce").notna()]
+        # Coluna de custo gerencial SAP
+        custo_col = next((c for c in df.columns
+                          if "gerencial" in str(c).lower() and "sap" in str(c).lower()), None)
+        if not custo_col:
+            custo_col = next((c for c in df.columns if "gerencial" in str(c).lower()), None)
 
-    for _, row in df_valid.iterrows():
-        records.append({
-            "tipo":            "CLT",
-            "competencia":     competencia,
-            "numero_pessoal":  str(int(float(row[id_col]))) if pd.notna(row[id_col]) and str(row[id_col]).replace('.','').isdigit() else str(row[id_col]) if pd.notna(row[id_col]) else "",
-            "nome":            str(row["Nome"]).strip(),
-            "empresa":         COMPANY_NAMES.get(str(row["Empresa"]).strip(), str(row["Empresa"]).strip()),
-            "custo":           float(row[custo_col]),
-            "categoria":       "CLT",
-        })
-    print(f"  {filename}: {len(df_valid)} registros, competencia={competencia}")
+        nome_col = next((c for c in df.columns if str(c).strip().lower() == "nome"), None)
+
+        if not custo_col or not nome_col:
+            print(f"  Aviso: colunas não encontradas em {filename}/{sheet_name} — custo={custo_col}, nome={nome_col}")
+            continue
+
+        df = df.dropna(subset=[nome_col])
+        df = df[pd.to_numeric(df[custo_col], errors="coerce").notna()]
+
+        for _, row in df.iterrows():
+            nome = str(row[nome_col]).strip()
+            if not nome or nome.upper() in ("NOME", "TOTAL", ""):
+                continue
+            nr = parse_id(row[id_col]) if id_col else ""
+            records.append({
+                "tipo":           "CLT",
+                "competencia":    competencia,
+                "numero_pessoal": nr,
+                "nome":           nome,
+                "empresa":        empresa,
+                "custo":          -abs(float(row[custo_col])),
+                "categoria":      "CLT",
+            })
+            total_file += 1
+
+    print(f"  {filename}: {total_file} registros, competencia={competencia}")
 
 # ── PJ ────────────────────────────────────────────────────────────────────────
 print("Lendo PJ...")
