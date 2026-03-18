@@ -33,16 +33,18 @@ export default function MargemTab() {
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [filtersReady, setFiltersReady] = useState(false);
 
-  const [projetos, setProjetos]           = useState<any[]>([]);
-  const [projetosMensal, setProjetosMensal] = useState<any[]>([]);
-  const [pessoas, setPessoas]             = useState<any[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [viewMode, setViewMode]           = useState<"total" | "mensal">("total");
+  const [projetos, setProjetos]                     = useState<any[]>([]);
+  const [projetosMensal, setProjetosMensal]         = useState<any[]>([]);
+  const [pessoas, setPessoas]                       = useState<any[]>([]);
+  const [pessoasMensal, setPessoasMensal]           = useState<any[]>([]);
+  const [pessoaProjetos, setPessoaProjetos]         = useState<any[]>([]);
+  const [pessoaProjetosMensal, setPessoaProjetosMensal] = useState<any[]>([]);
+  const [loading, setLoading]                       = useState(true);
+  const [viewMode, setViewMode]                     = useState<"total" | "mensal">("total");
 
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null);
   const [selectedPep, setSelectedPep] = useState<{ pep: string; nome_cliente: string } | null>(null);
   const [selectedPessoa, setSelectedPessoa] = useState<{ cpf: string; nome: string; numero_pessoal: string } | null>(null);
-  const [pessoaProjetos, setPessoaProjetos] = useState<any[]>([]);
   const [loadingPessoaProj, setLoadingPessoaProj] = useState(false);
   const [searchCliente, setSearchCliente] = useState<string>("");
   const [searchPep, setSearchPep]         = useState<string>("");
@@ -83,8 +85,11 @@ export default function MargemTab() {
     if (selectedPep) params.pep = selectedPep.pep;
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
-    getMargemPessoas(params)
-      .then(d => setPessoas(d))
+    Promise.all([
+      getMargemPessoas(params),
+      getMargemPessoas({ ...params, breakdown: "true" }),
+    ])
+      .then(([total, mensal]) => { setPessoas(total); setPessoasMensal(mensal); })
       .catch(() => message.error("Erro ao carregar pessoas"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selectedPep, selPeriodos, selEmpresas]);
@@ -96,8 +101,11 @@ export default function MargemTab() {
     const params: Record<string, string> = { cpf: selectedPessoa.cpf };
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
-    getMargemPessoaProjetos(params)
-      .then(d => setPessoaProjetos(d))
+    Promise.all([
+      getMargemPessoaProjetos(params),
+      getMargemPessoaProjetos({ ...params, breakdown: "true" }),
+    ])
+      .then(([total, mensal]) => { setPessoaProjetos(total); setPessoaProjetosMensal(mensal); })
       .catch(() => message.error("Erro ao carregar projetos da pessoa"))
       .finally(() => setLoadingPessoaProj(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -347,6 +355,50 @@ export default function MargemTab() {
     }).sort((a, b) => b.total_receita - a.total_receita);
   }, [projetosMensal, selPeriodos]);
 
+  // Pivot: pessoas × períodos
+  const pivotPessoas = useMemo(() => {
+    if (!pessoasMensal.length) return [];
+    const map = new Map<string, any>();
+    for (const r of pessoasMensal) {
+      const key = r.cpf || r.nome;
+      if (!map.has(key)) map.set(key, { key, cpf: r.cpf, nome: r.nome, empresa: r.empresa, numero_pessoal: r.numero_pessoal || "" });
+      const e = map.get(key)!;
+      e[`${r.periodo}_receita`] = (e[`${r.periodo}_receita`] || 0) + (Number(r.receita) || 0);
+      e[`${r.periodo}_margem`]  = (e[`${r.periodo}_margem`]  || 0) + (Number(r.margem)  || 0);
+    }
+    return Array.from(map.values()).map(r => {
+      const tot_rec = selPeriodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
+      const tot_mar = selPeriodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
+      selPeriodos.forEach(p => {
+        const rec = r[`${p}_receita`] || 0;
+        r[`${p}_margem_pct`] = rec !== 0 ? (r[`${p}_margem`] || 0) / rec : null;
+      });
+      return { ...r, total_receita: tot_rec, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
+    }).sort((a, b) => b.total_receita - a.total_receita);
+  }, [pessoasMensal, selPeriodos]);
+
+  // Pivot: projetos da pessoa × períodos
+  const pivotPessoaProjetos = useMemo(() => {
+    if (!pessoaProjetosMensal.length) return [];
+    const map = new Map<string, any>();
+    for (const r of pessoaProjetosMensal) {
+      const key = r.pep;
+      if (!map.has(key)) map.set(key, { key, pep: r.pep, nome_cliente: r.nome_cliente || "", empresa: r.empresa });
+      const e = map.get(key)!;
+      e[`${r.periodo}_receita`] = (e[`${r.periodo}_receita`] || 0) + (Number(r.receita) || 0);
+      e[`${r.periodo}_margem`]  = (e[`${r.periodo}_margem`]  || 0) + (Number(r.margem)  || 0);
+    }
+    return Array.from(map.values()).map(r => {
+      const tot_rec = selPeriodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
+      const tot_mar = selPeriodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
+      selPeriodos.forEach(p => {
+        const rec = r[`${p}_receita`] || 0;
+        r[`${p}_margem_pct`] = rec !== 0 ? (r[`${p}_margem`] || 0) / rec : null;
+      });
+      return { ...r, total_receita: tot_rec, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
+    }).sort((a, b) => b.total_receita - a.total_receita);
+  }, [pessoaProjetosMensal, selPeriodos]);
+
   const colMensal = useMemo(() => {
     const periodoLabel = (p: string) => {
       const [y, m] = p.split("-");
@@ -380,6 +432,35 @@ export default function MargemTab() {
           { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "%", width: 80 },
         ],
       },
+    ];
+  }, [selPeriodos]);
+
+  const colPessoasMensal = useMemo(() => {
+    const periodoLabel = (p: string) => { const [y, m] = p.split("-"); return `${m}/${y.slice(2)}`; };
+    const numCol = (dataIndex: string, render?: (v: any) => React.ReactNode) => ({
+      dataIndex, key: dataIndex, align: "right" as const, width: 130,
+      sorter: (a: any, b: any) => (Number(a[dataIndex]) || 0) - (Number(b[dataIndex]) || 0),
+      render,
+    });
+    const periodoCols = selPeriodos.map(p => ({
+      title: periodoLabel(p),
+      children: [
+        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_margem`),  title: "Margem",  render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "%", width: 80 },
+      ],
+    }));
+    return [
+      { title: "ID",      dataIndex: "numero_pessoal", key: "numero_pessoal", width: 110, sorter: (a: any, b: any) => String(a.numero_pessoal).localeCompare(String(b.numero_pessoal)) },
+      { title: "Nome",    dataIndex: "nome",           key: "nome",           ellipsis: true },
+      { title: "CPF",     dataIndex: "cpf",            key: "cpf",            width: 140 },
+      { title: "Empresa", dataIndex: "empresa",        key: "empresa",        width: 110 },
+      ...periodoCols,
+      { title: "Total", children: [
+        { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
+        { ...numCol("total_margem"),  title: "Margem",  render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
+        { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "%", width: 80 },
+      ]},
     ];
   }, [selPeriodos]);
 
@@ -519,7 +600,17 @@ export default function MargemTab() {
             onClick={() => setSelectedPessoa(null)}>
             Voltar para pessoas
           </Button>
-          {loadingPessoaProj ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+          {loadingPessoaProj ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : viewMode === "mensal" ? (() => {
+            const tot_rec = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_receita||0),0);
+            const tot_mar = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_margem||0),0);
+            const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
+            selPeriodos.forEach(p => {
+              totRow[`${p}_receita`] = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
+              totRow[`${p}_margem`]  = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
+              totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
+            });
+            return <Table dataSource={[totRow, ...pivotPessoaProjetos]} columns={colMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : {} })} />;
+          })() : (
             <Table
               dataSource={(() => {
                 const rec = pessoaProjetos.reduce((s,r)=>s+(Number(r.receita)||0),0);
@@ -544,6 +635,20 @@ export default function MargemTab() {
               Voltar para projetos
             </Button>
           )}
+          {viewMode === "mensal" ? (() => {
+            const q = searchPessoa.trim().toLowerCase();
+            const qDigits = q.replace(/\D/g, "");
+            const filtered = pivotPessoas.filter(r => !q || String(r.nome||"").toLowerCase().includes(q) || (qDigits && String(r.cpf||"").replace(/\D/g,"").includes(qDigits)) || String(r.numero_pessoal||"").toLowerCase().includes(q));
+            const tot_rec = filtered.reduce((s,r)=>s+(r.total_receita||0),0);
+            const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem||0),0);
+            const totRow: any = { key:"__t__", nome:"TOTAL", cpf:"", empresa:"", numero_pessoal:"", total_receita:tot_rec, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
+            selPeriodos.forEach(p => {
+              totRow[`${p}_receita`] = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
+              totRow[`${p}_margem`]  = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
+              totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
+            });
+            return <Table dataSource={[totRow, ...filtered]} columns={colPessoasMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ onClick: () => !row._isTotal && setSelectedPessoa({ cpf: row.cpf, nome: row.nome, numero_pessoal: row.numero_pessoal }), style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" } })} />;
+          })() : (
           <Table
             dataSource={(() => {
               const rec = filteredPessoas.reduce((s,r)=>s+(Number(r.receita)||0),0);
@@ -560,7 +665,7 @@ export default function MargemTab() {
               onClick: () => !row._isTotal && setSelectedPessoa({ cpf: row.cpf, nome: row.nome, numero_pessoal: row.numero_pessoal }),
               style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
             })}
-          />
+          />)}
         </>
       ) : selectedCliente ? (
         <>
@@ -568,6 +673,18 @@ export default function MargemTab() {
             onClick={() => setSelectedCliente(null)}>
             Voltar para clientes
           </Button>
+          {viewMode === "mensal" ? (() => {
+            const filtered = pivotData.filter(r => r.nome_cliente === selectedCliente);
+            const tot_rec = filtered.reduce((s,r)=>s+(r.total_receita||0),0);
+            const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem||0),0);
+            const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
+            selPeriodos.forEach(p => {
+              totRow[`${p}_receita`] = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
+              totRow[`${p}_margem`]  = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
+              totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
+            });
+            return <Table dataSource={[totRow, ...filtered]} columns={colMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : {} })} />;
+          })() : (
           <Table
             dataSource={(() => {
               const rec = projetosCliente.reduce((s,r)=>s+(Number(r.receita)||0),0);
@@ -585,7 +702,7 @@ export default function MargemTab() {
               onClick: () => !row._isTotal && row.horas_total > 0 && setSelectedPep({ pep: row.pep, nome_cliente: selectedCliente }),
               style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: row.horas_total > 0 ? "pointer" : "default" },
             })}
-          />
+          />)}
         </>
       ) : viewMode === "mensal" ? (
         (() => {
