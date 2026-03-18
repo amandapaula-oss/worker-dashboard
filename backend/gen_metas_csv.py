@@ -49,7 +49,7 @@ records = []
 print("Lendo CLT (abas por empresa)...")
 for filepath in sorted(glob(CLT_PATH + "Custo Gerencial Grupo *.xlsx")):
     filename = os.path.basename(filepath)
-    m = re.search(r'(\d{2})\.(\d{2})\.xlsx', filename)
+    m = re.search(r'(\d{2})\.(\d{2})', filename)
     if not m:
         print(f"  Ignorado (sem mês): {filename}")
         continue
@@ -71,11 +71,11 @@ for filepath in sorted(glob(CLT_PATH + "Custo Gerencial Grupo *.xlsx")):
                        if "pessoal" in str(c).lower()
                        or ("id" in str(c).lower() and "sap" in str(c).lower())), None)
 
-        # Coluna de custo gerencial SAP
+        # Coluna de custo total
         custo_col = next((c for c in df.columns
-                          if "gerencial" in str(c).lower() and "sap" in str(c).lower()), None)
+                          if "total" in str(c).lower() and "custo" in str(c).lower()), None)
         if not custo_col:
-            custo_col = next((c for c in df.columns if "gerencial" in str(c).lower()), None)
+            custo_col = next((c for c in df.columns if "total" in str(c).lower()), None)
 
         nome_col = next((c for c in df.columns if str(c).strip().lower() == "nome"), None)
 
