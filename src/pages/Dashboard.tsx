@@ -8,8 +8,6 @@ import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
-import MetasTab from "./MetasTab";
-import RacTab from "./RacTab";
 import MargemTab from "./MargemTab";
 import CheckLucasTab from "./CheckLucasTab";
 import VistaMasterTab from "./VistaMasterTab";
