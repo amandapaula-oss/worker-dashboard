@@ -659,7 +659,7 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", breakdown: bool 
     return agg.fillna("").to_dict(orient="records")
 
 @app.get("/api/margem/pessoas")
-def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
+def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", breakdown: bool = False, user=Depends(get_current_user)):
     df = get_margem_pess()
     if pep:
         df = df[df["pep"].str.split(".").str[0] == pep]
@@ -668,7 +668,8 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", us
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
     df["cpf"] = df["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
-    agg = df.groupby(["cpf","nome","empresa"], as_index=False).agg(
+    group_keys = ["periodo", "cpf", "nome", "empresa"] if breakdown else ["cpf", "nome", "empresa"]
+    agg = df.groupby(group_keys, as_index=False).agg(
         receita      =("receita",       "sum"),
         custo_rateado=("custo_rateado", "sum"),
         horas        =("horas",         "sum"),
@@ -729,7 +730,7 @@ def get_rac_pessoa_projetos(
 
 @app.get("/api/margem/pessoa_projetos")
 def get_margem_pessoa_projetos(
-    cpf: str = "", periodos: str = "", empresas: str = "",
+    cpf: str = "", periodos: str = "", empresas: str = "", breakdown: bool = False,
     user=Depends(get_current_user)
 ):
     if not cpf:
@@ -742,7 +743,8 @@ def get_margem_pessoa_projetos(
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
     df["pep_base"] = df["pep"].str.split(".").str[0]
-    agg = df.groupby(["pep_base", "empresa"], as_index=False).agg(
+    group_keys = ["periodo", "pep_base", "empresa"] if breakdown else ["pep_base", "empresa"]
+    agg = df.groupby(group_keys, as_index=False).agg(
         receita      =("receita",       "sum"),
         custo_rateado=("custo_rateado", "sum"),
         horas        =("horas",         "sum"),
