@@ -638,14 +638,15 @@ def get_margem_filters(user=Depends(get_current_user)):
     }
 
 @app.get("/api/margem/projetos")
-def get_margem_projetos(periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
+def get_margem_projetos(periodos: str = "", empresas: str = "", breakdown: bool = False, user=Depends(get_current_user)):
     df = get_margem_proj()
     if periodos:
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
     df["pep"] = df["pep"].str.split(".").str[0]
-    agg = df.groupby(["pep","nome_cliente","empresa"], as_index=False).agg(
+    group_keys = ["periodo", "pep", "nome_cliente", "empresa"] if breakdown else ["pep", "nome_cliente", "empresa"]
+    agg = df.groupby(group_keys, as_index=False).agg(
         receita      =("receita",       "sum"),
         custo_rateado=("custo_rateado", "sum"),
         horas_total  =("horas_total",   "sum"),
