@@ -402,16 +402,74 @@ print(f"  PEPs com receita mapa: {proj_final['receita_mapa'].notna().sum()}")
 print(f"  PEPs só com custo (sem receita mapa): {proj_final['receita_mapa'].isna().sum()}")
 
 # ── 7. Agregar por pessoa/projeto/período ──────────────────────────────────────
+# Lógica:
+#   a) Trabalhadores com horas no RAC (TE): recebem a receita RAC exata deles (sem escalar).
+#      O custo é rateado por horas conforme calculado acima.
+#   b) Complement workers (sem horas no RAC, ligados via worker_project): recebem
+#      max(0, receita_mapa − receita_TE_total_do_projeto), dividido proporcionalmente
+#      ao |custo_rateado| de cada um dentro do projeto/período.
+#   c) Receitas RAC não são repetidas: a parcela do mapa distribuída ao complemento
+#      já desconta o que o RAC cobre diretamente.
+
 pess_te = te_pj.groupby(["periodo","pep","cpf","nome_raw","empresa"], as_index=False).agg(
     receita      = ("receita",       "sum"),
     custo_rateado= ("custo_rateado", "sum"),
     horas        = ("horas",         "sum"),
 ).rename(columns={"nome_raw":"nome"})
+pess_te["pep_base"] = pess_te["pep"].str.split(".").str[0]
 
-# Adicionar pessoas do complemento
-pess_complement = complement_all[["periodo","pep","cpf","nome","empresa","receita","custo_rateado","horas"]].copy()
+# Receita TE total por (periodo, pep_base) — quanto o RAC já cobre para cada projeto
+te_receita_proj = (
+    pess_te.groupby(["periodo","pep_base"], as_index=False)["receita"]
+    .sum().rename(columns={"receita": "receita_te"})
+)
 
-pess_final = pd.concat([pess_te, pess_complement], ignore_index=True)
+# Receita restante = max(0, receita_mapa − receita_TE)
+# Para projetos fora do RAC: receita_te = 0, restante = receita_mapa inteira
+proj_mapa = proj_final[["periodo","pep_base","receita_mapa"]].copy()
+proj_remaining = proj_mapa.merge(te_receita_proj, on=["periodo","pep_base"], how="left")
+proj_remaining["receita_te"] = proj_remaining["receita_te"].fillna(0)
+proj_remaining["receita_mapa"] = proj_remaining["receita_mapa"].fillna(0)
+proj_remaining["receita_remaining"] = (
+    proj_remaining["receita_mapa"] - proj_remaining["receita_te"]
+).clip(lower=0)
+print(
+    f"\nReceita restante para complement (mapa − TE): "
+    f"R$ {proj_remaining['receita_remaining'].sum():,.0f}"
+)
+
+# Distribuir receita restante ao complemento proporcionalmente ao |custo_rateado|
+pess_complement = complement_all[
+    ["periodo","pep","cpf","nome","empresa","custo_rateado","horas"]
+].copy()
+pess_complement["receita"] = 0.0
+pess_complement["pep_base"] = pess_complement["pep"].str.split(".").str[0]
+
+pess_complement = pess_complement.merge(
+    proj_remaining[["periodo","pep_base","receita_remaining"]],
+    on=["periodo","pep_base"], how="left"
+)
+pess_complement["receita_remaining"] = pess_complement["receita_remaining"].fillna(0)
+
+# |custo| total do complemento por (periodo, pep_base)
+custo_tot_comp = pess_complement.groupby(["periodo","pep_base"])["custo_rateado"].transform(
+    lambda x: x.abs().sum()
+)
+n_comp = pess_complement.groupby(["periodo","pep_base"])["cpf"].transform("count")
+
+# Cada worker recebe: remaining × (|seu_custo| / |custo_total_do_projeto|)
+# Fallback (ninguém tem custo): divisão igual
+frac = (pess_complement["custo_rateado"].abs() / custo_tot_comp.replace(0, float("nan")))
+pess_complement["receita"] = (
+    pess_complement["receita_remaining"] * frac
+).fillna(pess_complement["receita_remaining"] / n_comp)
+
+# Combinar TE (receita RAC direta) + complemento (receita restante do mapa)
+pess_final = pd.concat([
+    pess_te.drop(columns=["pep_base"]),
+    pess_complement.drop(columns=["pep_base","receita_remaining"]),
+], ignore_index=True)
+
 pess_final = pess_final.groupby(["periodo","pep","cpf","nome","empresa"], as_index=False).agg(
     receita      = ("receita",       "sum"),
     custo_rateado= ("custo_rateado", "sum"),
@@ -419,14 +477,8 @@ pess_final = pess_final.groupby(["periodo","pep","cpf","nome","empresa"], as_ind
 )
 pess_final["margem"] = pess_final["receita"] + pess_final["custo_rateado"]
 
-# Escalar receita das pessoas pelo fator MapaReceita
-fator_lookup = proj_final.set_index(["periodo","pep_base"])["fator_mapa"].to_dict()
-pess_final["pep_base"] = pess_final["pep"].str.split(".").str[0]
-pess_final["receita"] = pess_final.apply(
-    lambda r: r["receita"] * fator_lookup.get((r["periodo"], r["pep_base"]), 1.0), axis=1
-)
-pess_final["margem"] = pess_final["receita"] + pess_final["custo_rateado"]
-pess_final = pess_final.drop(columns=["pep_base"], errors="ignore")
+print(f"  Receita total pessoas (TE + complemento): R$ {pess_final['receita'].sum():,.0f}")
+print(f"  (vs MapaReceita total projetos:           R$ {proj_final['receita'].sum():,.0f})")
 
 # ── 8. Salvar ──────────────────────────────────────────────────────────────────
 out_dir = os.path.dirname(__file__)
