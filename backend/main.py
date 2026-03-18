@@ -637,6 +637,23 @@ def get_margem_filters(user=Depends(get_current_user)):
         "empresas": sorted(df["empresa"].dropna().unique().tolist()),
     }
 
+@app.get("/api/resumo")
+def get_resumo(periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
+    df = get_margem_proj()
+    if periodos:
+        df = df[df["periodo"].isin(periodos.split(","))]
+    if empresas:
+        df = df[df["empresa"].isin(empresas.split(","))]
+    agg = df.groupby(["empresa", "periodo"], as_index=False).agg(
+        receita       = ("receita",       "sum"),
+        custo_rateado = ("custo_rateado", "sum"),
+        margem        = ("margem",        "sum"),
+    )
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+    )
+    return agg.fillna("").to_dict(orient="records")
+
 @app.get("/api/margem/projetos")
 def get_margem_projetos(periodos: str = "", empresas: str = "", breakdown: bool = False, user=Depends(get_current_user)):
     df = get_margem_proj()

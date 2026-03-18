@@ -131,6 +131,10 @@ export async function getMargemFilters() {
   return apiFetch("/api/margem/filters");
 }
 
+export async function getResumo(params: Record<string, string>) {
+  return apiFetch(`/api/resumo${buildQuery(params)}`);
+}
+
 export async function getMargemProjetos(params: Record<string, string>) {
   return apiFetch(`/api/margem/projetos${buildQuery(params)}`);
 }
