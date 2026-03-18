@@ -464,10 +464,36 @@ export default function MargemTab() {
     ];
   }, [selPeriodos]);
 
-  const draggableClientes     = useDraggableColumns(colClientes);
-  const draggableProjetos     = useDraggableColumns(colProjetos);
-  const draggablePessoas      = useDraggableColumns(colPessoas);
-  const draggablePessoaProj   = useDraggableColumns(colPessoaProjetos);
+  // Colunas para busca direta por PEP (inclui Cliente)
+  const colProjetosSearch = [
+    { title: "PEP",     dataIndex: "pep",          key: "pep",          width: 190,
+      sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)) },
+    { title: "Cliente", dataIndex: "nome_cliente",  key: "nome_cliente", ellipsis: true,
+      sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente)) },
+    { title: "Empresa", dataIndex: "empresa",       key: "empresa",      width: 120,
+      sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)) },
+    { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.receita)||0) - (Number(b.receita)||0),
+      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
+    { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155, align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.custo_rateado)||0) - (Number(b.custo_rateado)||0),
+      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
+    { title: "Margem (R$)", dataIndex: "margem", key: "margem", width: 155, align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.margem)||0) - (Number(b.margem)||0),
+      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v)}</span> },
+    { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100, align: "center" as const,
+      sorter: (a: any, b: any) => (Number(a.margem_pct)||0) - (Number(b.margem_pct)||0),
+      render: (v: number | "") => <MargemTag value={v} /> },
+    { title: "Horas", dataIndex: "horas_total", key: "horas_total", width: 80, align: "right" as const,
+      sorter: (a: any, b: any) => (Number(a.horas_total)||0) - (Number(b.horas_total)||0),
+      render: (v: number) => v > 0 ? v.toLocaleString("pt-BR") : "—" },
+  ];
+
+  const draggableClientes       = useDraggableColumns(colClientes);
+  const draggableProjetos       = useDraggableColumns(colProjetos);
+  const draggableProjetosSearch = useDraggableColumns(colProjetosSearch);
+  const draggablePessoas        = useDraggableColumns(colPessoas);
+  const draggablePessoaProj     = useDraggableColumns(colPessoaProjetos);
 
   const breadcrumb = [
     {
@@ -704,6 +730,59 @@ export default function MargemTab() {
             })}
           />)}
         </>
+      ) : searchPep.trim() ? (
+        // Busca direta por PEP: mostra projetos filtrados, clicar abre as pessoas do projeto
+        viewMode === "mensal" ? (() => {
+          const filtered = pivotData.filter(r =>
+            String(r.pep || "").toLowerCase().includes(searchPep.trim().toLowerCase())
+          );
+          const tot_rec = filtered.reduce((s,r)=>s+(r.total_receita||0),0);
+          const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem||0),0);
+          const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
+          selPeriodos.forEach(p => {
+            totRow[`${p}_receita`]    = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
+            totRow[`${p}_margem`]     = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
+            totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
+          });
+          return (
+            <Table
+              dataSource={[totRow, ...filtered]}
+              columns={colMensal}
+              pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+              size="small"
+              scroll={{ x: "max-content" }}
+              style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+              onRow={row => ({
+                onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
+                style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
+              })}
+            />
+          );
+        })() : (() => {
+          const rows = filteredProjetos;
+          const rec = rows.reduce((s,r)=>s+(Number(r.receita)||0),0);
+          const cus = rows.reduce((s,r)=>s+(Number(r.custo_rateado)||0),0);
+          const mar = rows.reduce((s,r)=>s+(Number(r.margem)||0),0);
+          const pct = rec!==0 ? mar/rec : null;
+          const data = [
+            { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, horas_total:0, _isTotal:true },
+            ...rows.map((d,i) => ({ ...d, key: i })),
+          ];
+          return (
+            <Table
+              dataSource={data}
+              columns={draggableProjetosSearch}
+              pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+              size="small"
+              scroll={{ x: "max-content" }}
+              style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+              onRow={row => ({
+                onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
+                style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
+              })}
+            />
+          );
+        })()
       ) : viewMode === "mensal" ? (
         (() => {
           const filtered = pivotData.filter(r => {
