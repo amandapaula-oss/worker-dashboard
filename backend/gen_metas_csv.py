@@ -46,15 +46,24 @@ def parse_id(val) -> str:
 records = []
 
 # ── CLT ───────────────────────────────────────────────────────────────────────
-print("Lendo CLT (abas por empresa)...")
-for filepath in sorted(glob(CLT_PATH + "Custo Gerencial Grupo *.xlsx")):
-    filename = os.path.basename(filepath)
-    m = re.search(r'(\d{2})\.(\d{2})', filename)
-    if not m:
-        print(f"  Ignorado (sem mês): {filename}")
+# Para cada mês, pode haver múltiplas versões do arquivo (V2, V3...).
+# Estratégia: agrupar por competência e usar o primeiro em ordem alfabética
+# (ex: "11.25 - V2 - Email" vem antes de "11.25 - V2 - Envio email" e "11.25.xlsx").
+_all_clt = sorted(glob(CLT_PATH + "Custo Gerencial Grupo *.xlsx"))
+_clt_por_comp: dict = {}
+for _fp in _all_clt:
+    _fn = os.path.basename(_fp)
+    _m = re.search(r'(\d{2})\.(\d{2})', _fn)
+    if not _m:
         continue
-    mes_num, ano_num = m.group(1), m.group(2)
-    competencia = f"20{ano_num}-{mes_num}"
+    _comp = f"20{_m.group(2)}-{_m.group(1)}"
+    if _comp not in _clt_por_comp:
+        _clt_por_comp[_comp] = _fp   # primeiro alfabeticamente = preferido
+
+print("Lendo CLT (abas por empresa)...")
+for competencia, filepath in sorted(_clt_por_comp.items()):
+    filename = os.path.basename(filepath)
+    mes_num, ano_num = competencia[5:7], competencia[2:4]
 
     xl = pd.ExcelFile(filepath)
     total_file = 0
