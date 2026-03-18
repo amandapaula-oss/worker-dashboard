@@ -27,11 +27,13 @@ function MargemTag({ value }: { value: number | "" }) {
 }
 
 export default function MargemTab() {
-  const [periodos, setPeriodos]       = useState<string[]>([]);
-  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
-  const [empresas, setEmpresas]       = useState<string[]>([]);
-  const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
-  const [filtersReady, setFiltersReady] = useState(false);
+  const [periodos, setPeriodos]             = useState<string[]>([]);
+  const [selPeriodos, setSelPeriodos]       = useState<string[]>([]);
+  const [empresas, setEmpresas]             = useState<string[]>([]);
+  const [selEmpresas, setSelEmpresas]       = useState<string[]>([]);
+  const [categoriasBu, setCategoriasBu]     = useState<string[]>([]);
+  const [selCategoriasBu, setSelCategoriasBu] = useState<string[]>([]);
+  const [filtersReady, setFiltersReady]     = useState(false);
 
   const [projetos, setProjetos]                     = useState<any[]>([]);
   const [projetosMensal, setProjetosMensal]         = useState<any[]>([]);
@@ -57,6 +59,10 @@ export default function MargemTab() {
         setSelPeriodos(f.periodos);
         setEmpresas(f.empresas);
         setSelEmpresas(f.empresas);
+        if (f.categorias_bu?.length) {
+          setCategoriasBu(f.categorias_bu);
+          setSelCategoriasBu(f.categorias_bu);
+        }
         setFiltersReady(true);
       })
       .catch(() => { message.error("Erro ao carregar filtros"); setLoading(false); });
@@ -68,6 +74,7 @@ export default function MargemTab() {
     const params: Record<string, string> = {};
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
+    if (selCategoriasBu.length && selCategoriasBu.length < categoriasBu.length) params.categorias_bu = selCategoriasBu.join(",");
     Promise.all([
       getMargemProjetos(params),
       getMargemProjetos({ ...params, breakdown: "true" }),
@@ -76,7 +83,7 @@ export default function MargemTab() {
       .catch(() => message.error("Erro ao carregar projetos"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas, selectedPep]);
+  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu, selectedPep]);
 
   // load all pessoas (for global search) or specific PEP (for drill-down)
   useEffect(() => {
@@ -189,14 +196,6 @@ export default function MargemTab() {
       ),
     },
     {
-      title: "Margem (R$)", dataIndex: "margem", key: "margem", width: 155,
-      align: "right" as const,
-      sorter: (a: any, b: any) => (Number(a.margem) || 0) - (Number(b.margem) || 0),
-      render: (v: number) => (
-        <span style={{ color: v < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v)}</span>
-      ),
-    },
-    {
       title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100,
       align: "center" as const,
       sorter: (a: any, b: any) => (Number(a.margem_pct) || 0) - (Number(b.margem_pct) || 0),
@@ -214,6 +213,10 @@ export default function MargemTab() {
       sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)),
     },
     {
+      title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110,
+      sorter: (a: any, b: any) => String(a.categoria_bu || "").localeCompare(String(b.categoria_bu || "")),
+    },
+    {
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
@@ -225,14 +228,6 @@ export default function MargemTab() {
       sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
       render: (v: number) => (
         <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>
-      ),
-    },
-    {
-      title: "Margem (R$)", dataIndex: "margem", key: "margem", width: 155,
-      align: "right" as const,
-      sorter: (a: any, b: any) => (Number(a.margem) || 0) - (Number(b.margem) || 0),
-      render: (v: number) => (
-        <span style={{ color: v < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v)}</span>
       ),
     },
     {
@@ -319,11 +314,6 @@ export default function MargemTab() {
       title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
       align: "right" as const,
       render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
-    },
-    {
-      title: "Margem (R$)", dataIndex: "margem", key: "margem", width: 155,
-      align: "right" as const,
-      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v)}</span>,
     },
     {
       title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100,
@@ -414,9 +404,8 @@ export default function MargemTab() {
     const periodoCols = selPeriodos.map(p => ({
       title: periodoLabel(p),
       children: [
-        { ...numCol(`${p}_receita`), title: "Receita",  render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
-        { ...numCol(`${p}_margem`),  title: "Margem",   render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> : "—" },
-        { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "%", width: 80 },
+        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ],
     }));
     return [
@@ -428,8 +417,7 @@ export default function MargemTab() {
         title: "Total",
         children: [
           { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
-          { ...numCol("total_margem"),  title: "Margem",  render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
-          { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "%", width: 80 },
+          { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
         ],
       },
     ];
@@ -446,8 +434,7 @@ export default function MargemTab() {
       title: periodoLabel(p),
       children: [
         { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
-        { ...numCol(`${p}_margem`),  title: "Margem",  render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> : "—" },
-        { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "%", width: 80 },
+        { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ],
     }));
     return [
@@ -458,8 +445,7 @@ export default function MargemTab() {
       ...periodoCols,
       { title: "Total", children: [
         { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
-        { ...numCol("total_margem"),  title: "Margem",  render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
-        { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "%", width: 80 },
+        { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ]},
     ];
   }, [selPeriodos]);
@@ -472,15 +458,14 @@ export default function MargemTab() {
       sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente)) },
     { title: "Empresa", dataIndex: "empresa",       key: "empresa",      width: 120,
       sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)) },
+    { title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110,
+      sorter: (a: any, b: any) => String(a.categoria_bu || "").localeCompare(String(b.categoria_bu || "")) },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita)||0) - (Number(b.receita)||0),
       render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
     { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_rateado)||0) - (Number(b.custo_rateado)||0),
       render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
-    { title: "Margem (R$)", dataIndex: "margem", key: "margem", width: 155, align: "right" as const,
-      sorter: (a: any, b: any) => (Number(a.margem)||0) - (Number(b.margem)||0),
-      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v)}</span> },
     { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100, align: "center" as const,
       sorter: (a: any, b: any) => (Number(a.margem_pct)||0) - (Number(b.margem_pct)||0),
       render: (v: number | "") => <MargemTag value={v} /> },
@@ -573,6 +558,14 @@ export default function MargemTab() {
             onChange={v => { setSelEmpresas(v); setSelectedCliente(null); setSelectedPep(null); }}
             options={empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
         </div>
+        {categoriasBu.length > 0 && (
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>BU / Categoria</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selCategoriasBu}
+              onChange={v => { setSelCategoriasBu(v); setSelectedCliente(null); setSelectedPep(null); }}
+              options={categoriasBu.map(c => ({ label: c, value: c }))} maxTagCount="responsive" />
+          </div>
+        )}
         <div style={{ flex: 1, minWidth: 180 }}>
           <div style={labelStyle}>Cliente</div>
           <Input

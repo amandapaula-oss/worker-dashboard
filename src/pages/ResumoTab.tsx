@@ -31,13 +31,15 @@ function periodoLabel(p: string) {
 }
 
 export default function ResumoTab() {
-  const [periodos, setPeriodos]       = useState<string[]>([]);
-  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
-  const [empresas, setEmpresas]       = useState<string[]>([]);
-  const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
-  const [rawData, setRawData]         = useState<any[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [filtersReady, setFiltersReady] = useState(false);
+  const [periodos, setPeriodos]               = useState<string[]>([]);
+  const [selPeriodos, setSelPeriodos]         = useState<string[]>([]);
+  const [empresas, setEmpresas]               = useState<string[]>([]);
+  const [selEmpresas, setSelEmpresas]         = useState<string[]>([]);
+  const [categoriasBu, setCategoriasBu]       = useState<string[]>([]);
+  const [selCategoriasBu, setSelCategoriasBu] = useState<string[]>([]);
+  const [rawData, setRawData]                 = useState<any[]>([]);
+  const [loading, setLoading]                 = useState(true);
+  const [filtersReady, setFiltersReady]       = useState(false);
 
   useEffect(() => {
     getMargemFilters()
@@ -46,6 +48,10 @@ export default function ResumoTab() {
         setSelPeriodos(f.periodos);
         setEmpresas(f.empresas);
         setSelEmpresas(f.empresas);
+        if (f.categorias_bu?.length) {
+          setCategoriasBu(f.categorias_bu);
+          setSelCategoriasBu(f.categorias_bu);
+        }
         setFiltersReady(true);
       })
       .catch(() => { message.error("Erro ao carregar filtros"); setLoading(false); });
@@ -57,12 +63,13 @@ export default function ResumoTab() {
     const params: Record<string, string> = {};
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
+    if (selCategoriasBu.length && selCategoriasBu.length < categoriasBu.length) params.categorias_bu = selCategoriasBu.join(",");
     getResumo(params)
       .then((d: any) => setRawData(d))
       .catch(() => message.error("Erro ao carregar resumo"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas]);
+  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu]);
 
   // Pivot: empresa × periodo
   const pivotData = useMemo(() => {
@@ -202,6 +209,17 @@ export default function ResumoTab() {
             maxTagCount="responsive"
           />
         </div>
+        {categoriasBu.length > 0 && (
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={labelStyle}>BU / Categoria</div>
+            <Select
+              mode="multiple" style={{ width: "100%" }} value={selCategoriasBu}
+              onChange={v => setSelCategoriasBu(v)}
+              options={categoriasBu.map(c => ({ label: c, value: c }))}
+              maxTagCount="responsive"
+            />
+          </div>
+        )}
         <Text type="secondary" style={{ fontSize: "0.78rem", paddingBottom: 2 }}>
           * Custo rateado disponível para out–dez/2025.
         </Text>

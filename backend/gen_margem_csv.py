@@ -363,6 +363,15 @@ mapa["pep_base"] = mapa["pep"].str.split(".").str[0]
 mapa_agg = mapa.groupby(["periodo","pep_base"], as_index=False)["valor_liquido"].sum()
 mapa_agg = mapa_agg.rename(columns={"valor_liquido": "receita_mapa"})
 
+# Lookup de categoria_bu / no_hierarquia por pep_base (pega o valor mais frequente)
+bu_cols = [c for c in ["centro_lucro","no_hierarquia","categoria_bu"] if c in mapa.columns]
+if bu_cols:
+    mapa_bu = (mapa.groupby("pep_base")[bu_cols]
+               .agg(lambda x: x.mode().iloc[0] if len(x) > 0 else "")
+               .reset_index())
+else:
+    mapa_bu = None
+
 # Normalizar PEPs de proj_final para pep_base e reagregar (elimina sub-PEPs duplicados)
 proj_final["pep_base"] = proj_final["pep"].str.split(".").str[0]
 pep_meta = (proj_final.sort_values("receita_rac", ascending=False)
@@ -392,6 +401,18 @@ proj_base["fator_mapa"]    = proj_base.apply(
     lambda r: r["receita"] / r["receita_rac"] if r["receita_rac"] != 0 else 1.0, axis=1
 )
 proj_base["pep"] = proj_base["pep_base"]  # usar pep_base como chave
+
+# Adicionar categoria_bu / no_hierarquia
+if mapa_bu is not None:
+    proj_base = proj_base.merge(mapa_bu, on="pep_base", how="left")
+    for col in ["centro_lucro","no_hierarquia","categoria_bu"]:
+        if col not in proj_base.columns:
+            proj_base[col] = ""
+    proj_base["categoria_bu"] = proj_base["categoria_bu"].fillna("Vazio")
+else:
+    proj_base["centro_lucro"] = ""
+    proj_base["no_hierarquia"] = ""
+    proj_base["categoria_bu"] = "Vazio"
 
 proj_final = proj_base.assign(
     margem    = lambda d: d["receita"] + d["custo_rateado"],
@@ -483,7 +504,7 @@ print(f"  (vs MapaReceita total projetos:           R$ {proj_final['receita'].su
 # ── 8. Salvar ──────────────────────────────────────────────────────────────────
 out_dir = os.path.dirname(__file__)
 
-proj_cols = ["periodo","pep","nome_cliente","empresa","receita","custo_rateado","horas_total","margem","margem_pct"]
+proj_cols = ["periodo","pep","nome_cliente","empresa","centro_lucro","no_hierarquia","categoria_bu","receita","custo_rateado","horas_total","margem","margem_pct"]
 proj_path = os.path.join(out_dir, "margem_projetos.csv")
 proj_final[proj_cols].to_csv(proj_path, index=False)
 print(f"\nSalvo: {proj_path} ({len(proj_final)} projetos)")

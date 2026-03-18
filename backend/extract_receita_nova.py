@@ -5,20 +5,39 @@ import pandas as pd
 import re
 
 FILE = r"C:\Users\amanda.paula\FCamara Consultoria e Formação\FCamara Files - CONTROLADORIA\30. FP&A NOVO\06. Cockpit - Desenvolvimentos\NewDashboard\Dados para apuração de metas\Nova pasta\Receita&Represado_2026 - Copia.xlsb"
+APURACAO_FILE = r"C:\Users\amanda.paula\FCamara Consultoria e Formação\FCamara Files - CONTROLADORIA\30. FP&A NOVO\06. Cockpit - Desenvolvimentos\NewDashboard\Dados para apuração de metas\APURACAO Q4 bd para q4 feito no braço.xlsx"
 
 # Colunas MapaReceita
 MAPA_COLS = {
-    "empresa":      1,   # A: Cod Empresa
-    "projeto":      2,   # B: Projeto
-    "tipo":         3,   # C: TipoPRJ
-    "pep":          4,   # D: Elemento PEP
-    "nome_projeto": 5,   # E: NomePrj
-    "cod_cliente":  6,   # F: CodCliente
-    "nome_cliente": 7,   # G: NomeCliente
-    "responsavel":  9,   # I: Responsável
-    "2025-10":      70,  # BR
-    "2025-11":      84,  # CF
-    "2025-12":      98,  # CT
+    "empresa":       1,   # A: Cod Empresa
+    "projeto":       2,   # B: Projeto
+    "tipo":          3,   # C: TipoPRJ
+    "pep":           4,   # D: Elemento PEP
+    "nome_projeto":  5,   # E: NomePrj
+    "cod_cliente":   6,   # F: CodCliente
+    "nome_cliente":  7,   # G: NomeCliente
+    "centro_lucro":  8,   # H: Centro de Lucro
+    "responsavel":   9,   # I: Responsável
+    "2025-10":      70,   # BR
+    "2025-11":      84,   # CF
+    "2025-12":      98,   # CT
+}
+
+# Mapeamento Nó hierarquia padrão -> categoria BU
+NO_HIERARQUIA_CATEGORIA = {
+    "SQUAD_DT":   "Apps",
+    "DIGITALMKT": "Demais",
+    "IMAGINE":    "Demais",
+    "OPENX":      "Hyper",
+    "CLOUD":      "Cloud/Cyber",
+    "DATA":       "Dados",
+    "ECOMM":      "Demais",
+    "INNOVATION": "Demais",
+    "BU":         "Vazio",
+    "LICENSING":  "Vazio",
+    "HYPER":      "Vazio",
+    "MKTPLACE":   "Vazio",
+    "BACKOFFICE": "Vazio",
 }
 
 # Colunas Base_PlanReal
@@ -43,6 +62,15 @@ CONTAS_RECEITA = {'Receita a Faturar', 'Receita nac.produto', 'Receita Serv. Nac
                   'Receita de Serviços', 'Receita Reconhecida'}
 PERIODOS_Q4   = {202510, 202511, 202512}
 PERIODO_LABEL = {202510: '2025-10', 202511: '2025-11', 202512: '2025-12'}
+
+# ── 0. Profit Center lookup (APURACAO xlsx) ────────────────────────────────
+print("Lendo Profit Center...")
+df_pc = pd.read_excel(APURACAO_FILE, sheet_name="Profit Center")
+df_pc["Profit Centers"] = df_pc["Profit Centers"].astype(str).str.strip()
+df_pc["no_hierarquia"]  = df_pc["Nó hierarquia padrão"].astype(str).str.strip().replace("nan", "")
+df_pc["categoria_bu"]   = df_pc["no_hierarquia"].map(NO_HIERARQUIA_CATEGORIA).fillna("Vazio")
+pc_lookup = df_pc.set_index("Profit Centers")[["no_hierarquia","categoria_bu"]].to_dict(orient="index")
+print(f"  {len(pc_lookup)} profit centers mapeados")
 
 print("Abrindo arquivo...")
 excel = win32.Dispatch("Excel.Application")
@@ -73,22 +101,34 @@ for r_start in range(3, n_rows + 1, CHUNK):
         pep = row[MAPA_COLS["pep"] - 1]
         if not pep or str(pep).strip() in ('', 'None', 'Elemento PEP'):
             continue
+        centro_lucro_raw = str(row[MAPA_COLS["centro_lucro"] - 1] or "").strip()
+        # Centro de Lucro pode vir como "DC008 (Hyperautomation)" — extrai só o código
+        centro_lucro_cod = centro_lucro_raw.split()[0] if centro_lucro_raw else ""
+        pc_info      = pc_lookup.get(centro_lucro_cod, {})
+        no_hier      = pc_info.get("no_hierarquia", "")
+        cat_bu       = pc_info.get("categoria_bu", "Vazio")
+        centro_lucro = centro_lucro_raw  # salva o valor completo
         for periodo, col in [("2025-10", 70), ("2025-11", 84), ("2025-12", 98)]:
             val = row[col - 1]
             if val is None or val == 0:
                 continue
             proj_rows.append({
-                "periodo":      periodo,
-                "empresa":      row[MAPA_COLS["empresa"] - 1],
-                "pep":          str(pep).strip(),
-                "nome_cliente": row[MAPA_COLS["nome_cliente"] - 1],
-                "tipo":         row[MAPA_COLS["tipo"] - 1],
+                "periodo":       periodo,
+                "empresa":       row[MAPA_COLS["empresa"] - 1],
+                "pep":           str(pep).strip(),
+                "nome_cliente":  row[MAPA_COLS["nome_cliente"] - 1],
+                "tipo":          row[MAPA_COLS["tipo"] - 1],
+                "centro_lucro":  centro_lucro,
+                "no_hierarquia": no_hier,
+                "categoria_bu":  cat_bu,
                 "valor_liquido": float(val) * -1,  # sinal contábil: negativo = receita
             })
 
 df_proj = pd.DataFrame(proj_rows)
 df_proj = df_proj[df_proj["valor_liquido"] != 0]
 print(f"  rac_projetos: {len(df_proj)} linhas, {df_proj['pep'].nunique()} PEPs")
+print(df_proj.groupby("categoria_bu")["valor_liquido"].sum().sort_values(ascending=False)
+      .apply(lambda v: f"R$ {v:,.0f}").to_string())
 df_proj.to_csv("rac_projetos.csv", index=False)
 print("  Salvo: rac_projetos.csv")
 

@@ -632,18 +632,24 @@ def get_margem_pess() -> pd.DataFrame:
 @app.get("/api/margem/filters")
 def get_margem_filters(user=Depends(get_current_user)):
     df = get_margem_proj()
+    cats = []
+    if "categoria_bu" in df.columns:
+        cats = sorted(df["categoria_bu"].dropna().unique().tolist())
     return {
-        "periodos": sorted(df["periodo"].dropna().unique().tolist()),
-        "empresas": sorted(df["empresa"].dropna().unique().tolist()),
+        "periodos":      sorted(df["periodo"].dropna().unique().tolist()),
+        "empresas":      sorted(df["empresa"].dropna().unique().tolist()),
+        "categorias_bu": cats,
     }
 
 @app.get("/api/resumo")
-def get_resumo(periodos: str = "", empresas: str = "", user=Depends(get_current_user)):
+def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", user=Depends(get_current_user)):
     df = get_margem_proj()
     if periodos:
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
+    if categorias_bu and "categoria_bu" in df.columns:
+        df = df[df["categoria_bu"].isin(categorias_bu.split(","))]
     agg = df.groupby(["empresa", "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
         custo_rateado = ("custo_rateado", "sum"),
@@ -655,14 +661,17 @@ def get_resumo(periodos: str = "", empresas: str = "", user=Depends(get_current_
     return agg.fillna("").to_dict(orient="records")
 
 @app.get("/api/margem/projetos")
-def get_margem_projetos(periodos: str = "", empresas: str = "", breakdown: bool = False, user=Depends(get_current_user)):
+def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", breakdown: bool = False, user=Depends(get_current_user)):
     df = get_margem_proj()
     if periodos:
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
+    if categorias_bu and "categoria_bu" in df.columns:
+        df = df[df["categoria_bu"].isin(categorias_bu.split(","))]
     df["pep"] = df["pep"].str.split(".").str[0]
-    group_keys = ["periodo", "pep", "nome_cliente", "empresa"] if breakdown else ["pep", "nome_cliente", "empresa"]
+    extra_keys = ["categoria_bu", "no_hierarquia", "centro_lucro"] if not breakdown and all(c in df.columns for c in ["categoria_bu", "no_hierarquia", "centro_lucro"]) else []
+    group_keys = (["periodo", "pep", "nome_cliente", "empresa"] if breakdown else ["pep", "nome_cliente", "empresa"]) + extra_keys
     agg = df.groupby(group_keys, as_index=False).agg(
         receita      =("receita",       "sum"),
         custo_rateado=("custo_rateado", "sum"),
