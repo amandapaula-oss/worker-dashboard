@@ -434,7 +434,7 @@ proj_remaining["receita_remaining"] = (
     proj_remaining["receita_mapa"] - proj_remaining["receita_te"]
 ).clip(lower=0)
 print(
-    f"\nReceita restante para complement (mapa − TE): "
+    f"\nReceita restante para complement (mapa - TE): "
     f"R$ {proj_remaining['receita_remaining'].sum():,.0f}"
 )
 
