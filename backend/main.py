@@ -620,10 +620,20 @@ def get_rac_pessoas(
 # ── Margem por Projeto ─────────────────────────────────────────────────────────
 
 def _vertical_lookup() -> dict:
-    """Returns {nome_upper: bu} from clientes.csv"""
+    """Returns {nome_upper: bu} from clientes.csv, using nome_base for matching when available"""
     try:
         cli = read_clientes_csv()
-        return dict(zip(cli["nome_cliente"].str.upper().str.strip(), cli["bu"].fillna("")))
+        result = {}
+        for _, row in cli.iterrows():
+            bu = str(row.get("bu", "") or "")
+            nome_base = str(row.get("nome_base", "") or "").strip()
+            nome_cli  = str(row.get("nome_cliente", "") or "").strip()
+            # Map by nome_base (legal name) and nome_cliente (display name)
+            if nome_base:
+                result[nome_base.upper()] = bu
+            if nome_cli:
+                result[nome_cli.upper()] = bu
+        return result
     except Exception:
         return {}
 
@@ -655,7 +665,11 @@ def get_margem_filters(user=Depends(get_current_user)):
 
 def _clientes_nomes_upper() -> set:
     df = read_clientes_csv()
-    return set(df["nome_cliente"].str.upper().str.strip().tolist())
+    # Use nome_base when available, otherwise nome_cliente
+    match_col = df["nome_base"].str.strip() if "nome_base" in df.columns else df["nome_cliente"].str.strip()
+    base_names = match_col[match_col != ""].str.upper()
+    fallback = df.loc[match_col == "", "nome_cliente"].str.upper().str.strip()
+    return set(base_names.tolist()) | set(fallback.tolist())
 
 @app.get("/api/resumo")
 def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", verticais: str = "", apenas_atribuidos: bool = False, user=Depends(get_current_user)):
@@ -704,8 +718,16 @@ def get_clientes_list(search: str = "", user=Depends(get_current_user)):
         margem=("margem","sum"),
         num_projetos=("pep","nunique"),
     )
-    clientes["nome_upper"] = clientes["nome_cliente"].str.upper().str.strip()
+    # Use nome_base for matching when available, otherwise nome_cliente
+    if "nome_base" in clientes.columns:
+        clientes["nome_upper"] = clientes.apply(
+            lambda r: r["nome_base"].upper().strip() if r["nome_base"].strip() else r["nome_cliente"].upper().strip(), axis=1
+        )
+    else:
+        clientes["nome_upper"] = clientes["nome_cliente"].str.upper().str.strip()
     merged = clientes.merge(totais, on="nome_upper", how="left").drop(columns=["nome_upper"])
+    if "nome_base" in merged.columns:
+        merged = merged.drop(columns=["nome_base"])
     merged["margem_pct"] = merged.apply(
         lambda r: float(r["margem"]) / float(r["receita"]) if r.get("receita") not in ("", None, 0) and float(r.get("receita",0)) != 0 else None,
         axis=1
