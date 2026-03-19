@@ -115,47 +115,55 @@ const contratoColor: Record<string, string> = {
 
 // ─── Custom Achievement Bar ───────────────────────────────────────────────────
 
-function AchievementBar({ meta, trigger, realizado, isPct = false }: {
-  meta: number; trigger: number; realizado: number; isPct?: boolean;
+const fmtShort = (v: number) =>
+  v >= 1000 ? `R$${Math.round(v / 1000)}k` : `R$${Math.round(v)}`;
+
+function AchievementBar({ meta, trigger, realizado, bonusAtMaxAting }: {
+  meta: number; trigger: number; realizado: number; bonusAtMaxAting?: number;
 }) {
-  const max = meta > 0 ? meta * 1.15 : 1;
-  const toPos = (v: number) => Math.min(Math.max((v / max) * 100, 0), 100);
+  const effectiveMeta = meta > 0 ? meta : trigger + 1;
+  const spread = effectiveMeta - trigger || 1;
+  const visMin = trigger - spread * 0.04;
+  const visMax = effectiveMeta + spread * 0.14;
+  const range = visMax - visMin || 1;
+
+  const toPos = (v: number) => Math.min(Math.max((v - visMin) / range * 100, 0), 100);
 
   const triggerPos = toPos(trigger);
-  const metaPos = toPos(meta);
   const realizadoPos = toPos(realizado);
   const hitTrigger = realizado >= trigger;
 
-  // Earning ticks: 60%, 70%, 80%, 90% ating between trigger and meta
-  const ticks = (meta > trigger && meta > 0)
-    ? [0.6, 0.7, 0.8, 0.9].map(ating => ({
+  // Ticks at 60%, 70%, 80%, 90%, 100% ating
+  const ticks = effectiveMeta > trigger
+    ? [0.6, 0.7, 0.8, 0.9, 1.0].map(ating => ({
         ating,
-        pos: toPos(trigger + (meta - trigger) * (ating - 0.5) / 0.5),
+        pos: toPos(trigger + spread * (ating - 0.5) / 0.5),
+        bonus: bonusAtMaxAting != null ? bonusAtMaxAting * ating : null,
       }))
     : [];
 
-  return (
-    <div style={{ position: "relative", height: 54, userSelect: "none" }}>
-      {/* Track */}
-      <div style={{ position: "absolute", left: 0, right: 0, top: 22, height: 10, background: "#f0f0f0", borderRadius: 5 }} />
+  const hasBonus = bonusAtMaxAting != null;
 
-      {/* Fill: 0 → min(realizado, trigger) */}
-      {realizadoPos > 0 && (
-        <div style={{
-          position: "absolute", left: 0,
-          width: `${Math.min(realizadoPos, triggerPos)}%`,
-          top: 22, height: 10,
-          background: hitTrigger ? "#52c41a" : "#ff7875",
-          borderRadius: "5px 0 0 5px",
-        }} />
-      )}
+  return (
+    <div style={{ position: "relative", height: hasBonus ? 66 : 50, userSelect: "none" }}>
+      {/* Track — starts at trigger */}
+      <div style={{ position: "absolute", left: `${triggerPos}%`, right: 0, top: 22, height: 10, background: "#f0f0f0", borderRadius: 5 }} />
 
       {/* Fill: trigger → realizado (green) */}
       {hitTrigger && realizadoPos > triggerPos && (
         <div style={{
           position: "absolute", left: `${triggerPos}%`,
-          width: `${realizadoPos - triggerPos}%`,
-          top: 22, height: 10, background: "#52c41a",
+          width: `${Math.min(realizadoPos - triggerPos, 100 - triggerPos)}%`,
+          top: 22, height: 10, background: "#52c41a", borderRadius: "5px 0 0 5px",
+        }} />
+      )}
+
+      {/* Fill: below trigger (red) */}
+      {!hitTrigger && (
+        <div style={{
+          position: "absolute", left: `${triggerPos}%`,
+          width: `${Math.max(0, realizadoPos - triggerPos)}%`,
+          top: 22, height: 10, background: "#ff7875", borderRadius: "5px 0 0 5px",
         }} />
       )}
 
@@ -163,19 +171,23 @@ function AchievementBar({ meta, trigger, realizado, isPct = false }: {
       {ticks.map(t => (
         <React.Fragment key={t.ating}>
           <div style={{
-            position: "absolute", left: `${t.pos}%`, top: 20, width: 1, height: 14,
-            background: "rgba(0,0,0,0.12)", transform: "translateX(-50%)",
+            position: "absolute", left: `${t.pos}%`, top: 20, width: t.ating === 1.0 ? 2 : 1, height: 14,
+            background: t.ating === 1.0 ? "#1677ff80" : "rgba(0,0,0,0.12)",
+            transform: "translateX(-50%)",
           }} />
-          <div style={{
-            position: "absolute", left: `${t.pos}%`, top: 36, fontSize: 9, color: "#bbb",
-            transform: "translateX(-50%)", whiteSpace: "nowrap",
-          }}>
-            {Math.round(t.ating * 100)}%
-          </div>
+          {t.bonus != null && (
+            <div style={{
+              position: "absolute", left: `${t.pos}%`, top: 38,
+              fontSize: 9, color: t.ating === 1.0 ? "#1677ff" : "#bbb",
+              transform: "translateX(-50%)", whiteSpace: "nowrap", textAlign: "center",
+            }}>
+              {fmtShort(t.bonus)}
+            </div>
+          )}
         </React.Fragment>
       ))}
 
-      {/* Trigger line */}
+      {/* Trigger marker */}
       <div style={{
         position: "absolute", left: `${triggerPos}%`, top: 18, width: 2, height: 18,
         background: "#ff4d4f", transform: "translateX(-50%)",
@@ -186,12 +198,6 @@ function AchievementBar({ meta, trigger, realizado, isPct = false }: {
       }}>
         mín
       </div>
-
-      {/* Meta line */}
-      <div style={{
-        position: "absolute", left: `${metaPos}%`, top: 16, width: 2, height: 22,
-        background: "#1677ff", transform: "translateX(-50%)",
-      }} />
 
       {/* Realizado dot */}
       <div style={{
@@ -207,8 +213,8 @@ function AchievementBar({ meta, trigger, realizado, isPct = false }: {
 
 // ─── MetaRealRow (currency) ───────────────────────────────────────────────────
 
-function MetaRealRow({ label, meta, triggerAmt, real, ating }: {
-  label: string; meta: number; triggerAmt: number; real: number; ating: number;
+function MetaRealRow({ label, meta, triggerAmt, real, ating, bonusAtMaxAting }: {
+  label: string; meta: number; triggerAmt: number; real: number; ating: number; bonusAtMaxAting?: number;
 }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -221,15 +227,15 @@ function MetaRealRow({ label, meta, triggerAmt, real, ating }: {
           {fmtPct(ating)}
         </span>
       </div>
-      <AchievementBar meta={meta} trigger={triggerAmt} realizado={real} />
+      <AchievementBar meta={meta} trigger={triggerAmt} realizado={real} bonusAtMaxAting={bonusAtMaxAting} />
     </div>
   );
 }
 
 // ─── MetaRealPctRow (percentage) ─────────────────────────────────────────────
 
-function MetaRealPctRow({ label, meta, trigger, real, ating, gate }: {
-  label: string; meta: number; trigger: number; real: number; ating: number; gate?: boolean;
+function MetaRealPctRow({ label, meta, trigger, real, ating, gate, bonusAtMaxAting }: {
+  label: string; meta: number; trigger: number; real: number; ating: number; gate?: boolean; bonusAtMaxAting?: number;
 }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -243,7 +249,7 @@ function MetaRealPctRow({ label, meta, trigger, real, ating, gate }: {
           <Tag color={gate ? "green" : "red"}>{gate ? "✓ Gate OK" : "✗ Bloqueado"}</Tag>
         )}
       </div>
-      <AchievementBar meta={meta} trigger={trigger} realizado={real} isPct />
+      <AchievementBar meta={meta} trigger={trigger} realizado={real} bonusAtMaxAting={bonusAtMaxAting} />
     </div>
   );
 }
@@ -532,128 +538,17 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
         triggerAmt={(d.budget_rec_total || 0) * triggerRec}
         real={d.real_rec_total || 0}
         ating={d.ating_rec_total || 0}
+        bonusAtMaxAting={d.salario_q4 * (d.peso_receita || 0)}
       />
       <MetaRealPctRow
-        label={`MB% Total — Lucro Bruto (peso ${fmtPct(d.peso_mb || 0)}) — Gatilho Mestre`}
+        label={`Lucro Bruto % — MB% Total (peso ${fmtPct(d.peso_mb || 0)}) — Gatilho Mestre`}
         meta={d.budget_mb_pct || 0}
         trigger={triggerMbPctTotal}
         real={d.real_mb_pct || 0}
         ating={d.ating_mb_total || 0}
         gate={lbGateOk}
+        bonusAtMaxAting={d.salario_q4 * (d.peso_mb || 0)}
       />
-
-      {/* ── Detalhe por Workstream ── */}
-      {d.detalhe_ws && d.detalhe_ws.length > 0 && (
-        <>
-          <Divider>Detalhe por Workstream</Divider>
-          <Table
-            size="small"
-            pagination={false}
-            dataSource={d.detalhe_ws}
-            rowKey="ws"
-            scroll={{ x: "max-content" }}
-            expandable={{
-              expandedRowRender: (row: DetalheWS) => {
-                if (!row.clientes_ws || row.clientes_ws.length === 0) {
-                  return <span style={{ color: "#999", fontSize: 12 }}>Sem clientes nesta WS</span>;
-                }
-                return (
-                  <Table
-                    size="small"
-                    pagination={false}
-                    dataSource={row.clientes_ws.map((c, i) => ({ ...c, key: i }))}
-                    columns={[
-                      { title: "Cliente", dataIndex: "cliente", render: (v: string) => toTitleCase(v) },
-                      { title: "Budget WS", dataIndex: "budget_rec", align: "right" as const, render: (v: number) => fmt(v) },
-                      { title: "Realizado (estimado)", dataIndex: "real_rec", align: "right" as const, render: (v: number) => fmt(v) },
-                    ]}
-                    style={{ marginLeft: 8 }}
-                  />
-                );
-              },
-              rowExpandable: () => true,
-            }}
-            columns={[
-              { title: "WS", dataIndex: "ws", width: 70, render: (v: string) => <Tag>{v.toUpperCase()}</Tag> },
-              { title: "Peso WS", dataIndex: "peso_ws", width: 80, render: (v: number) => fmtPct(v) },
-              { title: "Meta", dataIndex: "budget_rec", width: 120, align: "right" as const, render: (v: number) => fmt(v) },
-              {
-                title: "Mín. Receita",
-                dataIndex: "trigger_rec_amount",
-                width: 120,
-                align: "right" as const,
-                render: (v: number) => <span style={{ color: "#888" }}>{fmt(v ?? 0)}</span>,
-              },
-              {
-                title: "Realizado",
-                dataIndex: "real_rec",
-                width: 120,
-                align: "right" as const,
-                render: (v: number, row: DetalheWS) => (
-                  <span style={{ color: v >= (row.trigger_rec_amount ?? 0) ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>
-                    {fmt(v)}
-                  </span>
-                ),
-              },
-              {
-                title: "Falta p/ mín.",
-                dataIndex: "receita_faltante",
-                width: 120,
-                align: "right" as const,
-                render: (v: number) =>
-                  v > 0
-                    ? <Tag color="red">{fmt(v)}</Tag>
-                    : <Tag color="green">✓</Tag>,
-              },
-              {
-                title: "MB% Meta",
-                dataIndex: "budget_mb_pct",
-                width: 90,
-                align: "right" as const,
-                render: (v: number) => `${v.toFixed(2)}%`,
-              },
-              {
-                title: "MB% Mín.",
-                dataIndex: "trigger_mb_pct",
-                width: 90,
-                align: "right" as const,
-                render: (v: number, row: DetalheWS) =>
-                  row.aplica_gate_mb
-                    ? <span style={{ color: "#888" }}>{v.toFixed(2)}%</span>
-                    : <span style={{ color: "#bbb" }}>—</span>,
-              },
-              {
-                title: "MB% Real",
-                dataIndex: "real_mb_pct",
-                width: 90,
-                align: "right" as const,
-                render: (v: number, row: DetalheWS) => (
-                  <span style={{ color: !row.aplica_gate_mb || v >= row.trigger_mb_pct ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>
-                    {v.toFixed(2)}%
-                  </span>
-                ),
-              },
-              {
-                title: "Gate MB",
-                width: 100,
-                render: (_: any, row: DetalheWS) =>
-                  !row.aplica_gate_mb
-                    ? <Tag color="default">N/A</Tag>
-                    : row.mb_gate === 1
-                    ? <Tag color="green">✓ OK</Tag>
-                    : <Tag color="red">✗</Tag>,
-              },
-              {
-                title: "Bônus WS",
-                dataIndex: "bonus_ws",
-                width: 110,
-                align: "right" as const,
-                render: (v: number) => <strong style={{ color: v > 0 ? "#52c41a" : "#999" }}>{fmt(v)}</strong>,
-              },
-            ]}
-          />
-        </>
-      )}
 
       {/* ── Tabela de Cálculo do Bônus ── */}
       {d.detalhe_ws && d.detalhe_ws.length > 0 && (
@@ -849,6 +744,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         real={d.real_mc_pct || 0}
         ating={d.ating_mc || 0}
         gate={gate}
+        bonusAtMaxAting={d.salario_q4 * (d.peso_mc || 0)}
       />
 
       {/* ── TCV ── */}
@@ -862,6 +758,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         triggerAmt={(d.budget_tcv_q4 || 0) * 0.85}
         real={d.real_tcv_q4 || 0}
         ating={d.ating_tcv || 0}
+        bonusAtMaxAting={d.salario_q4 * (d.peso_tcv || 0)}
       />
 
       {/* ── Receita ── */}
@@ -872,6 +769,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         triggerAmt={(d.budget_rec_q4 || 0) * 0.85}
         real={d.real_rec_q4 || 0}
         ating={d.ating_rec || 0}
+        bonusAtMaxAting={d.salario_q4 * (d.peso_receita || 0)}
       />
 
       {/* ── Tabela de Cálculo ── */}
