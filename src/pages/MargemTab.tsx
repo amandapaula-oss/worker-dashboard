@@ -193,12 +193,6 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
     },
     {
-      title: "Projetos", dataIndex: "num_projetos", key: "num_projetos", width: 90,
-      align: "center" as const,
-      sorter: (a: any, b: any) => (a.num_projetos || 0) - (b.num_projetos || 0),
-      render: (v: number) => v || "—",
-    },
-    {
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
