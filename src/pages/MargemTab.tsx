@@ -213,6 +213,10 @@ export default function MargemTab() {
       sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)),
     },
     {
+      title: "Nó Hierarquia", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 130,
+      sorter: (a: any, b: any) => String(a.no_hierarquia || "").localeCompare(String(b.no_hierarquia || "")),
+    },
+    {
       title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110,
       sorter: (a: any, b: any) => String(a.categoria_bu || "").localeCompare(String(b.categoria_bu || "")),
     },
@@ -464,6 +468,8 @@ export default function MargemTab() {
       sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente)) },
     { title: "Empresa", dataIndex: "empresa",       key: "empresa",      width: 120,
       sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)) },
+    { title: "Nó Hierarquia", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 130,
+      sorter: (a: any, b: any) => String(a.no_hierarquia || "").localeCompare(String(b.no_hierarquia || "")) },
     { title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110,
       sorter: (a: any, b: any) => String(a.categoria_bu || "").localeCompare(String(b.categoria_bu || "")) },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
