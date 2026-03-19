@@ -177,6 +177,20 @@ export async function getApuracaoVisaoMaster() {
   return apiFetch("/api/apuracao/visao-master");
 }
 
+// ── Clientes ──────────────────────────────────────────────────────────────────
+
+export async function getClientes(params: Record<string, string> = {}) {
+  return apiFetch(`/api/clientes${buildQuery(params)}`);
+}
+
+export async function updateClienteAe(nome_cliente: string, ae: string) {
+  return apiFetch("/api/clientes/ae", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nome_cliente, ae }),
+  });
+}
+
 export async function downloadApuracaoPdf(nome: string): Promise<void> {
   const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const res = await fetch(

@@ -660,8 +660,54 @@ def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", 
     )
     return agg.fillna("").to_dict(orient="records")
 
+# ── Clientes endpoints ──────────────────────────────────────────────────────
+
+def read_clientes_csv() -> pd.DataFrame:
+    path = "clientes.csv"
+    if os.path.exists(path):
+        df = pd.read_csv(path, dtype=str).fillna("")
+        return df
+    return pd.DataFrame(columns=["nome_cliente","bu","ae"])
+
+def write_clientes_csv(df: pd.DataFrame):
+    df.to_csv("clientes.csv", index=False)
+
+@app.get("/api/clientes")
+def get_clientes_list(search: str = "", user=Depends(get_current_user)):
+    clientes = read_clientes_csv()
+    proj = get_margem_proj()
+    proj["nome_upper"] = proj["nome_cliente"].str.upper().str.strip()
+    totais = proj.groupby("nome_upper", as_index=False).agg(
+        receita=("receita","sum"),
+        custo_rateado=("custo_rateado","sum"),
+        margem=("margem","sum"),
+        num_projetos=("pep","nunique"),
+    )
+    clientes["nome_upper"] = clientes["nome_cliente"].str.upper().str.strip()
+    merged = clientes.merge(totais, on="nome_upper", how="left").drop(columns=["nome_upper"])
+    merged["margem_pct"] = merged.apply(
+        lambda r: float(r["margem"]) / float(r["receita"]) if r.get("receita") not in ("", None, 0) and float(r.get("receita",0)) != 0 else None,
+        axis=1
+    )
+    if search:
+        merged = merged[merged["nome_cliente"].str.upper().str.contains(search.upper(), na=False)]
+    return merged.fillna("").to_dict(orient="records")
+
+@app.post("/api/clientes/ae")
+def update_cliente_ae(body: dict, user=Depends(get_current_user)):
+    nome = str(body.get("nome_cliente","")).strip()
+    ae   = str(body.get("ae","")).strip()
+    df = read_clientes_csv()
+    if nome in df["nome_cliente"].values:
+        df.loc[df["nome_cliente"] == nome, "ae"] = ae
+    else:
+        new_row = pd.DataFrame([{"nome_cliente": nome, "bu": "", "ae": ae}])
+        df = pd.concat([df, new_row], ignore_index=True)
+    write_clientes_csv(df)
+    return {"ok": True}
+
 @app.get("/api/margem/projetos")
-def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", breakdown: bool = False, user=Depends(get_current_user)):
+def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", breakdown: bool = False, nome_cliente: str = "", user=Depends(get_current_user)):
     df = get_margem_proj()
     if periodos:
         df = df[df["periodo"].isin(periodos.split(","))]
@@ -669,6 +715,8 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
         df = df[df["empresa"].isin(empresas.split(","))]
     if categorias_bu and "categoria_bu" in df.columns:
         df = df[df["categoria_bu"].isin(categorias_bu.split(","))]
+    if nome_cliente:
+        df = df[df["nome_cliente"].str.upper().str.strip() == nome_cliente.upper().strip()]
     df["pep"] = df["pep"].str.split(".").str[0]
     extra_keys = ["categoria_bu", "no_hierarquia", "centro_lucro"] if not breakdown and all(c in df.columns for c in ["categoria_bu", "no_hierarquia", "centro_lucro"]) else []
     group_keys = (["periodo", "pep", "nome_cliente", "empresa"] if breakdown else ["pep", "nome_cliente", "empresa"]) + extra_keys

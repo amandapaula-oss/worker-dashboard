@@ -12,6 +12,7 @@ import MargemTab from "./MargemTab";
 import CheckLucasTab from "./CheckLucasTab";
 import VistaMasterTab from "./VistaMasterTab";
 import ResumoTab from "./ResumoTab";
+import ClientesTab from "./ClientesTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -227,6 +228,7 @@ export default function Dashboard() {
                 { key: "visao-master", label: "🎯 Visão Master Q4",    children: <VistaMasterTab /> },
                 { key: "margem",       label: "📊 Margem por Projeto",  children: <MargemTab /> },
                 { key: "check",        label: "🔍 Check Lucas",         children: <CheckLucasTab /> },
+                { key: "clientes",     label: "👥 Clientes",            children: <ClientesTab /> },
               ]}
             />
           )}
