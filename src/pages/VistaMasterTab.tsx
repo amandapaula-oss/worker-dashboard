@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Table, Spin, message, Tag, Progress, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
-import { SearchOutlined, ReloadOutlined, UserOutlined, FilePdfOutlined } from "@ant-design/icons";
+import { Table, Spin, message, Tag, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
+import { SearchOutlined, ReloadOutlined, UserOutlined, FilePdfOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { getApuracaoVisaoMaster, getApuracaoCalcular, downloadApuracaoPdf } from "../api";
 import { toTitleCase } from "../utils/format";
 
@@ -19,7 +19,12 @@ type MasterRow = {
   salario: number;
   bonus: number;
   ating_principal: number;
+  ating_rec: number | null;
+  ating_mb: number | null;
+  ating_tcv: number | null;
+  ating_mc: number | null;
   mc_gate: number | null;
+  gate_ok: boolean;
   tipo_calc: string;
   erro?: string;
 };
@@ -42,6 +47,7 @@ type DetalheWS = {
   bonus_rec: number;
   bonus_mb: number;
   bonus_ws: number;
+  clientes_ws?: Array<{ cliente: string; budget_rec: number; real_rec: number }>;
 };
 
 type ClienteDetalhe = {
@@ -58,11 +64,12 @@ type DetalheCalculo = {
   salario_q4: number;
   periodo: string;
   bonus_total: number;
-  // AE
+  // AE / Comercial
   peso_receita?: number;
   peso_mb?: number;
   trigger_rec?: number;
-  trigger_mb?: number;
+  trigger_mb_pct_total?: number;
+  lb_gate?: number;
   budget_rec_total?: number;
   real_rec_total?: number;
   ating_rec_total?: number;
@@ -83,6 +90,7 @@ type DetalheCalculo = {
   real_rec_q4?: number;
   ating_rec?: number;
   budget_mc_pct?: number;
+  trigger_mc_pct?: number;
   real_mc_pct?: number;
   ating_mc?: number;
   bonus_tcv?: number;
@@ -104,6 +112,143 @@ const contratoColor: Record<string, string> = {
   PJ: "blue",
   Socio: "purple",
 };
+
+// ─── Custom Achievement Bar ───────────────────────────────────────────────────
+
+function AchievementBar({ meta, trigger, realizado, isPct = false }: {
+  meta: number; trigger: number; realizado: number; isPct?: boolean;
+}) {
+  const max = meta > 0 ? meta * 1.15 : 1;
+  const toPos = (v: number) => Math.min(Math.max((v / max) * 100, 0), 100);
+
+  const triggerPos = toPos(trigger);
+  const metaPos = toPos(meta);
+  const realizadoPos = toPos(realizado);
+  const hitTrigger = realizado >= trigger;
+
+  // Earning ticks: 60%, 70%, 80%, 90% ating between trigger and meta
+  const ticks = (meta > trigger && meta > 0)
+    ? [0.6, 0.7, 0.8, 0.9].map(ating => ({
+        ating,
+        pos: toPos(trigger + (meta - trigger) * (ating - 0.5) / 0.5),
+      }))
+    : [];
+
+  return (
+    <div style={{ position: "relative", height: 54, userSelect: "none" }}>
+      {/* Track */}
+      <div style={{ position: "absolute", left: 0, right: 0, top: 22, height: 10, background: "#f0f0f0", borderRadius: 5 }} />
+
+      {/* Fill: 0 → min(realizado, trigger) */}
+      {realizadoPos > 0 && (
+        <div style={{
+          position: "absolute", left: 0,
+          width: `${Math.min(realizadoPos, triggerPos)}%`,
+          top: 22, height: 10,
+          background: hitTrigger ? "#52c41a" : "#ff7875",
+          borderRadius: "5px 0 0 5px",
+        }} />
+      )}
+
+      {/* Fill: trigger → realizado (green) */}
+      {hitTrigger && realizadoPos > triggerPos && (
+        <div style={{
+          position: "absolute", left: `${triggerPos}%`,
+          width: `${realizadoPos - triggerPos}%`,
+          top: 22, height: 10, background: "#52c41a",
+        }} />
+      )}
+
+      {/* Earning ticks */}
+      {ticks.map(t => (
+        <React.Fragment key={t.ating}>
+          <div style={{
+            position: "absolute", left: `${t.pos}%`, top: 20, width: 1, height: 14,
+            background: "rgba(0,0,0,0.12)", transform: "translateX(-50%)",
+          }} />
+          <div style={{
+            position: "absolute", left: `${t.pos}%`, top: 36, fontSize: 9, color: "#bbb",
+            transform: "translateX(-50%)", whiteSpace: "nowrap",
+          }}>
+            {Math.round(t.ating * 100)}%
+          </div>
+        </React.Fragment>
+      ))}
+
+      {/* Trigger line */}
+      <div style={{
+        position: "absolute", left: `${triggerPos}%`, top: 18, width: 2, height: 18,
+        background: "#ff4d4f", transform: "translateX(-50%)",
+      }} />
+      <div style={{
+        position: "absolute", left: `${triggerPos}%`, top: 7, fontSize: 9, color: "#ff4d4f",
+        transform: "translateX(-50%)", whiteSpace: "nowrap",
+      }}>
+        mín
+      </div>
+
+      {/* Meta line */}
+      <div style={{
+        position: "absolute", left: `${metaPos}%`, top: 16, width: 2, height: 22,
+        background: "#1677ff", transform: "translateX(-50%)",
+      }} />
+
+      {/* Realizado dot */}
+      <div style={{
+        position: "absolute", left: `${realizadoPos}%`, top: 19,
+        width: 12, height: 12, borderRadius: "50%",
+        background: hitTrigger ? "#52c41a" : "#ff4d4f",
+        border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+        transform: "translateX(-50%)",
+      }} />
+    </div>
+  );
+}
+
+// ─── MetaRealRow (currency) ───────────────────────────────────────────────────
+
+function MetaRealRow({ label, meta, triggerAmt, real, ating }: {
+  label: string; meta: number; triggerAmt: number; real: number; ating: number;
+}) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: "flex", gap: 20, fontSize: 13, marginBottom: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span>Meta: <strong>{fmt(meta)}</strong></span>
+        <span style={{ color: "#888" }}>Mín.: <strong>{fmt(triggerAmt)}</strong></span>
+        <span>Realizado: <strong style={{ color: real >= meta ? "#52c41a" : real >= triggerAmt ? "#faad14" : "#ff4d4f" }}>{fmt(real)}</strong></span>
+        <span style={{ fontWeight: 700, color: ating >= 1 ? "#52c41a" : ating > 0 ? "#faad14" : "#ff4d4f" }}>
+          {fmtPct(ating)}
+        </span>
+      </div>
+      <AchievementBar meta={meta} trigger={triggerAmt} realizado={real} />
+    </div>
+  );
+}
+
+// ─── MetaRealPctRow (percentage) ─────────────────────────────────────────────
+
+function MetaRealPctRow({ label, meta, trigger, real, ating, gate }: {
+  label: string; meta: number; trigger: number; real: number; ating: number; gate?: boolean;
+}) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span>Meta: <strong>{meta.toFixed(2)}%</strong></span>
+        <span style={{ color: "#888" }}>Mín.: <strong>{trigger.toFixed(2)}%</strong></span>
+        <span>Realizado: <strong style={{ color: real >= meta ? "#52c41a" : real >= trigger ? "#faad14" : "#ff4d4f" }}>{real.toFixed(2)}%</strong></span>
+        <span style={{ fontWeight: 700, color: ating >= 1 ? "#52c41a" : ating > 0 ? "#faad14" : "#ff4d4f" }}>{fmtPct(ating)}</span>
+        {gate !== undefined && (
+          <Tag color={gate ? "green" : "red"}>{gate ? "✓ Gate OK" : "✗ Bloqueado"}</Tag>
+        )}
+      </div>
+      <AchievementBar meta={meta} trigger={trigger} realizado={real} isPct />
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function VistaMasterTab() {
   const [data, setData] = useState<MasterRow[]>([]);
@@ -141,8 +286,16 @@ export default function VistaMasterTab() {
   });
 
   const posicoes = ["Todos", ...Array.from(new Set(data.map(r => r.posicao)))];
-
   const totalBonus = filtered.reduce((s, r) => s + r.bonus, 0);
+
+  const atCol = (v: number | null) => {
+    if (v == null) return <span style={{ color: "#ccc" }}>—</span>;
+    return (
+      <span style={{ color: v >= 1 ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>
+        {fmtPct(v)}
+      </span>
+    );
+  };
 
   const columns = [
     {
@@ -150,10 +303,7 @@ export default function VistaMasterTab() {
       dataIndex: "nome",
       key: "nome",
       render: (v: string) => (
-        <span
-          style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }}
-          onClick={() => abrirDetalhe(v)}
-        >
+        <span style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }} onClick={() => abrirDetalhe(v)}>
           <UserOutlined style={{ marginRight: 6 }} />{toTitleCase(v)}
         </span>
       ),
@@ -165,41 +315,46 @@ export default function VistaMasterTab() {
       render: (v: string) => <Tag color={posicaoColor[v.toUpperCase()] || "default"}>{v}</Tag>,
     },
     {
-      title: "Contrato",
-      dataIndex: "contrato",
-      key: "contrato",
-      render: (v: string) => <Tag color={contratoColor[v] || "default"}>{v}</Tag>,
-    },
-    {
       title: "Vertical",
       dataIndex: "vertical",
       key: "vertical",
       render: (v: string) => v || "—",
     },
     {
-      title: "Salário Q4",
-      dataIndex: "salario",
-      key: "salario",
-      align: "right" as const,
-      render: (v: number) => fmt(v),
-    },
-    {
-      title: "Atingimento",
-      dataIndex: "ating_principal",
-      key: "ating_principal",
-      render: (v: number, row: MasterRow) => (
-        <div style={{ minWidth: 120 }}>
-          <Progress
-            percent={Math.round(v * 100)}
-            size="small"
-            strokeColor={v >= 1 ? "#52c41a" : v >= 0.5 ? "#faad14" : "#ff4d4f"}
-            format={p => `${p}%`}
-          />
-          {row.mc_gate !== null && row.mc_gate === 0 && (
-            <Tag color="red" style={{ fontSize: 10, marginTop: 2 }}>MC Gate bloqueado</Tag>
-          )}
+      title: "Gatilho Mestre",
+      key: "gate_ok",
+      render: (_: any, row: MasterRow) => (
+        <div style={{ textAlign: "center" }}>
+          {row.gate_ok
+            ? <CheckCircleFilled style={{ color: "#52c41a", fontSize: 18 }} />
+            : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 18 }} />
+          }
+          <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>
+            {row.tipo_calc === "Diretor" ? "MC%" : "LB%"}
+          </div>
         </div>
       ),
+    },
+    {
+      title: "% TCV",
+      key: "ating_tcv",
+      render: (_: any, row: MasterRow) => atCol(row.ating_tcv),
+    },
+    {
+      title: "% Receita",
+      key: "ating_rec",
+      render: (_: any, row: MasterRow) => atCol(row.ating_rec),
+    },
+    {
+      title: "% MB/MC",
+      key: "ating_mb",
+      render: (_: any, row: MasterRow) => atCol(row.ating_mb ?? row.ating_mc),
+    },
+    {
+      title: "Contrato",
+      dataIndex: "contrato",
+      key: "contrato",
+      render: (v: string) => <Tag color={contratoColor[v] || "default"}>{v}</Tag>,
     },
     {
       title: "Bônus Q4",
@@ -217,7 +372,6 @@ export default function VistaMasterTab() {
 
   return (
     <div style={{ padding: "16px 0" }}>
-      {/* Filtros */}
       <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <Input
           prefix={<SearchOutlined />}
@@ -247,12 +401,9 @@ export default function VistaMasterTab() {
           pagination={false}
           summary={() => (
             <Table.Summary.Row style={{ background: "#fafafa", fontWeight: 600 }}>
-              <Table.Summary.Cell index={0} colSpan={4}>Total ({filtered.length} pessoas)</Table.Summary.Cell>
-              <Table.Summary.Cell index={4} align="right">
-                {fmt(filtered.reduce((s, r) => s + r.salario, 0))}
-              </Table.Summary.Cell>
-              <Table.Summary.Cell index={5} />
-              <Table.Summary.Cell index={6} align="right">
+              <Table.Summary.Cell index={0} colSpan={7}>Total ({filtered.length} pessoas)</Table.Summary.Cell>
+              <Table.Summary.Cell index={7} />
+              <Table.Summary.Cell index={8} align="right">
                 <span style={{ color: "#52c41a" }}>{fmt(totalBonus)}</span>
               </Table.Summary.Cell>
             </Table.Summary.Row>
@@ -260,12 +411,11 @@ export default function VistaMasterTab() {
         />
       </Spin>
 
-      {/* Drawer de Detalhe */}
       <Drawer
         title={detalhe ? `Memória de Cálculo — ${detalhe.nome}` : "Carregando..."}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        width={780}
+        width={820}
         extra={
           detalhe && (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -294,6 +444,8 @@ export default function VistaMasterTab() {
   );
 }
 
+// ─── Drawer container ─────────────────────────────────────────────────────────
+
 function DetalheDrawer({ d }: { d: DetalheCalculo }) {
   const isDir = d.posicao === "DIRETOR";
 
@@ -319,30 +471,38 @@ function DetalheDrawer({ d }: { d: DetalheCalculo }) {
   );
 }
 
-function MetaRealRow({ label, meta, real, ating }: { label: string; meta: number; real: number; ating: number }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 4 }}>
-        <span>Meta: <strong>{fmt(meta)}</strong></span>
-        <span>Realizado: <strong>{fmt(real)}</strong></span>
-      </div>
-      <Progress
-        percent={Math.min(Math.round(ating * 100), 100)}
-        size="small"
-        strokeColor={ating >= 1 ? "#52c41a" : ating >= 0.5 ? "#faad14" : "#ff4d4f"}
-        format={p => `${p}%`}
-      />
-    </div>
-  );
-}
+// ─── Detalhe AE / Comercial ───────────────────────────────────────────────────
 
 function DetalheAE({ d }: { d: DetalheCalculo }) {
   const triggerRec = d.trigger_rec ?? 0.85;
-  const triggerMb  = d.trigger_mb  ?? 0.985;
+  const triggerMbPctTotal = d.trigger_mb_pct_total ?? ((d.budget_mb_pct ?? 0) - 1.5);
+  const lbGateOk = (d.lb_gate ?? 1) === 1;
 
   return (
     <div>
+      {/* ── Gatilho Mestre ── */}
+      <Divider>Gatilho Mestre — Lucro Bruto % (Apps)</Divider>
+      <div style={{
+        background: lbGateOk ? "#f6ffed" : "#fff2f0",
+        border: `1px solid ${lbGateOk ? "#b7eb8f" : "#ffccc7"}`,
+        borderRadius: 8, padding: "10px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12,
+      }}>
+        {lbGateOk
+          ? <CheckCircleFilled style={{ color: "#52c41a", fontSize: 22 }} />
+          : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 22 }} />
+        }
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: lbGateOk ? "#52c41a" : "#ff4d4f" }}>
+            {lbGateOk ? "Gatilho atingido" : "Gatilho NÃO atingido"}
+          </div>
+          <div style={{ fontSize: 12, color: "#666" }}>
+            {lbGateOk
+              ? "MB% de Apps acima do mínimo — bônus MB habilitado"
+              : "MB% de Apps abaixo do mínimo — bônus MB bloqueado"}
+          </div>
+        </div>
+      </div>
+
       {/* ── Regras de Apuração ── */}
       <Divider>Regras de Apuração</Divider>
       <div style={{ background: "#f6f8ff", border: "1px solid #d0d9f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 4 }}>
@@ -350,11 +510,11 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
           <strong>Fórmula:</strong> Bônus = Salário × Peso Métrica × Peso WS × Atingimento
         </div>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 6 }}>
-          <span>🎯 <strong>Trigger Receita:</strong> {fmtPct(triggerRec)} da meta — abaixo disso = 0%</span>
-          <span>🎯 <strong>Trigger MB% (Apps):</strong> {fmtPct(triggerMb)} da meta — abaixo = bônus MB bloqueado</span>
+          <span>🎯 <strong>Trigger Receita:</strong> {(triggerRec * 100).toFixed(0)}% da meta — abaixo disso = 0</span>
+          <span>🎯 <strong>Trigger MB% (Apps):</strong> meta − 1,5pp — abaixo disso = 0</span>
         </div>
         <div style={{ color: "#555", marginBottom: 6 }}>
-          Atingimento entre trigger e 100%: escala linear de 50% a 100%. Acima da meta: 100%.
+          Atingimento entre trigger e meta: escala linear de 50% a 100%. Acima da meta: 100%.
         </div>
         <div>
           <strong>Pesos desta posição:</strong>&nbsp;
@@ -369,24 +529,18 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
       <MetaRealRow
         label={`Receita Total (peso ${fmtPct(d.peso_receita || 0)})`}
         meta={d.budget_rec_total || 0}
+        triggerAmt={(d.budget_rec_total || 0) * triggerRec}
         real={d.real_rec_total || 0}
         ating={d.ating_rec_total || 0}
       />
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>
-          MB% Total — Lucro Bruto (peso {fmtPct(d.peso_mb || 0)})
-        </div>
-        <div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 4, flexWrap: "wrap" }}>
-          <span>Meta: <strong>{(d.budget_mb_pct || 0).toFixed(2)}%</strong></span>
-          <span style={{ color: "#888" }}>Mínimo Apps (98,5%): <strong>{((d.budget_mb_pct || 0) * (d.trigger_mb ?? 0.985)).toFixed(2)}%</strong></span>
-          <span>Realizado: <strong style={{ color: (d.real_mb_pct || 0) >= (d.budget_mb_pct || 0) * (d.trigger_mb ?? 0.985) ? "#52c41a" : "#ff4d4f" }}>{(d.real_mb_pct || 0).toFixed(2)}%</strong></span>
-        </div>
-        <Progress
-          percent={Math.min(Math.round((d.ating_mb_total || 0) * 100), 100)}
-          size="small"
-          strokeColor={(d.ating_mb_total || 0) >= 1 ? "#52c41a" : "#faad14"}
-        />
-      </div>
+      <MetaRealPctRow
+        label={`MB% Total — Lucro Bruto (peso ${fmtPct(d.peso_mb || 0)}) — Gatilho Mestre`}
+        meta={d.budget_mb_pct || 0}
+        trigger={triggerMbPctTotal}
+        real={d.real_mb_pct || 0}
+        ating={d.ating_mb_total || 0}
+        gate={lbGateOk}
+      />
 
       {/* ── Detalhe por Workstream ── */}
       {d.detalhe_ws && d.detalhe_ws.length > 0 && (
@@ -398,21 +552,42 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
             dataSource={d.detalhe_ws}
             rowKey="ws"
             scroll={{ x: "max-content" }}
+            expandable={{
+              expandedRowRender: (row: DetalheWS) => {
+                if (!row.clientes_ws || row.clientes_ws.length === 0) {
+                  return <span style={{ color: "#999", fontSize: 12 }}>Sem clientes nesta WS</span>;
+                }
+                return (
+                  <Table
+                    size="small"
+                    pagination={false}
+                    dataSource={row.clientes_ws.map((c, i) => ({ ...c, key: i }))}
+                    columns={[
+                      { title: "Cliente", dataIndex: "cliente", render: (v: string) => toTitleCase(v) },
+                      { title: "Budget WS", dataIndex: "budget_rec", align: "right" as const, render: (v: number) => fmt(v) },
+                      { title: "Realizado (estimado)", dataIndex: "real_rec", align: "right" as const, render: (v: number) => fmt(v) },
+                    ]}
+                    style={{ marginLeft: 8 }}
+                  />
+                );
+              },
+              rowExpandable: () => true,
+            }}
             columns={[
               { title: "WS", dataIndex: "ws", width: 70, render: (v: string) => <Tag>{v.toUpperCase()}</Tag> },
               { title: "Peso WS", dataIndex: "peso_ws", width: 80, render: (v: number) => fmtPct(v) },
-              { title: "Meta", dataIndex: "budget_rec", width: 130, align: "right" as const, render: (v: number) => fmt(v) },
+              { title: "Meta", dataIndex: "budget_rec", width: 120, align: "right" as const, render: (v: number) => fmt(v) },
               {
-                title: "Mínimo p/ pontuar",
+                title: "Mín. Receita",
                 dataIndex: "trigger_rec_amount",
-                width: 140,
+                width: 120,
                 align: "right" as const,
                 render: (v: number) => <span style={{ color: "#888" }}>{fmt(v ?? 0)}</span>,
               },
               {
                 title: "Realizado",
                 dataIndex: "real_rec",
-                width: 130,
+                width: 120,
                 align: "right" as const,
                 render: (v: number, row: DetalheWS) => (
                   <span style={{ color: v >= (row.trigger_rec_amount ?? 0) ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>
@@ -421,24 +596,14 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                 ),
               },
               {
-                title: "Falta p/ mínimo",
+                title: "Falta p/ mín.",
                 dataIndex: "receita_faltante",
-                width: 130,
+                width: 120,
                 align: "right" as const,
                 render: (v: number) =>
                   v > 0
-                    ? <Tag color="red" style={{ fontWeight: 600 }}>{fmt(v)}</Tag>
-                    : <Tag color="green">✓ Atingido</Tag>,
-              },
-              {
-                title: "Ating. Rec.",
-                dataIndex: "ating_rec",
-                width: 80,
-                render: (v: number) => (
-                  <span style={{ color: v >= 1 ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>
-                    {fmtPct(v)}
-                  </span>
-                ),
+                    ? <Tag color="red">{fmt(v)}</Tag>
+                    : <Tag color="green">✓</Tag>,
               },
               {
                 title: "MB% Meta",
@@ -448,9 +613,9 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                 render: (v: number) => `${v.toFixed(2)}%`,
               },
               {
-                title: "MB% Mínimo",
+                title: "MB% Mín.",
                 dataIndex: "trigger_mb_pct",
-                width: 100,
+                width: 90,
                 align: "right" as const,
                 render: (v: number, row: DetalheWS) =>
                   row.aplica_gate_mb
@@ -463,30 +628,93 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                 width: 90,
                 align: "right" as const,
                 render: (v: number, row: DetalheWS) => (
-                  <span style={{
-                    color: !row.aplica_gate_mb || v >= row.trigger_mb_pct ? "#52c41a" : "#ff4d4f",
-                    fontWeight: 600,
-                  }}>
+                  <span style={{ color: !row.aplica_gate_mb || v >= row.trigger_mb_pct ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>
                     {v.toFixed(2)}%
                   </span>
                 ),
               },
               {
                 title: "Gate MB",
-                dataIndex: "mb_gate",
-                width: 90,
-                render: (_: number, row: DetalheWS) =>
+                width: 100,
+                render: (_: any, row: DetalheWS) =>
                   !row.aplica_gate_mb
                     ? <Tag color="default">N/A</Tag>
                     : row.mb_gate === 1
                     ? <Tag color="green">✓ OK</Tag>
-                    : <Tag color="red">✗ Bloqueado</Tag>,
+                    : <Tag color="red">✗</Tag>,
               },
               {
                 title: "Bônus WS",
                 dataIndex: "bonus_ws",
-                width: 120,
+                width: 110,
                 align: "right" as const,
+                render: (v: number) => <strong style={{ color: v > 0 ? "#52c41a" : "#999" }}>{fmt(v)}</strong>,
+              },
+            ]}
+          />
+        </>
+      )}
+
+      {/* ── Tabela de Cálculo do Bônus ── */}
+      {d.detalhe_ws && d.detalhe_ws.length > 0 && (
+        <>
+          <Divider>Cálculo do Bônus por WS</Divider>
+          <Table
+            size="small"
+            pagination={false}
+            dataSource={[
+              ...d.detalhe_ws.map(w => ({
+                key: w.ws,
+                ws: w.ws.toUpperCase(),
+                peso_ws: fmtPct(w.peso_ws),
+                ating_rec: fmtPct(w.ating_rec),
+                bonus_rec: w.bonus_rec,
+                ating_mb: w.aplica_gate_mb ? fmtPct(w.ating_mb) : "—",
+                bonus_mb: w.bonus_mb,
+                bonus_ws: w.bonus_ws,
+              })),
+            ]}
+            summary={() => (
+              <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
+                <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                <Table.Summary.Cell index={1} />
+                <Table.Summary.Cell index={2} />
+                <Table.Summary.Cell index={3} align="right">
+                  {fmt(d.detalhe_ws!.reduce((s, w) => s + w.bonus_rec, 0))}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={4} />
+                <Table.Summary.Cell index={5} align="right">
+                  {fmt(d.detalhe_ws!.reduce((s, w) => s + w.bonus_mb, 0))}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={6} align="right">
+                  <span style={{ color: "#52c41a" }}>{fmt(d.bonus_total)}</span>
+                </Table.Summary.Cell>
+              </Table.Summary.Row>
+            )}
+            columns={[
+              { title: "WS", dataIndex: "ws", width: 70 },
+              { title: "Peso WS", dataIndex: "peso_ws", width: 80 },
+              { title: "Ating. Rec.", dataIndex: "ating_rec", width: 90 },
+              {
+                title: "Bônus Rec.",
+                dataIndex: "bonus_rec",
+                align: "right" as const,
+                width: 110,
+                render: (v: number) => fmt(v),
+              },
+              { title: "Ating. MB%", dataIndex: "ating_mb", width: 90 },
+              {
+                title: "Bônus MB%",
+                dataIndex: "bonus_mb",
+                align: "right" as const,
+                width: 110,
+                render: (v: number) => fmt(v),
+              },
+              {
+                title: "Bônus WS",
+                dataIndex: "bonus_ws",
+                align: "right" as const,
+                width: 110,
                 render: (v: number) => <strong style={{ color: v > 0 ? "#52c41a" : "#999" }}>{fmt(v)}</strong>,
               },
             ]}
@@ -547,8 +775,12 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                 <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
                   <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
                   <Table.Summary.Cell index={1} align="right">{fmt(totalBgt)}</Table.Summary.Cell>
-                  <Table.Summary.Cell index={2} align="right"><span style={{ color: totalReal >= totalBgt ? "#52c41a" : "#ff4d4f" }}>{fmt(totalReal)}</span></Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} align="right"><span style={{ color: totalDif >= 0 ? "#52c41a" : "#ff4d4f" }}>{totalDif >= 0 ? "+" : ""}{fmt(totalDif)}</span></Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} align="right">
+                    <span style={{ color: totalReal >= totalBgt ? "#52c41a" : "#ff4d4f" }}>{fmt(totalReal)}</span>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="right">
+                    <span style={{ color: totalDif >= 0 ? "#52c41a" : "#ff4d4f" }}>{totalDif >= 0 ? "+" : ""}{fmt(totalDif)}</span>
+                  </Table.Summary.Cell>
                 </Table.Summary.Row>
               );
             }}
@@ -559,55 +791,121 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
   );
 }
 
+// ─── Detalhe Diretor ──────────────────────────────────────────────────────────
+
 function DetalheDir({ d }: { d: DetalheCalculo }) {
   const gate = d.mc_gate === 1;
+  const triggerMcPct = d.trigger_mc_pct ?? ((d.budget_mc_pct ?? 0) - 1.5);
+
   return (
     <div>
-      {!gate && (
-        <Tag color="red" style={{ marginBottom: 12, fontSize: 13 }}>
-          Gatilho MC não atingido — sem apuração de Receita e TCV
-        </Tag>
-      )}
-      <Divider >TCV (peso {fmtPct(d.peso_tcv || 0)})</Divider>
-      <div style={{ fontSize: 13, marginBottom: 8, color: "#888" }}>
-        * TCV realizado requer base Salesforce (não disponível)
-      </div>
-      <MetaRealRow label="TCV" meta={d.budget_tcv_q4 || 0} real={d.real_tcv_q4 || 0} ating={d.ating_tcv || 0} />
-
-      <Divider >Receita (peso {fmtPct(d.peso_receita || 0)})</Divider>
-      <MetaRealRow label="Receita" meta={d.budget_rec_q4 || 0} real={d.real_rec_q4 || 0} ating={d.ating_rec || 0} />
-
-      <Divider >MC% (peso {fmtPct(d.peso_mc || 0)}) — Gatilho Mestre</Divider>
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 4 }}>
-          <span>Meta: <strong>{(d.budget_mc_pct || 0).toFixed(2)}%</strong></span>
-          <span>Realizado: <strong>{(d.real_mc_pct || 0).toFixed(2)}%</strong></span>
-          <Tag color={gate ? "green" : "red"}>{gate ? "Gate OK" : "Gate BLOQUEADO"}</Tag>
+      {/* ── Gatilho Mestre ── */}
+      <Divider>Gatilho Mestre — MC% (Margem de Contribuição)</Divider>
+      <div style={{
+        background: gate ? "#f6ffed" : "#fff2f0",
+        border: `1px solid ${gate ? "#b7eb8f" : "#ffccc7"}`,
+        borderRadius: 8, padding: "10px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12,
+      }}>
+        {gate
+          ? <CheckCircleFilled style={{ color: "#52c41a", fontSize: 22 }} />
+          : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 22 }} />
+        }
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: gate ? "#52c41a" : "#ff4d4f" }}>
+            {gate ? "Gatilho atingido" : "Gatilho NÃO atingido — sem apuração de Receita e TCV"}
+          </div>
+          <div style={{ fontSize: 12, color: "#666" }}>
+            MC% {gate ? "≥" : "<"} mínimo de {triggerMcPct.toFixed(2)}% (meta {(d.budget_mc_pct ?? 0).toFixed(2)}% − 1,5pp)
+          </div>
         </div>
-        <Progress
-          percent={Math.min(Math.round((d.ating_mc || 0) * 100), 100)}
-          strokeColor={(d.ating_mc || 0) >= 1 ? "#52c41a" : "#faad14"}
-        />
       </div>
 
-      <Divider >Bônus por Componente</Divider>
+      {/* ── Regras de Apuração ── */}
+      <Divider>Regras de Apuração</Divider>
+      <div style={{ background: "#f6f8ff", border: "1px solid #d0d9f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 4 }}>
+        <div style={{ marginBottom: 6 }}>
+          <strong>Fórmula:</strong> Bônus = Salário × Peso Métrica × Atingimento
+        </div>
+        <div style={{ marginBottom: 6 }}>
+          🎯 <strong>Trigger Receita/TCV:</strong> 85% da meta — abaixo disso = 0
+          &nbsp;&nbsp;|&nbsp;&nbsp;
+          🎯 <strong>Trigger MC%:</strong> meta − 1,5pp — abaixo disso = 0 (Gatilho Mestre)
+        </div>
+        <div>
+          <strong>Pesos:</strong>&nbsp;
+          TCV <Tag color="orange">{fmtPct(d.peso_tcv || 0)}</Tag>
+          Receita <Tag color="blue">{fmtPct(d.peso_receita || 0)}</Tag>
+          MC% <Tag color="purple">{fmtPct(d.peso_mc || 0)}</Tag>
+          Salário Q4 <Tag color="default">{fmt(d.salario_q4)}</Tag>
+        </div>
+      </div>
+
+      {/* ── MC% ── */}
+      <Divider>MC% — Gatilho Mestre (peso {fmtPct(d.peso_mc || 0)})</Divider>
+      <MetaRealPctRow
+        label="Margem de Contribuição %"
+        meta={d.budget_mc_pct || 0}
+        trigger={triggerMcPct}
+        real={d.real_mc_pct || 0}
+        ating={d.ating_mc || 0}
+        gate={gate}
+      />
+
+      {/* ── TCV ── */}
+      <Divider>TCV (peso {fmtPct(d.peso_tcv || 0)})</Divider>
+      <div style={{ fontSize: 12, marginBottom: 8, color: "#888" }}>
+        * TCV realizado requer base Salesforce (não disponível — zerado)
+      </div>
+      <MetaRealRow
+        label="TCV"
+        meta={d.budget_tcv_q4 || 0}
+        triggerAmt={(d.budget_tcv_q4 || 0) * 0.85}
+        real={d.real_tcv_q4 || 0}
+        ating={d.ating_tcv || 0}
+      />
+
+      {/* ── Receita ── */}
+      <Divider>Receita (peso {fmtPct(d.peso_receita || 0)})</Divider>
+      <MetaRealRow
+        label="Receita"
+        meta={d.budget_rec_q4 || 0}
+        triggerAmt={(d.budget_rec_q4 || 0) * 0.85}
+        real={d.real_rec_q4 || 0}
+        ating={d.ating_rec || 0}
+      />
+
+      {/* ── Tabela de Cálculo ── */}
+      <Divider>Cálculo do Bônus</Divider>
       <Table
         size="small"
         pagination={false}
         dataSource={[
-          { meta: "TCV", peso: fmtPct(d.peso_tcv || 0), ating: fmtPct(d.ating_tcv || 0), bonus: d.bonus_tcv || 0 },
-          { meta: "Receita", peso: fmtPct(d.peso_receita || 0), ating: fmtPct(d.ating_rec || 0), bonus: d.bonus_rec || 0 },
-          { meta: "MC%", peso: fmtPct(d.peso_mc || 0), ating: fmtPct(d.ating_mc || 0), bonus: d.bonus_mc || 0 },
+          { key: "tcv",    metrica: "TCV",     peso: fmtPct(d.peso_tcv || 0),     ating: fmtPct(d.ating_tcv || 0),  bonus: d.bonus_tcv || 0 },
+          { key: "rec",    metrica: "Receita",  peso: fmtPct(d.peso_receita || 0), ating: fmtPct(d.ating_rec || 0),  bonus: d.bonus_rec || 0 },
+          { key: "mc",     metrica: "MC%",      peso: fmtPct(d.peso_mc || 0),      ating: fmtPct(d.ating_mc || 0),  bonus: d.bonus_mc || 0 },
         ]}
-        rowKey="meta"
+        summary={() => (
+          <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
+            <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+            <Table.Summary.Cell index={1} />
+            <Table.Summary.Cell index={2} />
+            <Table.Summary.Cell index={3} align="right">
+              <span style={{ color: "#52c41a" }}>{fmt(d.bonus_total)}</span>
+            </Table.Summary.Cell>
+          </Table.Summary.Row>
+        )}
         columns={[
-          { title: "Métrica", dataIndex: "meta" },
+          { title: "Métrica", dataIndex: "metrica" },
           { title: "Peso", dataIndex: "peso" },
           { title: "Atingimento", dataIndex: "ating" },
-          { title: "Bônus", dataIndex: "bonus", render: v => <strong style={{ color: "#52c41a" }}>{fmt(v)}</strong> },
+          {
+            title: "Bônus",
+            dataIndex: "bonus",
+            align: "right" as const,
+            render: (v: number) => <strong style={{ color: v > 0 ? "#52c41a" : "#999" }}>{fmt(v)}</strong>,
+          },
         ]}
       />
     </div>
   );
 }
-
