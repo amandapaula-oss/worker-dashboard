@@ -619,29 +619,35 @@ def get_rac_pessoas(
 
 # ── Margem por Projeto ─────────────────────────────────────────────────────────
 
-def _vertical_lookup() -> dict:
-    """Returns {nome_upper: bu} from clientes.csv, using nome_base for matching when available"""
+def _clientes_lookup() -> tuple[dict, dict]:
+    """Returns ({nome_upper: vertical/bu}, {nome_upper: ae}) using nome_base when available"""
     try:
         cli = read_clientes_csv()
-        result = {}
+        vertical_map: dict = {}
+        ae_map: dict = {}
         for _, row in cli.iterrows():
-            bu = str(row.get("bu", "") or "")
+            bu       = str(row.get("bu",  "") or "")
+            ae       = str(row.get("ae",  "") or "")
             nome_base = str(row.get("nome_base", "") or "").strip()
             nome_cli  = str(row.get("nome_cliente", "") or "").strip()
-            # Map by nome_base (legal name) and nome_cliente (display name)
-            if nome_base:
-                result[nome_base.upper()] = bu
-            if nome_cli:
-                result[nome_cli.upper()] = bu
-        return result
+            for key in ([nome_base.upper()] if nome_base else []) + ([nome_cli.upper()] if nome_cli else []):
+                vertical_map[key] = bu
+                if ae:
+                    ae_map[key] = ae
+        return vertical_map, ae_map
     except Exception:
-        return {}
+        return {}, {}
+
+def _vertical_lookup() -> dict:
+    return _clientes_lookup()[0]
 
 def get_margem_proj() -> pd.DataFrame:
     df = read_csv_cached("margem_projetos.csv", dtype={"pep": str}).copy()
     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
-    vlookup = _vertical_lookup()
-    df["vertical"] = df["nome_cliente"].str.upper().str.strip().map(vlookup).fillna("")
+    vlookup, ae_lookup = _clientes_lookup()
+    key = df["nome_cliente"].str.upper().str.strip()
+    df["vertical"] = key.map(vlookup).fillna("")
+    df["ae"]       = key.map(ae_lookup).fillna("")
     return df
 
 def get_margem_pess() -> pd.DataFrame:
@@ -656,11 +662,13 @@ def get_margem_filters(user=Depends(get_current_user)):
     if "categoria_bu" in df.columns:
         cats = sorted(df["categoria_bu"].dropna().unique().tolist())
     verts = sorted([v for v in df["vertical"].dropna().unique().tolist() if v])
+    aes   = sorted([v for v in df["ae"].dropna().unique().tolist() if v])
     return {
         "periodos":      sorted(df["periodo"].dropna().unique().tolist()),
         "empresas":      sorted(df["empresa"].dropna().unique().tolist()),
         "categorias_bu": cats,
         "verticais":     verts,
+        "aes":           aes,
     }
 
 def _clientes_nomes_upper() -> set:
@@ -750,7 +758,7 @@ def update_cliente_ae(body: dict, user=Depends(get_current_user)):
     return {"ok": True}
 
 @app.get("/api/margem/projetos")
-def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", verticais: str = "", breakdown: bool = False, nome_cliente: str = "", apenas_atribuidos: bool = False, user=Depends(get_current_user)):
+def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", verticais: str = "", aes: str = "", breakdown: bool = False, nome_cliente: str = "", apenas_atribuidos: bool = False, user=Depends(get_current_user)):
     df = get_margem_proj()
     if apenas_atribuidos:
         nomes = _clientes_nomes_upper()
@@ -763,10 +771,12 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
         df = df[df["categoria_bu"].isin(categorias_bu.split(","))]
     if verticais:
         df = df[df["vertical"].isin(verticais.split(","))]
+    if aes:
+        df = df[df["ae"].isin(aes.split(","))]
     if nome_cliente:
         df = df[df["nome_cliente"].str.upper().str.strip() == nome_cliente.upper().strip()]
     df["pep"] = df["pep"].str.split(".").str[0]
-    extra_keys = ["categoria_bu", "no_hierarquia", "centro_lucro"] if not breakdown and all(c in df.columns for c in ["categoria_bu", "no_hierarquia", "centro_lucro"]) else []
+    extra_keys = ["categoria_bu", "no_hierarquia", "centro_lucro", "vertical", "ae"] if not breakdown and all(c in df.columns for c in ["categoria_bu", "no_hierarquia", "centro_lucro"]) else []
     group_keys = (["periodo", "pep", "nome_cliente", "empresa"] if breakdown else ["pep", "nome_cliente", "empresa"]) + extra_keys
     agg = df.groupby(group_keys, as_index=False).agg(
         receita      =("receita",       "sum"),

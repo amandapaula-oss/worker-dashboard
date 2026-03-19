@@ -36,6 +36,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
   const [selCategoriasBu, setSelCategoriasBu] = useState<string[]>([]);
   const [verticais, setVerticais]           = useState<string[]>([]);
   const [selVerticais, setSelVerticais]     = useState<string[]>([]);
+  const [aes, setAes]                       = useState<string[]>([]);
+  const [selAes, setSelAes]                 = useState<string[]>([]);
   const [filtersReady, setFiltersReady]     = useState(false);
 
   const [projetos, setProjetos]                     = useState<any[]>([]);
@@ -70,6 +72,10 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
           setVerticais(f.verticais);
           setSelVerticais(f.verticais);
         }
+        if (f.aes?.length) {
+          setAes(f.aes);
+          setSelAes(f.aes);
+        }
         setFiltersReady(true);
       })
       .catch(() => { message.error("Erro ao carregar filtros"); setLoading(false); });
@@ -83,6 +89,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selCategoriasBu.length && selCategoriasBu.length < categoriasBu.length) params.categorias_bu = selCategoriasBu.join(",");
     if (selVerticais.length && selVerticais.length < verticais.length) params.verticais = selVerticais.join(",");
+    if (selAes.length && selAes.length < aes.length) params.aes = selAes.join(",");
     if (apenasAtribuidos) params.apenas_atribuidos = "true";
     Promise.all([
       getMargemProjetos(params),
@@ -92,7 +99,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       .catch(() => message.error("Erro ao carregar projetos"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu, selVerticais, selectedPep, apenasAtribuidos]);
+  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu, selVerticais, selAes, selectedPep, apenasAtribuidos]);
 
   // load all pessoas (for global search) or specific PEP (for drill-down)
   useEffect(() => {
@@ -231,6 +238,16 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       sorter: (a: any, b: any) => String(a.categoria_bu || "").localeCompare(String(b.categoria_bu || "")),
     },
     {
+      title: "Vertical", dataIndex: "vertical", key: "vertical", width: 110,
+      sorter: (a: any, b: any) => String(a.vertical || "").localeCompare(String(b.vertical || "")),
+      render: (v: string) => v || "—",
+    },
+    {
+      title: "AE", dataIndex: "ae", key: "ae", width: 180, ellipsis: true,
+      sorter: (a: any, b: any) => String(a.ae || "").localeCompare(String(b.ae || "")),
+      render: (v: string) => v || "—",
+    },
+    {
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
@@ -342,7 +359,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     const map = new Map<string, any>();
     for (const r of projetosMensal) {
       const key = r.pep;
-      if (!map.has(key)) map.set(key, { key, pep: r.pep, nome_cliente: r.nome_cliente, empresa: r.empresa });
+      if (!map.has(key)) map.set(key, { key, pep: r.pep, nome_cliente: r.nome_cliente, empresa: r.empresa, vertical: r.vertical || "", ae: r.ae || "" });
       const e = map.get(key)!;
       e[`${r.periodo}_receita`] = (e[`${r.periodo}_receita`] || 0) + (Number(r.receita)       || 0);
       e[`${r.periodo}_custo`]   = (e[`${r.periodo}_custo`]   || 0) + (Number(r.custo_rateado) || 0);
@@ -428,9 +445,11 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       ],
     }));
     return [
-      { title: "PEP",     dataIndex: "pep",          key: "pep",          width: 190, sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)) },
-      { title: "Cliente", dataIndex: "nome_cliente",  key: "nome_cliente", ellipsis: true },
-      { title: "Empresa", dataIndex: "empresa",       key: "empresa",      width: 120 },
+      { title: "PEP",      dataIndex: "pep",          key: "pep",          width: 190, sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)) },
+      { title: "Cliente",  dataIndex: "nome_cliente",  key: "nome_cliente", ellipsis: true },
+      { title: "Empresa",  dataIndex: "empresa",       key: "empresa",      width: 120 },
+      { title: "Vertical", dataIndex: "vertical",      key: "vertical",     width: 110, render: (v: string) => v || "—" },
+      { title: "AE",       dataIndex: "ae",            key: "ae",           width: 180, ellipsis: true, render: (v: string) => v || "—" },
       ...periodoCols,
       {
         title: "Total",
@@ -482,6 +501,12 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       sorter: (a: any, b: any) => String(a.no_hierarquia || "").localeCompare(String(b.no_hierarquia || "")) },
     { title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110,
       sorter: (a: any, b: any) => String(a.categoria_bu || "").localeCompare(String(b.categoria_bu || "")) },
+    { title: "Vertical", dataIndex: "vertical", key: "vertical", width: 110,
+      sorter: (a: any, b: any) => String(a.vertical || "").localeCompare(String(b.vertical || "")),
+      render: (v: string) => v || "—" },
+    { title: "AE", dataIndex: "ae", key: "ae", width: 180, ellipsis: true,
+      sorter: (a: any, b: any) => String(a.ae || "").localeCompare(String(b.ae || "")),
+      render: (v: string) => v || "—" },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita)||0) - (Number(b.receita)||0),
       render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
@@ -711,6 +736,14 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
             <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
               onChange={v => { setSelVerticais(v); setSelectedCliente(null); setSelectedPep(null); }}
               options={verticais.map(v => ({ label: v, value: v }))} maxTagCount="responsive" />
+          </div>
+        )}
+        {aes.length > 0 && (
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>AE</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selAes}
+              onChange={v => { setSelAes(v); setSelectedCliente(null); setSelectedPep(null); }}
+              options={aes.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
           </div>
         )}
         <div style={{ flex: 1, minWidth: 180 }}>
