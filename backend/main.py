@@ -704,18 +704,17 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", br
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
-    # build cpf→ID lookup: rac_pessoas (primary) + relacao_pessoas.xlsx + nome match (fallbacks)
-    rp = get_rac_pess()[["cpf","numero_pessoal","nome"]].copy()
-    rp["cpf"] = rp["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
-    rp["numero_pessoal"] = rp["numero_pessoal"].fillna("")
-    cpf_to_id = rp[rp["cpf"] != ""].drop_duplicates("cpf").set_index("cpf")["numero_pessoal"].to_dict()
+    # build cpf→ID lookup from relacao_pessoas.xlsx, then nome fallback via rac_pessoas
+    # (rac_pessoas.csv has numero_pessoal+nome but no cpf column)
+    cpf_to_id: dict = {}
     if os.path.exists("relacao_pessoas.xlsx"):
         xl = pd.read_excel("relacao_pessoas.xlsx", dtype=str)
         xl["cpf_c"] = xl["CPF / Worker ID"].str.replace(r"^BRCPF", "", regex=True).fillna("")
         xl["id_sap"] = xl["ID SAP"].fillna("")
         for _, row in xl[(xl["cpf_c"] != "") & (xl["id_sap"] != "")].drop_duplicates("cpf_c").iterrows():
-            cpf_to_id.setdefault(row["cpf_c"], row["id_sap"])
-    # nome fallback: for CPFs still without ID, match by exact name against rac_pessoas
+            cpf_to_id[row["cpf_c"]] = row["id_sap"]
+    rp = get_rac_pess()[["numero_pessoal","nome"]].copy()
+    rp["numero_pessoal"] = rp["numero_pessoal"].fillna("")
     nome_to_id = (rp[rp["numero_pessoal"] != ""]
                   .assign(nome_key=lambda d: d["nome"].str.lower().str.strip())
                   .drop_duplicates("nome_key").set_index("nome_key")["numero_pessoal"].to_dict())
