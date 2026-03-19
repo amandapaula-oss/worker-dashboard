@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Table, Spin, message, Tag, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
-import { SearchOutlined, ReloadOutlined, UserOutlined, FilePdfOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
-import { getApuracaoVisaoMaster, getApuracaoCalcular, downloadApuracaoPdf } from "../api";
+import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
+import { useReactToPrint } from "react-to-print";
+import { getApuracaoVisaoMaster, getApuracaoCalcular } from "../api";
 import { toTitleCase } from "../utils/format";
 
 const { Option } = Select;
@@ -270,6 +271,8 @@ export default function VistaMasterTab() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detalhe, setDetalhe] = useState<DetalheCalculo | null>(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: detalhe ? `Memória de Cálculo — ${detalhe.nome}` : "Memória de Cálculo" });
 
   const carregar = () => {
     setLoading(true);
@@ -436,21 +439,22 @@ export default function VistaMasterTab() {
               </Tag>
               <Button
                 type="primary"
-                icon={<FilePdfOutlined />}
+                icon={<PrinterOutlined />}
                 size="small"
-                onClick={() =>
-                  downloadApuracaoPdf(detalhe.nome)
-                    .catch(() => message.error("Erro ao gerar PDF"))
-                }
+                onClick={() => handlePrint()}
               >
-                Exportar PDF
+                Imprimir / PDF
               </Button>
             </div>
           )
         }
       >
         {loadingDetalhe && <Spin />}
-        {detalhe && !loadingDetalhe && <DetalheDrawer d={detalhe} />}
+        {detalhe && !loadingDetalhe && (
+          <div ref={printRef} style={{ padding: 8 }}>
+            <DetalheDrawer d={detalhe} />
+          </div>
+        )}
       </Drawer>
     </div>
   );
