@@ -458,12 +458,55 @@ def calc_bonus_diretor(nome: str) -> dict:
     }
 
 
+# ─── AE → Vertical lookup via clientes.csv ────────────────────────────────────
+
+def _ae_vertical_lookup() -> dict:
+    """
+    Builds {norm(ae_name): 'vertical1/vertical2'} from clientes.csv.
+    Also indexes by first word (nickname) for partial matching.
+    """
+    path = os.path.join(DIR, "clientes.csv")
+    if not os.path.exists(path):
+        return {}
+    try:
+        df = pd.read_csv(path, dtype=str).fillna("")
+        lookup: dict[str, set] = {}
+        for _, row in df.iterrows():
+            ae  = str(row.get("ae", "")).strip()
+            bu  = str(row.get("bu", "")).strip()
+            if not ae or not bu:
+                continue
+            key_full  = norm(ae)
+            key_first = norm(ae).split()[0]  # first name / nickname
+            for key in (key_full, key_first):
+                lookup.setdefault(key, set()).add(bu)
+        return {k: "/".join(sorted(v)) for k, v in lookup.items()}
+    except Exception:
+        return {}
+
+def _resolve_vertical_for_ae(nome: str, lookup: dict) -> str:
+    n = norm(nome)
+    # try full name
+    if n in lookup:
+        return lookup[n]
+    # try first word
+    first = n.split()[0]
+    if first in lookup:
+        return lookup[first]
+    # try if any key is contained in nome or vice-versa
+    for key, val in lookup.items():
+        if key in n or n in key:
+            return val
+    return ""
+
+
 # ─── Visão Master ────────────────────────────────────────────────────────────
 
 def get_visao_master() -> list[dict]:
     d = _load_all()
     pessoas = d["pessoas"]
     resultados = []
+    ae_vert = _ae_vertical_lookup()
 
     for _, p in pessoas.iterrows():
         nome = p["Nome"]
@@ -491,7 +534,7 @@ def get_visao_master() -> list[dict]:
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],
                     "contrato": res["contrato"],
-                    "vertical": "",
+                    "vertical": _resolve_vertical_for_ae(nome, ae_vert),
                     "salario":  res["salario_q4"],
                     "bonus":    res["bonus_total"],
                     "ating_principal": res["ating_rec_total"],
@@ -503,7 +546,7 @@ def get_visao_master() -> list[dict]:
                 "nome":     nome,
                 "posicao":  pos,
                 "contrato": str(p.get("Contrato", "")),
-                "vertical": "",
+                "vertical": _resolve_vertical_for_ae(nome, ae_vert),
                 "salario":  sal,
                 "bonus":    0.0,
                 "ating_principal": 0.0,
