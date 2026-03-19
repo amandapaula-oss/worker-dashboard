@@ -268,19 +268,26 @@ def calc_bonus_ae(nome: str) -> dict:
 
         bonus_total += bonus_rec + bonus_mb
 
-        trigger_amount = round(bgt_r * TRIGGER_REC_Q4, 2)
+        trigger_amount   = round(bgt_r * TRIGGER_REC_Q4, 2)
+        trigger_mb_value = round(bgt_mb_pct_ws * TRIGGER_MB_Q4 * 100, 2)  # MB% mínimo (%)
         detalhe_ws.append({
             "ws":                  ws_k,
             "peso_ws":             peso_ws,
+            # Receita
             "budget_rec":          round(bgt_r, 2),
             "trigger_rec_amount":  trigger_amount,
             "real_rec":            round(real_r, 2),
             "receita_faltante":    round(max(0.0, trigger_amount - real_r), 2),
             "ating_rec":           round(ating_rec, 4),
+            # MB%
             "budget_mb_pct":       round(bgt_mb_pct_ws * 100, 2),
+            "trigger_mb_pct":      trigger_mb_value,
             "real_mb_pct":         round(real_mb_pct_ws * 100, 2),
+            "mb_faltante":         round(max(0.0, trigger_mb_value - real_mb_pct_ws * 100), 2),
             "ating_mb":            round(ating_mb, 4),
             "mb_gate":             mb_gate,
+            "aplica_gate_mb":      ws_k == "apps",  # trigger MB só trava em Apps
+            # Bônus
             "bonus_rec":           round(bonus_rec, 2),
             "bonus_mb":            round(bonus_mb, 2),
             "bonus_ws":            round(bonus_rec + bonus_mb, 2),

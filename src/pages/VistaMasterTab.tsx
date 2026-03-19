@@ -33,9 +33,12 @@ type DetalheWS = {
   receita_faltante: number;
   ating_rec: number;
   budget_mb_pct: number;
+  trigger_mb_pct: number;
   real_mb_pct: number;
+  mb_faltante: number;
   ating_mb: number;
   mb_gate: number;
+  aplica_gate_mb: boolean;
   bonus_rec: number;
   bonus_mb: number;
   bonus_ws: number;
@@ -371,11 +374,12 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
       />
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontWeight: 600, marginBottom: 4 }}>
-          MB% Total (peso {fmtPct(d.peso_mb || 0)})
+          MB% Total — Lucro Bruto (peso {fmtPct(d.peso_mb || 0)})
         </div>
-        <div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 4 }}>
+        <div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 4, flexWrap: "wrap" }}>
           <span>Meta: <strong>{(d.budget_mb_pct || 0).toFixed(2)}%</strong></span>
-          <span>Realizado: <strong>{(d.real_mb_pct || 0).toFixed(2)}%</strong></span>
+          <span style={{ color: "#888" }}>Mínimo Apps (98,5%): <strong>{((d.budget_mb_pct || 0) * (d.trigger_mb ?? 0.985)).toFixed(2)}%</strong></span>
+          <span>Realizado: <strong style={{ color: (d.real_mb_pct || 0) >= (d.budget_mb_pct || 0) * (d.trigger_mb ?? 0.985) ? "#52c41a" : "#ff4d4f" }}>{(d.real_mb_pct || 0).toFixed(2)}%</strong></span>
         </div>
         <Progress
           percent={Math.min(Math.round((d.ating_mb_total || 0) * 100), 100)}
@@ -427,14 +431,56 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                     : <Tag color="green">✓ Atingido</Tag>,
               },
               {
-                title: "Ating.",
+                title: "Ating. Rec.",
                 dataIndex: "ating_rec",
-                width: 70,
+                width: 80,
                 render: (v: number) => (
                   <span style={{ color: v >= 1 ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>
                     {fmtPct(v)}
                   </span>
                 ),
+              },
+              {
+                title: "MB% Meta",
+                dataIndex: "budget_mb_pct",
+                width: 90,
+                align: "right" as const,
+                render: (v: number) => `${v.toFixed(2)}%`,
+              },
+              {
+                title: "MB% Mínimo",
+                dataIndex: "trigger_mb_pct",
+                width: 100,
+                align: "right" as const,
+                render: (v: number, row: DetalheWS) =>
+                  row.aplica_gate_mb
+                    ? <span style={{ color: "#888" }}>{v.toFixed(2)}%</span>
+                    : <span style={{ color: "#bbb" }}>—</span>,
+              },
+              {
+                title: "MB% Real",
+                dataIndex: "real_mb_pct",
+                width: 90,
+                align: "right" as const,
+                render: (v: number, row: DetalheWS) => (
+                  <span style={{
+                    color: !row.aplica_gate_mb || v >= row.trigger_mb_pct ? "#52c41a" : "#ff4d4f",
+                    fontWeight: 600,
+                  }}>
+                    {v.toFixed(2)}%
+                  </span>
+                ),
+              },
+              {
+                title: "Gate MB",
+                dataIndex: "mb_gate",
+                width: 90,
+                render: (_: number, row: DetalheWS) =>
+                  !row.aplica_gate_mb
+                    ? <Tag color="default">N/A</Tag>
+                    : row.mb_gate === 1
+                    ? <Tag color="green">✓ OK</Tag>
+                    : <Tag color="red">✗ Bloqueado</Tag>,
               },
               {
                 title: "Bônus WS",
