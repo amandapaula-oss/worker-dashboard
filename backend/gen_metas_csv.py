@@ -80,9 +80,12 @@ for competencia, filepath in sorted(_clt_por_comp.items()):
                        if "pessoal" in str(c).lower()
                        or ("id" in str(c).lower() and "sap" in str(c).lower())), None)
 
-        # Coluna de custo total
+        # Coluna de custo gerencial SAP (preferência), fallback para custo total
         custo_col = next((c for c in df.columns
-                          if "total" in str(c).lower() and "custo" in str(c).lower()), None)
+                          if "gerencial" in str(c).lower() and "sap" in str(c).lower()), None)
+        if not custo_col:
+            custo_col = next((c for c in df.columns
+                              if "total" in str(c).lower() and "custo" in str(c).lower()), None)
         if not custo_col:
             custo_col = next((c for c in df.columns if "total" in str(c).lower()), None)
 
