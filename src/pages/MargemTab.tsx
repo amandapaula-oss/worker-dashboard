@@ -728,8 +728,8 @@ export default function MargemTab() {
             scroll={{ x: "max-content" }}
             style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
             onRow={row => ({
-              onClick: () => !row._isTotal && row.horas_total > 0 && setSelectedPep({ pep: row.pep, nome_cliente: selectedCliente }),
-              style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: row.horas_total > 0 ? "pointer" : "default" },
+              onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: selectedCliente }),
+              style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
             })}
           />)}
         </>
