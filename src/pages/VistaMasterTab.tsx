@@ -149,10 +149,8 @@ function AchievementBar({ meta, trigger, realizado, bonusAtMaxAting }: {
       }))
     : [];
 
-  const hasBonus = bonusAtMaxAting != null;
-
   return (
-    <div style={{ position: "relative", height: hasBonus ? 66 : 50, userSelect: "none" }}>
+    <div style={{ position: "relative", height: bonusAtMaxAting != null ? 76 : 60, userSelect: "none" }}>
       {/* Track — starts at trigger */}
       <div style={{ position: "absolute", left: `${triggerPos}%`, right: 0, top: 22, height: 10, background: "#f0f0f0", borderRadius: 5 }} />
 
@@ -182,15 +180,14 @@ function AchievementBar({ meta, trigger, realizado, bonusAtMaxAting }: {
             background: t.ating === 1.0 ? "#1677ff80" : "rgba(0,0,0,0.12)",
             transform: "translateX(-50%)",
           }} />
-          {t.bonus != null && (
-            <div style={{
-              position: "absolute", left: `${t.pos}%`, top: 38,
-              fontSize: 9, color: t.ating === 1.0 ? "#1677ff" : "#bbb",
-              transform: "translateX(-50%)", whiteSpace: "nowrap", textAlign: "center",
-            }}>
-              {fmtShort(t.bonus)}
-            </div>
-          )}
+          <div style={{
+            position: "absolute", left: `${t.pos}%`, top: 36,
+            fontSize: 9, color: t.ating === 1.0 ? "#1677ff" : "#bbb",
+            transform: "translateX(-50%)", whiteSpace: "nowrap", textAlign: "center",
+          }}>
+            {Math.round(t.ating * 100)}%
+            {t.bonus != null && <><br />{fmtShort(t.bonus)}</>}
+          </div>
         </React.Fragment>
       ))}
 
