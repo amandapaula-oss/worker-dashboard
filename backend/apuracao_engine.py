@@ -189,6 +189,13 @@ def calc_bonus_ae(nome: str) -> dict:
     rec_ae  = bgt_rec[bgt_rec["ae_q4"].apply(norm) == nome_n].copy()
     lb_ae   = bgt_lb[bgt_lb["ae_q4"].apply(norm) == nome_n].copy()
 
+    # Filtra pelo BS predominante (evita misturar verticais diferentes)
+    if not rec_ae.empty and "bs" in rec_ae.columns:
+        primary_bs = rec_ae["bs"].value_counts().idxmax()
+        rec_ae = rec_ae[rec_ae["bs"] == primary_bs].copy()
+        if not lb_ae.empty and "bs" in lb_ae.columns:
+            lb_ae = lb_ae[lb_ae["bs"] == primary_bs].copy()
+
     # Agrupa budget por WS
     rec_ae["ws_key"] = rec_ae["ws"].apply(_norm_ws)
     lb_ae["ws_key"]  = lb_ae["ws"].apply(_norm_ws)
