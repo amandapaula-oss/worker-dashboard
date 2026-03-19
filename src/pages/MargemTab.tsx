@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Button, Typography, Breadcrumb, Card, Statistic, Input, Segmented } from "antd";
-import { HomeOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
+import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined } from "@ant-design/icons";
+import * as XLSX from "xlsx";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas, getMargemPessoaProjetos } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
 
@@ -26,13 +27,15 @@ function MargemTag({ value }: { value: number | "" }) {
   );
 }
 
-export default function MargemTab() {
+export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuidos?: boolean }) {
   const [periodos, setPeriodos]             = useState<string[]>([]);
   const [selPeriodos, setSelPeriodos]       = useState<string[]>([]);
   const [empresas, setEmpresas]             = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas]       = useState<string[]>([]);
   const [categoriasBu, setCategoriasBu]     = useState<string[]>([]);
   const [selCategoriasBu, setSelCategoriasBu] = useState<string[]>([]);
+  const [verticais, setVerticais]           = useState<string[]>([]);
+  const [selVerticais, setSelVerticais]     = useState<string[]>([]);
   const [filtersReady, setFiltersReady]     = useState(false);
 
   const [projetos, setProjetos]                     = useState<any[]>([]);
@@ -63,6 +66,10 @@ export default function MargemTab() {
           setCategoriasBu(f.categorias_bu);
           setSelCategoriasBu(f.categorias_bu);
         }
+        if (f.verticais?.length) {
+          setVerticais(f.verticais);
+          setSelVerticais(f.verticais);
+        }
         setFiltersReady(true);
       })
       .catch(() => { message.error("Erro ao carregar filtros"); setLoading(false); });
@@ -75,6 +82,8 @@ export default function MargemTab() {
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selCategoriasBu.length && selCategoriasBu.length < categoriasBu.length) params.categorias_bu = selCategoriasBu.join(",");
+    if (selVerticais.length && selVerticais.length < verticais.length) params.verticais = selVerticais.join(",");
+    if (apenasAtribuidos) params.apenas_atribuidos = "true";
     Promise.all([
       getMargemProjetos(params),
       getMargemProjetos({ ...params, breakdown: "true" }),
@@ -83,7 +92,7 @@ export default function MargemTab() {
       .catch(() => message.error("Erro ao carregar projetos"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu, selectedPep]);
+  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu, selVerticais, selectedPep, apenasAtribuidos]);
 
   // load all pessoas (for global search) or specific PEP (for drill-down)
   useEffect(() => {
@@ -92,6 +101,7 @@ export default function MargemTab() {
     if (selectedPep) params.pep = selectedPep.pep;
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
+    if (apenasAtribuidos) params.apenas_atribuidos = "true";
     Promise.all([
       getMargemPessoas(params),
       getMargemPessoas({ ...params, breakdown: "true" }),
@@ -99,7 +109,7 @@ export default function MargemTab() {
       .then(([total, mensal]) => { setPessoas(total); setPessoasMensal(mensal); })
       .catch(() => message.error("Erro ao carregar pessoas"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selectedPep, selPeriodos, selEmpresas]);
+  }, [filtersReady, selectedPep, selPeriodos, selEmpresas, apenasAtribuidos]);
 
   // load projetos for selected pessoa
   useEffect(() => {
@@ -492,6 +502,123 @@ export default function MargemTab() {
   const draggablePessoas        = useDraggableColumns(colPessoas);
   const draggablePessoaProj     = useDraggableColumns(colPessoaProjetos);
 
+  function exportExcel() {
+    const fmt = (v: any) => v == null ? "" : typeof v === "number" ? v : v;
+    const pct = (v: any) => v == null || v === "" ? "" : `${(Number(v) * 100).toFixed(1)}%`;
+    const periodoLabel = (p: string) => { const [y, m] = p.split("-"); return `${m}/${y.slice(2)}`; };
+
+    let rows: any[] = [];
+    let filename = "margem";
+
+    if (selectedPessoa) {
+      // Projetos da pessoa
+      filename = `projetos_${selectedPessoa.nome.replace(/\s/g, "_")}`;
+      if (viewMode === "mensal") {
+        const header: any = { PEP: "", Cliente: "", Empresa: "" };
+        selPeriodos.forEach(p => {
+          header[`Receita ${periodoLabel(p)}`] = "";
+          header[`Custo ${periodoLabel(p)}`] = "";
+          header[`Mg% ${periodoLabel(p)}`] = "";
+        });
+        header["Total Receita"] = ""; header["Total Custo"] = ""; header["Total Mg%"] = "";
+        rows = pivotPessoaProjetos.map(r => {
+          const row: any = { PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa };
+          selPeriodos.forEach(p => {
+            row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
+            row[`Custo ${periodoLabel(p)}`]   = fmt(r[`${p}_custo`]);
+            row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
+          });
+          row["Total Receita"] = fmt(r.total_receita); row["Total Custo"] = fmt(r.total_custo); row["Total Mg%"] = pct(r.total_margem_pct);
+          return row;
+        });
+      } else {
+        rows = pessoaProjetos.map(r => ({ PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa, Receita: fmt(r.receita), "Custo Rateado": fmt(r.custo_rateado), "Margem %": pct(r.margem_pct) }));
+      }
+    } else if (selectedPep || searchPessoa.trim()) {
+      // Pessoas
+      filename = selectedPep ? `pessoas_${selectedPep.pep.replace(/\s/g, "_")}` : "pessoas_busca";
+      if (viewMode === "mensal") {
+        const q = searchPessoa.trim().toLowerCase();
+        const qDigits = q.replace(/\D/g, "");
+        const filtered = pivotPessoas.filter(r => !q || String(r.nome||"").toLowerCase().includes(q) || (qDigits && String(r.cpf||"").replace(/\D/g,"").includes(qDigits)) || String(r.numero_pessoal||"").toLowerCase().includes(q));
+        rows = filtered.map(r => {
+          const row: any = { ID: r.numero_pessoal, Nome: r.nome, CPF: r.cpf, Empresa: r.empresa };
+          selPeriodos.forEach(p => {
+            row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
+            row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
+          });
+          row["Total Receita"] = fmt(r.total_receita); row["Total Mg%"] = pct(r.total_margem_pct);
+          return row;
+        });
+      } else {
+        rows = filteredPessoas.map(r => ({ ID: r.numero_pessoal, Nome: r.nome, CPF: r.cpf, Empresa: r.empresa, Horas: r.horas, Receita: fmt(r.receita), "Custo Rateado": fmt(r.custo_rateado), "Margem (R$)": fmt(r.margem), "Margem %": pct(r.margem_pct) }));
+      }
+    } else if (selectedCliente) {
+      // Projetos do cliente
+      filename = `projetos_${selectedCliente.replace(/\s/g, "_")}`;
+      if (viewMode === "mensal") {
+        const filtered = pivotData.filter(r => r.nome_cliente === selectedCliente);
+        rows = filtered.map(r => {
+          const row: any = { PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa };
+          selPeriodos.forEach(p => {
+            row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
+            row[`Custo ${periodoLabel(p)}`]   = fmt(r[`${p}_custo`]);
+            row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
+          });
+          row["Total Receita"] = fmt(r.total_receita); row["Total Custo"] = fmt(r.total_custo); row["Total Mg%"] = pct(r.total_margem_pct);
+          return row;
+        });
+      } else {
+        rows = projetosCliente.map(r => ({ PEP: r.pep, Empresa: r.empresa, "Nó Hierarquia": r.no_hierarquia, BU: r.categoria_bu, Receita: fmt(r.receita), "Custo Rateado": fmt(r.custo_rateado), "Margem %": pct(r.margem_pct), Horas: r.horas_total }));
+      }
+    } else if (searchPep.trim()) {
+      // Projetos por busca PEP
+      filename = "projetos_busca_pep";
+      if (viewMode === "mensal") {
+        const filtered = pivotData.filter(r => String(r.pep||"").toLowerCase().includes(searchPep.trim().toLowerCase()));
+        rows = filtered.map(r => {
+          const row: any = { PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa };
+          selPeriodos.forEach(p => {
+            row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
+            row[`Custo ${periodoLabel(p)}`]   = fmt(r[`${p}_custo`]);
+            row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
+          });
+          row["Total Receita"] = fmt(r.total_receita); row["Total Custo"] = fmt(r.total_custo); row["Total Mg%"] = pct(r.total_margem_pct);
+          return row;
+        });
+      } else {
+        rows = filteredProjetos.map(r => ({ PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa, "Nó Hierarquia": r.no_hierarquia, BU: r.categoria_bu, Receita: fmt(r.receita), "Custo Rateado": fmt(r.custo_rateado), "Margem %": pct(r.margem_pct), Horas: r.horas_total }));
+      }
+    } else if (viewMode === "mensal") {
+      // Todos projetos mensal
+      filename = "projetos_mensal";
+      const filtered = pivotData.filter(r => {
+        if (searchCliente.trim() && !String(r.nome_cliente||"").toLowerCase().includes(searchCliente.trim().toLowerCase())) return false;
+        return true;
+      });
+      rows = filtered.map(r => {
+        const row: any = { PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa };
+        selPeriodos.forEach(p => {
+          row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
+          row[`Custo ${periodoLabel(p)}`]   = fmt(r[`${p}_custo`]);
+          row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
+        });
+        row["Total Receita"] = fmt(r.total_receita); row["Total Custo"] = fmt(r.total_custo); row["Total Mg%"] = pct(r.total_margem_pct);
+        return row;
+      });
+    } else {
+      // Vista de clientes
+      filename = "margem_por_cliente";
+      rows = clientesData.map(r => ({ Cliente: r.nome_cliente, "Nº Projetos": r.num_projetos, Receita: fmt(r.receita), "Custo Rateado": fmt(r.custo_rateado), "Margem %": pct(r.margem_pct) }));
+    }
+
+    if (!rows.length) { message.warning("Nenhum dado para exportar"); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Margem");
+    XLSX.writeFile(wb, `${filename}.xlsx`);
+  }
+
   const breadcrumb = [
     {
       title: (
@@ -578,6 +705,14 @@ export default function MargemTab() {
               options={categoriasBu.map(c => ({ label: c, value: c }))} maxTagCount="responsive" />
           </div>
         )}
+        {verticais.length > 0 && (
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Vertical</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
+              onChange={v => { setSelVerticais(v); setSelectedCliente(null); setSelectedPep(null); }}
+              options={verticais.map(v => ({ label: v, value: v }))} maxTagCount="responsive" />
+          </div>
+        )}
         <div style={{ flex: 1, minWidth: 180 }}>
           <div style={labelStyle}>Cliente</div>
           <Input
@@ -615,6 +750,11 @@ export default function MargemTab() {
             onChange={v => setViewMode(v as "total" | "mensal")}
             options={[{ label: "Consolidado", value: "total" }, { label: "Por Mês", value: "mensal" }]}
           />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "flex-end" }}>
+          <Button icon={<DownloadOutlined />} onClick={exportExcel} style={{ background: "#2d50a0", color: "#fff", border: "none" }}>
+            Exportar Excel
+          </Button>
         </div>
         <Text type="secondary" style={{ fontSize: "0.78rem", paddingBottom: 2 }}>
           * Custo rateado disponível para out–dez/2025. Períodos sem custo exibem receita apenas.

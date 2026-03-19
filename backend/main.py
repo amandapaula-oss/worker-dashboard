@@ -619,9 +619,19 @@ def get_rac_pessoas(
 
 # ── Margem por Projeto ─────────────────────────────────────────────────────────
 
+def _vertical_lookup() -> dict:
+    """Returns {nome_upper: bu} from clientes.csv"""
+    try:
+        cli = read_clientes_csv()
+        return dict(zip(cli["nome_cliente"].str.upper().str.strip(), cli["bu"].fillna("")))
+    except Exception:
+        return {}
+
 def get_margem_proj() -> pd.DataFrame:
     df = read_csv_cached("margem_projetos.csv", dtype={"pep": str}).copy()
     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    vlookup = _vertical_lookup()
+    df["vertical"] = df["nome_cliente"].str.upper().str.strip().map(vlookup).fillna("")
     return df
 
 def get_margem_pess() -> pd.DataFrame:
@@ -635,21 +645,32 @@ def get_margem_filters(user=Depends(get_current_user)):
     cats = []
     if "categoria_bu" in df.columns:
         cats = sorted(df["categoria_bu"].dropna().unique().tolist())
+    verts = sorted([v for v in df["vertical"].dropna().unique().tolist() if v])
     return {
         "periodos":      sorted(df["periodo"].dropna().unique().tolist()),
         "empresas":      sorted(df["empresa"].dropna().unique().tolist()),
         "categorias_bu": cats,
+        "verticais":     verts,
     }
 
+def _clientes_nomes_upper() -> set:
+    df = read_clientes_csv()
+    return set(df["nome_cliente"].str.upper().str.strip().tolist())
+
 @app.get("/api/resumo")
-def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", user=Depends(get_current_user)):
+def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", verticais: str = "", apenas_atribuidos: bool = False, user=Depends(get_current_user)):
     df = get_margem_proj()
+    if apenas_atribuidos:
+        nomes = _clientes_nomes_upper()
+        df = df[df["nome_cliente"].str.upper().str.strip().isin(nomes)]
     if periodos:
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
     if categorias_bu and "categoria_bu" in df.columns:
         df = df[df["categoria_bu"].isin(categorias_bu.split(","))]
+    if verticais:
+        df = df[df["vertical"].isin(verticais.split(","))]
     agg = df.groupby(["empresa", "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
         custo_rateado = ("custo_rateado", "sum"),
@@ -707,14 +728,19 @@ def update_cliente_ae(body: dict, user=Depends(get_current_user)):
     return {"ok": True}
 
 @app.get("/api/margem/projetos")
-def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", breakdown: bool = False, nome_cliente: str = "", user=Depends(get_current_user)):
+def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", verticais: str = "", breakdown: bool = False, nome_cliente: str = "", apenas_atribuidos: bool = False, user=Depends(get_current_user)):
     df = get_margem_proj()
+    if apenas_atribuidos:
+        nomes = _clientes_nomes_upper()
+        df = df[df["nome_cliente"].str.upper().str.strip().isin(nomes)]
     if periodos:
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
     if categorias_bu and "categoria_bu" in df.columns:
         df = df[df["categoria_bu"].isin(categorias_bu.split(","))]
+    if verticais:
+        df = df[df["vertical"].isin(verticais.split(","))]
     if nome_cliente:
         df = df[df["nome_cliente"].str.upper().str.strip() == nome_cliente.upper().strip()]
     df["pep"] = df["pep"].str.split(".").str[0]
@@ -733,8 +759,13 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
     return agg.fillna("").to_dict(orient="records")
 
 @app.get("/api/margem/pessoas")
-def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", breakdown: bool = False, user=Depends(get_current_user)):
+def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", breakdown: bool = False, apenas_atribuidos: bool = False, user=Depends(get_current_user)):
     df = get_margem_pess()
+    if apenas_atribuidos:
+        proj = get_margem_proj()
+        nomes = _clientes_nomes_upper()
+        peps_ok = set(proj[proj["nome_cliente"].str.upper().str.strip().isin(nomes)]["pep"].str.split(".").str[0].tolist())
+        df = df[df["pep"].str.split(".").str[0].isin(peps_ok)]
     if pep:
         df = df[df["pep"].str.split(".").str[0] == pep]
     if periodos:
