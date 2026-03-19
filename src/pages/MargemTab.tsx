@@ -330,18 +330,20 @@ export default function MargemTab() {
       const key = r.pep;
       if (!map.has(key)) map.set(key, { key, pep: r.pep, nome_cliente: r.nome_cliente, empresa: r.empresa });
       const e = map.get(key)!;
-      e[`${r.periodo}_receita`]     = (e[`${r.periodo}_receita`]     || 0) + (Number(r.receita)       || 0);
-      e[`${r.periodo}_margem`]      = (e[`${r.periodo}_margem`]      || 0) + (Number(r.margem)        || 0);
+      e[`${r.periodo}_receita`] = (e[`${r.periodo}_receita`] || 0) + (Number(r.receita)       || 0);
+      e[`${r.periodo}_custo`]   = (e[`${r.periodo}_custo`]   || 0) + (Number(r.custo_rateado) || 0);
+      e[`${r.periodo}_margem`]  = (e[`${r.periodo}_margem`]  || 0) + (Number(r.margem)        || 0);
     }
     return Array.from(map.values()).map(r => {
       const tot_rec = selPeriodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
+      const tot_cus = selPeriodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
       const tot_mar = selPeriodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
       selPeriodos.forEach(p => {
         const rec = r[`${p}_receita`] || 0;
         const mar = r[`${p}_margem`]  || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? mar / rec : null;
       });
-      return { ...r, total_receita: tot_rec, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
+      return { ...r, total_receita: tot_rec, total_custo: tot_cus, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
     }).sort((a, b) => b.total_receita - a.total_receita);
   }, [projetosMensal, selPeriodos]);
 
@@ -375,17 +377,19 @@ export default function MargemTab() {
       const key = r.pep;
       if (!map.has(key)) map.set(key, { key, pep: r.pep, nome_cliente: r.nome_cliente || "", empresa: r.empresa });
       const e = map.get(key)!;
-      e[`${r.periodo}_receita`] = (e[`${r.periodo}_receita`] || 0) + (Number(r.receita) || 0);
-      e[`${r.periodo}_margem`]  = (e[`${r.periodo}_margem`]  || 0) + (Number(r.margem)  || 0);
+      e[`${r.periodo}_receita`] = (e[`${r.periodo}_receita`] || 0) + (Number(r.receita)       || 0);
+      e[`${r.periodo}_custo`]   = (e[`${r.periodo}_custo`]   || 0) + (Number(r.custo_rateado) || 0);
+      e[`${r.periodo}_margem`]  = (e[`${r.periodo}_margem`]  || 0) + (Number(r.margem)        || 0);
     }
     return Array.from(map.values()).map(r => {
       const tot_rec = selPeriodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
+      const tot_cus = selPeriodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
       const tot_mar = selPeriodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
       selPeriodos.forEach(p => {
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? (r[`${p}_margem`] || 0) / rec : null;
       });
-      return { ...r, total_receita: tot_rec, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
+      return { ...r, total_receita: tot_rec, total_custo: tot_cus, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
     }).sort((a, b) => b.total_receita - a.total_receita);
   }, [pessoaProjetosMensal, selPeriodos]);
 
@@ -405,6 +409,7 @@ export default function MargemTab() {
       title: periodoLabel(p),
       children: [
         { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_custo`),   title: "Custo",   render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
         { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ],
     }));
@@ -417,6 +422,7 @@ export default function MargemTab() {
         title: "Total",
         children: [
           { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
+          { ...numCol("total_custo"),   title: "Custo",   render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
           { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
         ],
       },
@@ -621,11 +627,13 @@ export default function MargemTab() {
           </Button>
           {loadingPessoaProj ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : viewMode === "mensal" ? (() => {
             const tot_rec = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_receita||0),0);
-            const tot_mar = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_margem||0),0);
-            const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
+            const tot_cus = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_custo  ||0),0);
+            const tot_mar = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_margem ||0),0);
+            const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_custo:tot_cus, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
             selPeriodos.forEach(p => {
-              totRow[`${p}_receita`] = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
-              totRow[`${p}_margem`]  = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
+              totRow[`${p}_receita`]    = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
+              totRow[`${p}_custo`]      = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_custo`]  ||0),0);
+              totRow[`${p}_margem`]     = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
               totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
             });
             return <Table dataSource={[totRow, ...pivotPessoaProjetos]} columns={colMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : {} })} />;
@@ -695,14 +703,16 @@ export default function MargemTab() {
           {viewMode === "mensal" ? (() => {
             const filtered = pivotData.filter(r => r.nome_cliente === selectedCliente);
             const tot_rec = filtered.reduce((s,r)=>s+(r.total_receita||0),0);
-            const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem||0),0);
-            const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
+            const tot_cus = filtered.reduce((s,r)=>s+(r.total_custo  ||0),0);
+            const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem ||0),0);
+            const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_custo:tot_cus, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
             selPeriodos.forEach(p => {
-              totRow[`${p}_receita`] = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
-              totRow[`${p}_margem`]  = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
+              totRow[`${p}_receita`]    = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
+              totRow[`${p}_custo`]      = filtered.reduce((s,r)=>s+(r[`${p}_custo`]  ||0),0);
+              totRow[`${p}_margem`]     = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
               totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
             });
-            return <Table dataSource={[totRow, ...filtered]} columns={colMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : {} })} />;
+            return <Table dataSource={[totRow, ...filtered]} columns={colMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: selectedCliente! }), style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" } })} />;
           })() : (
           <Table
             dataSource={(() => {
@@ -730,10 +740,12 @@ export default function MargemTab() {
             String(r.pep || "").toLowerCase().includes(searchPep.trim().toLowerCase())
           );
           const tot_rec = filtered.reduce((s,r)=>s+(r.total_receita||0),0);
-          const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem||0),0);
-          const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
+          const tot_cus = filtered.reduce((s,r)=>s+(r.total_custo  ||0),0);
+          const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem ||0),0);
+          const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_custo:tot_cus, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
           selPeriodos.forEach(p => {
             totRow[`${p}_receita`]    = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
+            totRow[`${p}_custo`]      = filtered.reduce((s,r)=>s+(r[`${p}_custo`]  ||0),0);
             totRow[`${p}_margem`]     = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
             totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
           });
@@ -784,10 +796,12 @@ export default function MargemTab() {
             return true;
           });
           const tot_rec = filtered.reduce((s, r) => s + (r.total_receita || 0), 0);
+          const tot_cus = filtered.reduce((s, r) => s + (r.total_custo   || 0), 0);
           const tot_mar = filtered.reduce((s, r) => s + (r.total_margem  || 0), 0);
-          const totRow: any = { key: "__t__", pep: "TOTAL", nome_cliente: "", empresa: "", total_receita: tot_rec, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null, _isTotal: true };
+          const totRow: any = { key: "__t__", pep: "TOTAL", nome_cliente: "", empresa: "", total_receita: tot_rec, total_custo: tot_cus, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null, _isTotal: true };
           selPeriodos.forEach(p => {
             totRow[`${p}_receita`]    = filtered.reduce((s, r) => s + (r[`${p}_receita`] || 0), 0);
+            totRow[`${p}_custo`]      = filtered.reduce((s, r) => s + (r[`${p}_custo`]   || 0), 0);
             totRow[`${p}_margem`]     = filtered.reduce((s, r) => s + (r[`${p}_margem`]  || 0), 0);
             const rec = totRow[`${p}_receita`];
             const mar = totRow[`${p}_margem`];
@@ -801,7 +815,10 @@ export default function MargemTab() {
               size="small"
               scroll={{ x: "max-content" }}
               style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-              onRow={row => ({ style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : {} })}
+              onRow={row => ({
+                onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
+                style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
+              })}
             />
           );
         })()
