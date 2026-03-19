@@ -126,8 +126,8 @@ export default function ClientesTab() {
       .finally(() => setLoadingPess(false));
   }, [selectedPep]);
 
-  const bus   = useMemo(() => [...new Set(clientes.map(c => c.bu).filter(Boolean))].sort(), [clientes]);
-  const aes   = useMemo(() => [...new Set(clientes.map(c => c.ae).filter(Boolean))].sort(), [clientes]);
+  const bus   = useMemo(() => Array.from(new Set(clientes.map(c => c.bu).filter(Boolean))).sort(), [clientes]);
+  const aes   = useMemo(() => Array.from(new Set(clientes.map(c => c.ae).filter(Boolean))).sort(), [clientes]);
 
   const filtered = useMemo(() => {
     let rows = clientes;
