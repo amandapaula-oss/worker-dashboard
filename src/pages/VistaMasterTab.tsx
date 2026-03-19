@@ -23,6 +23,10 @@ type MasterRow = {
   ating_mb: number | null;
   ating_tcv: number | null;
   ating_mc: number | null;
+  pct_rec: number | null;
+  pct_mb: number | null;
+  pct_tcv: number | null;
+  pct_mc: number | null;
   mc_gate: number | null;
   gate_ok: boolean;
   tipo_calc: string;
@@ -123,7 +127,9 @@ function AchievementBar({ meta, trigger, realizado, bonusAtMaxAting }: {
 }) {
   const effectiveMeta = meta > 0 ? meta : trigger + 1;
   const spread = effectiveMeta - trigger || 1;
-  const visMin = trigger - spread * 0.04;
+  // O início da barra é o menor entre realizado e trigger
+  const leftAnchor = Math.min(realizado, trigger);
+  const visMin = leftAnchor - spread * 0.04;
   const visMax = effectiveMeta + spread * 0.14;
   const range = visMax - visMin || 1;
 
@@ -343,18 +349,18 @@ export default function VistaMasterTab() {
     },
     {
       title: "% TCV",
-      key: "ating_tcv",
-      render: (_: any, row: MasterRow) => atCol(row.ating_tcv),
+      key: "pct_tcv",
+      render: (_: any, row: MasterRow) => atCol(row.pct_tcv),
     },
     {
       title: "% Receita",
-      key: "ating_rec",
-      render: (_: any, row: MasterRow) => atCol(row.ating_rec),
+      key: "pct_rec",
+      render: (_: any, row: MasterRow) => atCol(row.pct_rec),
     },
     {
       title: "% MB/MC",
-      key: "ating_mb",
-      render: (_: any, row: MasterRow) => atCol(row.ating_mb ?? row.ating_mc),
+      key: "pct_mb",
+      render: (_: any, row: MasterRow) => atCol(row.pct_mb ?? row.pct_mc),
     },
     {
       title: "Contrato",

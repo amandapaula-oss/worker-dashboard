@@ -596,6 +596,9 @@ def get_visao_master() -> list[dict]:
         try:
             if pos == "DIRETOR":
                 res = calc_bonus_diretor(nome)
+                bgt_r = res["budget_rec_q4"] or 1
+                bgt_t = res["budget_tcv_q4"] or 1
+                bgt_m = res["budget_mc_pct"] or 1
                 resultados.append({
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],
@@ -608,12 +611,18 @@ def get_visao_master() -> list[dict]:
                     "ating_mb":  None,
                     "ating_tcv": res["ating_tcv"],
                     "ating_mc":  res["ating_mc"],
+                    "pct_rec":  round(res["real_rec_q4"] / bgt_r, 4),
+                    "pct_mb":   None,
+                    "pct_tcv":  round(res["real_tcv_q4"] / bgt_t, 4) if bgt_t else 0,
+                    "pct_mc":   round(res["real_mc_pct"] / bgt_m, 4) if bgt_m else 0,
                     "mc_gate":   res["mc_gate"],
                     "gate_ok":   res["mc_gate"] == 1.0,
                     "tipo_calc": "Diretor",
                 })
             elif pos in ("AE", "AE2", "HUNTER", "ESTRATEGISTAS", "CS"):
                 res = calc_bonus_ae(nome)
+                bgt_r = res["budget_rec_total"] or 1
+                bgt_m = res["budget_mb_pct"] or 1
                 resultados.append({
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],
@@ -626,6 +635,10 @@ def get_visao_master() -> list[dict]:
                     "ating_mb":   res["ating_mb_total"],
                     "ating_tcv":  None,
                     "ating_mc":   None,
+                    "pct_rec":  round(res["real_rec_total"] / bgt_r, 4),
+                    "pct_mb":   round(res["real_mb_pct"] / bgt_m, 4) if bgt_m else 0,
+                    "pct_tcv":  None,
+                    "pct_mc":   None,
                     "mc_gate":    None,
                     "gate_ok":    bool(res.get("lb_gate", 1)),
                     "tipo_calc":  "Comercial",
@@ -643,6 +656,10 @@ def get_visao_master() -> list[dict]:
                 "ating_mb":   None,
                 "ating_tcv":  None,
                 "ating_mc":   None,
+                "pct_rec":  None,
+                "pct_mb":   None,
+                "pct_tcv":  None,
+                "pct_mc":   None,
                 "mc_gate":    None,
                 "gate_ok":    False,
                 "tipo_calc":  "Erro",
