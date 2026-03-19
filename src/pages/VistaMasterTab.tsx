@@ -497,22 +497,30 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
       <div style={{
         background: lbGateOk ? "#f6ffed" : "#fff2f0",
         border: `1px solid ${lbGateOk ? "#b7eb8f" : "#ffccc7"}`,
-        borderRadius: 8, padding: "10px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12,
+        borderRadius: 8, padding: "10px 16px", marginBottom: 12,
       }}>
-        {lbGateOk
-          ? <CheckCircleFilled style={{ color: "#52c41a", fontSize: 22 }} />
-          : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 22 }} />
-        }
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: lbGateOk ? "#52c41a" : "#ff4d4f" }}>
-            {lbGateOk ? "Gatilho atingido" : "Gatilho NÃO atingido"}
-          </div>
-          <div style={{ fontSize: 12, color: "#666" }}>
-            {lbGateOk
-              ? "MB% de Apps acima do mínimo — bônus MB habilitado"
-              : "MB% de Apps abaixo do mínimo — bônus MB bloqueado"}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+          {lbGateOk
+            ? <CheckCircleFilled style={{ color: "#52c41a", fontSize: 22 }} />
+            : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 22 }} />
+          }
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: lbGateOk ? "#52c41a" : "#ff4d4f" }}>
+              {lbGateOk ? "Gatilho atingido" : "Gatilho NÃO atingido"}
+            </div>
+            <div style={{ fontSize: 12, color: "#666" }}>
+              {lbGateOk
+                ? "MB% de Apps acima do mínimo — bônus MB habilitado"
+                : "MB% de Apps abaixo do mínimo — bônus MB bloqueado"}
+            </div>
           </div>
         </div>
+        <AchievementBar
+          meta={d.budget_mb_pct || 0}
+          trigger={triggerMbPctTotal}
+          realizado={d.real_mb_pct || 0}
+          bonusAtMaxAting={d.salario_q4 * (d.peso_mb || 0)}
+        />
       </div>
 
       {/* ── Regras de Apuração ── */}
@@ -547,7 +555,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
         bonusAtMaxAting={d.salario_q4 * (d.peso_receita || 0)}
       />
       <MetaRealPctRow
-        label={`Lucro Bruto % — MB% Total (peso ${fmtPct(d.peso_mb || 0)}) — Gatilho Mestre`}
+        label={`MB% Total (peso ${fmtPct(d.peso_mb || 0)})`}
         meta={d.budget_mb_pct || 0}
         trigger={triggerMbPctTotal}
         real={d.real_mb_pct || 0}
