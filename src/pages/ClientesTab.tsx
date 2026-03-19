@@ -1,9 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { Table, Input, Select, Spin, message, Button, Breadcrumb, Typography, Tag } from "antd";
+import { Table, Input, Select, Spin, message, Button, Breadcrumb, Tag } from "antd";
 import { HomeOutlined, SearchOutlined, EditOutlined, CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { getClientes, updateClienteAe, getMargemProjetos, getMargemPessoas } from "../api";
-
-const { Text } = Typography;
 
 const brl = (v: any) =>
   Number(v) ? Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—";
