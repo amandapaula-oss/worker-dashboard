@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 /**
  * Hook que habilita reordenação de colunas por drag-and-drop
@@ -6,6 +6,12 @@ import React, { useState, useRef } from "react";
  */
 export function useDraggableColumns<T extends { key?: string | number; dataIndex?: string; width?: number }>(columns: T[]): T[] {
   const [order, setOrder] = useState<number[]>(() => columns.map((_, i) => i));
+
+  // Reset order when columns array changes size (e.g. period columns added/removed)
+  useEffect(() => {
+    setOrder(columns.map((_, i) => i));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columns.length]);
   const [widths, setWidths] = useState<Record<string, number>>({});
   const dragFrom = useRef<number | null>(null);
   const resizing = useRef(false);

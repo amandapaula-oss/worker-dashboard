@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, Spin, ConfigProvider, Tabs, Card } from "antd";
+import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, Spin, ConfigProvider, Tabs, Card, Switch } from "antd";
 import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
@@ -149,6 +149,7 @@ type Section = "worker" | "cockpit" | "metas" | null;
 
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
+  const [apenasAtribuidos, setApenasAtribuidos] = useState(false);
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: "#2d50a0", borderRadius: 8 } }}>
@@ -219,18 +220,35 @@ export default function Dashboard() {
           )}
 
           {section === "metas" && (
-            <Tabs
-              defaultActiveKey="resumo"
-              type="card"
-              size="large"
-              items={[
-                { key: "resumo",       label: "📋 Resumo por Empresa", children: <ResumoTab /> },
-                { key: "visao-master", label: "🎯 Visão Master Q4",    children: <VistaMasterTab /> },
-                { key: "margem",       label: "📊 Margem por Projeto",  children: <MargemTab /> },
-                { key: "check",        label: "🔍 Check Lucas",         children: <CheckLucasTab /> },
-                { key: "clientes",     label: "👥 Clientes",            children: <ClientesTab /> },
-              ]}
-            />
+            <>
+              <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.6rem 1.2rem", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                <Switch
+                  size="small"
+                  checked={apenasAtribuidos}
+                  onChange={v => setApenasAtribuidos(v)}
+                />
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: apenasAtribuidos ? "#2d50a0" : "#6b7fa3" }}>
+                  Apenas projetos atribuídos
+                </span>
+                {apenasAtribuidos && (
+                  <span style={{ fontSize: "0.78rem", color: "#856404", background: "#fff3cd", padding: "1px 8px", borderRadius: 4 }}>
+                    Filtrando pela base de clientes
+                  </span>
+                )}
+              </div>
+              <Tabs
+                defaultActiveKey="resumo"
+                type="card"
+                size="large"
+                items={[
+                  { key: "resumo",       label: "📋 Resumo por Empresa", children: <ResumoTab apenasAtribuidos={apenasAtribuidos} /> },
+                  { key: "visao-master", label: "🎯 Apuração Q4",    children: <VistaMasterTab /> },
+                  { key: "margem",       label: "📊 Margem por Cliente",  children: <MargemTab apenasAtribuidos={apenasAtribuidos} /> },
+                  { key: "check",        label: "🔍 Check Lucas",         children: <CheckLucasTab /> },
+                  { key: "clientes",     label: "👥 Clientes",            children: <ClientesTab /> },
+                ]}
+              />
+            </>
           )}
 
           {section === "cockpit" && (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Select, Table, Spin } from "antd";
 import { getCltData } from "../api";
+import { toTitleCase } from "../utils/format";
 
 const labelStyle: React.CSSProperties = {
   color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
@@ -36,7 +37,7 @@ export default function CltTab() {
       dataIndex: "empresa",
       key: "empresa",
       align: "left" as const,
-      render: (v: string) => <strong>{v}</strong>,
+      render: (v: string) => <strong>{toTitleCase(v)}</strong>,
     },
     {
       title: "Totalizador",

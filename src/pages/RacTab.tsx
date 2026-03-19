@@ -3,6 +3,7 @@ import { Select, Table, Spin, message, Button, Breadcrumb, Input } from "antd";
 import { HomeOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
 import { getRacFilters, getRacProjetos, getRacPessoas, getRacPessoaProjetos } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { toTitleCase } from "../utils/format";
 
 
 const labelStyle: React.CSSProperties = {
@@ -94,8 +95,8 @@ export default function RacTab() {
 
   const colProjetos = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 200 },
-    { title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 130 },
+    { title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
+    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 130, render: (v: string) => toTitleCase(v) || "—" },
     {
       title: "Valor Líquido",
       dataIndex: "valor_liquido",
@@ -111,8 +112,8 @@ export default function RacTab() {
   const colPessoas = [
     { title: "ID", dataIndex: "numero_pessoal", key: "numero_pessoal", width: 120 },
     { title: "CPF", dataIndex: "cpf", key: "cpf", width: 160 },
-    { title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 130 },
+    { title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
+    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 130, render: (v: string) => toTitleCase(v) || "—" },
     {
       title: "Valor Líquido",
       dataIndex: "valor_liquido",
@@ -127,8 +128,8 @@ export default function RacTab() {
 
   const colPessoaProjetos = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 200 },
-    { title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 130 },
+    { title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
+    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 130, render: (v: string) => toTitleCase(v) || "—" },
     {
       title: "Valor Líquido",
       dataIndex: "valor_liquido",

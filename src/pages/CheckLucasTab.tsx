@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Select, Table, Spin, message, Card, Statistic } from "antd";
 import { getRazaoFilters, getRazaoComparativo } from "../api";
+import { toTitleCase } from "../utils/format";
 
 const labelStyle: React.CSSProperties = {
   color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
@@ -72,6 +73,7 @@ export default function CheckLucasTab() {
     {
       title: "Empresa", dataIndex: "empresa", key: "empresa", width: 130,
       sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)),
+      render: (v: string) => toTitleCase(v) || "—",
     },
     // ── Receita ──────────────────────────────────────────────────────────────
     {

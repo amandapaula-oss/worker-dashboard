@@ -52,6 +52,24 @@ def _load_all():
     marg_by_client = marg_q4.groupby("nome_norm")["margem"].sum().to_dict()
     rec_by_client  = marg_q4.groupby("nome_norm")["receita"].sum().to_dict()
 
+    # Add aliases: nome_cliente → nome_base (e.g. "C6 BANK" → "BANCO C6 S.A.")
+    # so budget entries keyed by friendly name can find the SAP name in the lookup
+    clientes_path = os.path.join(DIR, "clientes.csv")
+    if os.path.exists(clientes_path):
+        try:
+            clientes_df = pd.read_csv(clientes_path, encoding="utf-8-sig")
+            if "nome_base" in clientes_df.columns:
+                for _, row in clientes_df.iterrows():
+                    nc = str(row.get("nome_cliente", "") or "").strip()
+                    nb = str(row.get("nome_base", "") or "").strip()
+                    if nc and nb:
+                        nc_n, nb_n = norm(nc), norm(nb)
+                        for lookup in [rac_by_client, marg_by_client, rec_by_client]:
+                            if nb_n in lookup and nc_n not in lookup:
+                                lookup[nc_n] = lookup[nb_n]
+        except Exception:
+            pass
+
     return {
         "pessoas":  pessoas,
         "pesos_m":  pesos_m,

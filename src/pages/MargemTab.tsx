@@ -4,6 +4,7 @@ import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined } fro
 import * as XLSX from "xlsx";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas, getMargemPessoaProjetos } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { toTitleCase } from "../utils/format";
 
 const { Text } = Typography;
 
@@ -191,6 +192,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     {
       title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true,
       sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
+      render: (v: string) => toTitleCase(v) || "—",
     },
     {
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
@@ -222,6 +224,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     {
       title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120,
       sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)),
+      render: (v: string) => toTitleCase(v) || "—",
     },
     {
       title: "Nó Hierarquia", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 130,
@@ -239,7 +242,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     {
       title: "AE", dataIndex: "ae", key: "ae", width: 180, ellipsis: true,
       sorter: (a: any, b: any) => String(a.ae || "").localeCompare(String(b.ae || "")),
-      render: (v: string) => v || "—",
+      render: (v: string) => toTitleCase(v) || "—",
     },
     {
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
@@ -277,6 +280,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     {
       title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true,
       sorter: (a: any, b: any) => String(a.nome).localeCompare(String(b.nome)),
+      render: (v: string) => toTitleCase(v) || "—",
     },
     {
       title: "CPF", dataIndex: "cpf", key: "cpf", width: 160,
@@ -285,6 +289,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     {
       title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120,
       sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)),
+      render: (v: string) => toTitleCase(v) || "—",
     },
     {
       title: "Horas", dataIndex: "horas", key: "horas", width: 80,
@@ -327,8 +332,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       title: "PEP", dataIndex: "pep", key: "pep", width: 190,
       sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)),
     },
-    { title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120 },
+    { title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
+    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120, render: (v: string) => toTitleCase(v) || "—" },
     {
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
@@ -440,10 +445,10 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     }));
     return [
       { title: "PEP",      dataIndex: "pep",          key: "pep",          width: 190, sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)) },
-      { title: "Cliente",  dataIndex: "nome_cliente",  key: "nome_cliente", ellipsis: true },
-      { title: "Empresa",  dataIndex: "empresa",       key: "empresa",      width: 120 },
+      { title: "Cliente",  dataIndex: "nome_cliente",  key: "nome_cliente", ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
+      { title: "Empresa",  dataIndex: "empresa",       key: "empresa",      width: 120, render: (v: string) => toTitleCase(v) || "—" },
       { title: "Vertical", dataIndex: "vertical",      key: "vertical",     width: 110, render: (v: string) => v || "—" },
-      { title: "AE",       dataIndex: "ae",            key: "ae",           width: 180, ellipsis: true, render: (v: string) => v || "—" },
+      { title: "AE",       dataIndex: "ae",            key: "ae",           width: 180, ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
       ...periodoCols,
       {
         title: "Total",
@@ -453,6 +458,60 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
           { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
         ],
       },
+    ];
+  }, [selPeriodos]);
+
+  // Pivot: clientes × períodos (para view mensal — nível superior)
+  const pivotClientes = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const r of pivotData) {
+      const key = r.nome_cliente || "";
+      if (!map.has(key)) map.set(key, { key, nome_cliente: key, vertical: r.vertical || "", ae: r.ae || "" });
+      const e = map.get(key)!;
+      selPeriodos.forEach(p => {
+        e[`${p}_receita`] = (e[`${p}_receita`] || 0) + (r[`${p}_receita`] || 0);
+        e[`${p}_custo`]   = (e[`${p}_custo`]   || 0) + (r[`${p}_custo`]   || 0);
+        e[`${p}_margem`]  = (e[`${p}_margem`]  || 0) + (r[`${p}_margem`]  || 0);
+      });
+      e.total_receita = (e.total_receita || 0) + (r.total_receita || 0);
+      e.total_custo   = (e.total_custo   || 0) + (r.total_custo   || 0);
+      e.total_margem  = (e.total_margem  || 0) + (r.total_margem  || 0);
+    }
+    return Array.from(map.values()).map(r => {
+      selPeriodos.forEach(p => {
+        const rec = r[`${p}_receita`] || 0;
+        r[`${p}_margem_pct`] = rec !== 0 ? (r[`${p}_margem`] || 0) / rec : null;
+      });
+      r.total_margem_pct = r.total_receita !== 0 ? r.total_margem / r.total_receita : null;
+      return r;
+    }).sort((a, b) => b.total_receita - a.total_receita);
+  }, [pivotData, selPeriodos]);
+
+  const colMensalClientes = useMemo(() => {
+    const periodoLabel = (p: string) => { const [y, m] = p.split("-"); return `${m}/${y.slice(2)}`; };
+    const numCol = (dataIndex: string, render?: (v: any) => React.ReactNode) => ({
+      dataIndex, key: dataIndex, align: "right" as const, width: 130,
+      sorter: (a: any, b: any) => (Number(a[dataIndex]) || 0) - (Number(b[dataIndex]) || 0),
+      render,
+    });
+    const periodoCols = selPeriodos.map(p => ({
+      title: periodoLabel(p),
+      children: [
+        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_custo`),   title: "Custo",   render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
+      ],
+    }));
+    return [
+      { title: "Cliente",  dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true, sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"), render: (v: string) => toTitleCase(v) || "—" },
+      { title: "Vertical", dataIndex: "vertical",     key: "vertical",     width: 110, render: (v: string) => v || "—" },
+      { title: "AE",       dataIndex: "ae",           key: "ae",           width: 180, ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
+      ...periodoCols,
+      { title: "Total", children: [
+        { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
+        { ...numCol("total_custo"),   title: "Custo",   render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
+        { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
+      ]},
     ];
   }, [selPeriodos]);
 
@@ -472,9 +531,9 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     }));
     return [
       { title: "ID",      dataIndex: "numero_pessoal", key: "numero_pessoal", width: 110, sorter: (a: any, b: any) => String(a.numero_pessoal).localeCompare(String(b.numero_pessoal)) },
-      { title: "Nome",    dataIndex: "nome",           key: "nome",           ellipsis: true },
+      { title: "Nome",    dataIndex: "nome",           key: "nome",           ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
       { title: "CPF",     dataIndex: "cpf",            key: "cpf",            width: 140 },
-      { title: "Empresa", dataIndex: "empresa",        key: "empresa",        width: 110 },
+      { title: "Empresa", dataIndex: "empresa",        key: "empresa",        width: 110, render: (v: string) => toTitleCase(v) || "—" },
       ...periodoCols,
       { title: "Total", children: [
         { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
@@ -488,9 +547,11 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     { title: "PEP",     dataIndex: "pep",          key: "pep",          width: 190,
       sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)) },
     { title: "Cliente", dataIndex: "nome_cliente",  key: "nome_cliente", ellipsis: true,
-      sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente)) },
+      sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente)),
+      render: (v: string) => toTitleCase(v) || "—" },
     { title: "Empresa", dataIndex: "empresa",       key: "empresa",      width: 120,
-      sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)) },
+      sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa)),
+      render: (v: string) => toTitleCase(v) || "—" },
     { title: "Nó Hierarquia", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 130,
       sorter: (a: any, b: any) => String(a.no_hierarquia || "").localeCompare(String(b.no_hierarquia || "")) },
     { title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110,
@@ -500,7 +561,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       render: (v: string) => v || "—" },
     { title: "AE", dataIndex: "ae", key: "ae", width: 180, ellipsis: true,
       sorter: (a: any, b: any) => String(a.ae || "").localeCompare(String(b.ae || "")),
-      render: (v: string) => v || "—" },
+      render: (v: string) => toTitleCase(v) || "—" },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita)||0) - (Number(b.receita)||0),
       render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
@@ -809,7 +870,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               totRow[`${p}_margem`]     = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
               totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
             });
-            return <Table dataSource={[totRow, ...pivotPessoaProjetos]} columns={colMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : {} })} />;
+            return <Table dataSource={[totRow, ...pivotPessoaProjetos]} columns={colMensal} pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : {} })} />;
           })() : (
             <Table
               dataSource={(() => {
@@ -819,7 +880,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
                 return [{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", receita:rec, custo_rateado:cus, margem:mar, margem_pct: rec!==0?mar/rec:null, _isTotal:true }, ...pessoaProjetos.map((d,i)=>({...d,key:i}))];
               })()}
               columns={draggablePessoaProj}
-              pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+              pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
               size="small"
               scroll={{ x: "max-content" }}
               style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
@@ -847,7 +908,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               totRow[`${p}_margem`]  = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
               totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
             });
-            return <Table dataSource={[totRow, ...filtered]} columns={colPessoasMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ onClick: () => !row._isTotal && setSelectedPessoa({ cpf: row.cpf, nome: row.nome, numero_pessoal: row.numero_pessoal }), style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" } })} />;
+            return <Table dataSource={[totRow, ...filtered]} columns={colPessoasMensal} pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ onClick: () => !row._isTotal && setSelectedPessoa({ cpf: row.cpf, nome: row.nome, numero_pessoal: row.numero_pessoal }), style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" } })} />;
           })() : (
           <Table
             dataSource={(() => {
@@ -857,7 +918,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               return [{ key:"__t__", nome:"TOTAL", cpf:"", empresa:"", horas:0, receita:rec, custo_rateado:cus, margem:mar, margem_pct: rec!==0?mar/rec:null, _isTotal:true }, ...filteredPessoas.map((d,i)=>({...d,key:i}))];
             })()}
             columns={draggablePessoas}
-            pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
             style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
@@ -885,7 +946,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               totRow[`${p}_margem`]     = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
               totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
             });
-            return <Table dataSource={[totRow, ...filtered]} columns={colMensal} pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: selectedCliente! }), style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" } })} />;
+            return <Table dataSource={[totRow, ...filtered]} columns={colMensal} pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }} size="small" scroll={{ x: "max-content" }} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }} onRow={row => ({ onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: selectedCliente! }), style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" } })} />;
           })() : (
           <Table
             dataSource={(() => {
@@ -896,7 +957,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               return [{ key:"__t__", pep:"TOTAL", empresa:"", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, horas_total:0, _isTotal:true }, ...projetosCliente.map((d,i)=>({...d,key:i}))];
             })()}
             columns={draggableProjetos}
-            pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
             style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
@@ -926,7 +987,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
             <Table
               dataSource={[totRow, ...filtered]}
               columns={colMensal}
-              pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+              pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
               size="small"
               scroll={{ x: "max-content" }}
               style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
@@ -950,7 +1011,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
             <Table
               dataSource={data}
               columns={draggableProjetosSearch}
-              pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+              pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
               size="small"
               scroll={{ x: "max-content" }}
               style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
@@ -963,15 +1024,14 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         })()
       ) : viewMode === "mensal" ? (
         (() => {
-          const filtered = pivotData.filter(r => {
+          const filtered = pivotClientes.filter(r => {
             if (searchCliente.trim() && !String(r.nome_cliente || "").toLowerCase().includes(searchCliente.trim().toLowerCase())) return false;
-            if (searchPep.trim() && !String(r.pep || "").toLowerCase().includes(searchPep.trim().toLowerCase())) return false;
             return true;
           });
           const tot_rec = filtered.reduce((s, r) => s + (r.total_receita || 0), 0);
           const tot_cus = filtered.reduce((s, r) => s + (r.total_custo   || 0), 0);
           const tot_mar = filtered.reduce((s, r) => s + (r.total_margem  || 0), 0);
-          const totRow: any = { key: "__t__", pep: "TOTAL", nome_cliente: "", empresa: "", total_receita: tot_rec, total_custo: tot_cus, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null, _isTotal: true };
+          const totRow: any = { key: "__t__", nome_cliente: "TOTAL", total_receita: tot_rec, total_custo: tot_cus, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null, _isTotal: true };
           selPeriodos.forEach(p => {
             totRow[`${p}_receita`]    = filtered.reduce((s, r) => s + (r[`${p}_receita`] || 0), 0);
             totRow[`${p}_custo`]      = filtered.reduce((s, r) => s + (r[`${p}_custo`]   || 0), 0);
@@ -983,13 +1043,13 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
           return (
             <Table
               dataSource={[totRow, ...filtered]}
-              columns={colMensal}
-              pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+              columns={colMensalClientes}
+              pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
               size="small"
               scroll={{ x: "max-content" }}
               style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
               onRow={row => ({
-                onClick: () => !row._isTotal && setSelectedPep({ pep: row.pep, nome_cliente: row.nome_cliente }),
+                onClick: () => !row._isTotal && setSelectedCliente(row.nome_cliente),
                 style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
               })}
             />
@@ -1005,7 +1065,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
             return [{ key:"__t__", nome_cliente:"TOTAL", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, num_projetos: clientesData.reduce((s,r)=>s+r.num_projetos,0), _isTotal:true }, ...clientesData.map((d,i)=>({...d,key:i}))];
           })()}
           columns={draggableClientes}
-          pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}

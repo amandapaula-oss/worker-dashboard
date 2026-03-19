@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Typography, Card, Statistic } from "antd";
 import { getMargemFilters, getResumo } from "../api";
+import { toTitleCase } from "../utils/format";
 
 const { Text } = Typography;
 
@@ -30,7 +31,7 @@ function periodoLabel(p: string) {
   return `${meses[parseInt(m, 10) - 1]}/${y.slice(2)}`;
 }
 
-export default function ResumoTab() {
+export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuidos?: boolean }) {
   const [periodos, setPeriodos]               = useState<string[]>([]);
   const [selPeriodos, setSelPeriodos]         = useState<string[]>([]);
   const [empresas, setEmpresas]               = useState<string[]>([]);
@@ -64,12 +65,13 @@ export default function ResumoTab() {
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selCategoriasBu.length && selCategoriasBu.length < categoriasBu.length) params.categorias_bu = selCategoriasBu.join(",");
+    if (apenasAtribuidos) params.apenas_atribuidos = "true";
     getResumo(params)
       .then((d: any) => setRawData(d))
       .catch(() => message.error("Erro ao carregar resumo"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu]);
+  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu, apenasAtribuidos]);
 
   // Pivot: empresa × periodo
   const pivotData = useMemo(() => {
@@ -161,6 +163,7 @@ export default function ResumoTab() {
         title: "Empresa", dataIndex: "empresa", key: "empresa", width: 145,
         fixed: "left" as const,
         sorter: (a: any, b: any) => String(a.empresa).localeCompare(String(b.empresa), "pt-BR"),
+        render: (v: string) => toTitleCase(v) || "—",
       },
       ...periodoCols,
       {

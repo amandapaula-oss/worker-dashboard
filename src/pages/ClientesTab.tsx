@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { Table, Input, Select, Spin, message, Button, Breadcrumb, Tag } from "antd";
 import { HomeOutlined, SearchOutlined, EditOutlined, CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { getClientes, updateClienteAe, getMargemProjetos, getMargemPessoas } from "../api";
+import { toTitleCase } from "../utils/format";
 
 const brl = (v: any) =>
   Number(v) ? Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—";
@@ -173,6 +174,7 @@ export default function ClientesTab() {
     {
       title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true,
       sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
+      render: (v: string) => toTitleCase(v) || "—",
     },
     {
       title: "BU", dataIndex: "bu", key: "bu", width: 130,
@@ -213,7 +215,7 @@ export default function ClientesTab() {
   const colProjetos = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 190,
       sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)) },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120 },
+    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120, render: (v: string) => toTitleCase(v) || "—" },
     { title: "Nó Hierarquia", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 130 },
     { title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110 },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
@@ -231,10 +233,11 @@ export default function ClientesTab() {
 
   const colPessoas = [
     { title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true,
-      sorter: (a: any, b: any) => String(a.nome).localeCompare(String(b.nome), "pt-BR") },
+      sorter: (a: any, b: any) => String(a.nome).localeCompare(String(b.nome), "pt-BR"),
+      render: (v: string) => toTitleCase(v) || "—" },
     { title: "ID", dataIndex: "numero_pessoal", key: "numero_pessoal", width: 110 },
     { title: "CPF", dataIndex: "cpf", key: "cpf", width: 150 },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120 },
+    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120, render: (v: string) => toTitleCase(v) || "—" },
     { title: "Horas", dataIndex: "horas", key: "horas", width: 80, align: "right" as const,
       render: (v: any) => Number(v) > 0 ? Number(v).toLocaleString("pt-BR") : "—" },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,

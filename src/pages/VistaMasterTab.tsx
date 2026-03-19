@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Table, Spin, message, Tag, Progress, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
 import { SearchOutlined, ReloadOutlined, UserOutlined, FilePdfOutlined } from "@ant-design/icons";
 import { getApuracaoVisaoMaster, getApuracaoCalcular, downloadApuracaoPdf } from "../api";
+import { toTitleCase } from "../utils/format";
 
 const { Option } = Select;
 
@@ -138,7 +139,7 @@ export default function VistaMasterTab() {
           style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }}
           onClick={() => abrirDetalhe(v)}
         >
-          <UserOutlined style={{ marginRight: 6 }} />{v}
+          <UserOutlined style={{ marginRight: 6 }} />{toTitleCase(v)}
         </span>
       ),
     },

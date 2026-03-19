@@ -3,6 +3,7 @@ import { Select, Table, Spin, message, Input } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { getMetasFilters, getMetasCustoPessoal } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { toTitleCase } from "../utils/format";
 
 const labelStyle: React.CSSProperties = {
   color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
@@ -47,8 +48,8 @@ export default function MetasTab() {
 
   const columnsDef = [
     { title: "Nº Pessoal", dataIndex: "numero_pessoal", key: "id", width: 120 },
-    { title: "Nome",       dataIndex: "nome",            key: "nome", ellipsis: true },
-    { title: "Empresa",    dataIndex: "empresa",         key: "empresa", width: 130 },
+    { title: "Nome",       dataIndex: "nome",            key: "nome", ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
+    { title: "Empresa",    dataIndex: "empresa",         key: "empresa", width: 130, render: (v: string) => toTitleCase(v) || "—" },
     { title: "Tipo",       dataIndex: "tipo",            key: "tipo", width: 80 },
     {
       title: "Custo",

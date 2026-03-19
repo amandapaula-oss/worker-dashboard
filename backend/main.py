@@ -774,7 +774,19 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
     if aes:
         df = df[df["ae"].isin(aes.split(","))]
     if nome_cliente:
-        df = df[df["nome_cliente"].str.upper().str.strip() == nome_cliente.upper().strip()]
+        nc_upper = nome_cliente.upper().strip()
+        match_names = {nc_upper}
+        try:
+            clientes_df = read_clientes_csv()
+            if "nome_base" in clientes_df.columns:
+                row = clientes_df[clientes_df["nome_cliente"].str.upper().str.strip() == nc_upper]
+                if not row.empty:
+                    nb = str(row.iloc[0].get("nome_base", "") or "").strip()
+                    if nb:
+                        match_names.add(nb.upper())
+        except Exception:
+            pass
+        df = df[df["nome_cliente"].str.upper().str.strip().isin(match_names)]
     df["pep"] = df["pep"].str.split(".").str[0]
     extra_keys = ["categoria_bu", "no_hierarquia", "centro_lucro", "vertical", "ae"] if not breakdown and all(c in df.columns for c in ["categoria_bu", "no_hierarquia", "centro_lucro"]) else []
     group_keys = (["periodo", "pep", "nome_cliente", "empresa"] if breakdown else ["pep", "nome_cliente", "empresa"]) + extra_keys
