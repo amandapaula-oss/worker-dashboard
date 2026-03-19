@@ -788,7 +788,9 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
             pass
         df = df[df["nome_cliente"].str.upper().str.strip().isin(match_names)]
     df["pep"] = df["pep"].str.split(".").str[0]
-    extra_keys = ["categoria_bu", "no_hierarquia", "centro_lucro", "vertical", "ae"] if not breakdown and all(c in df.columns for c in ["categoria_bu", "no_hierarquia", "centro_lucro"]) else []
+    base_extra = ["categoria_bu", "no_hierarquia", "centro_lucro"] if not breakdown and all(c in df.columns for c in ["categoria_bu", "no_hierarquia", "centro_lucro"]) else []
+    v_ae_extra = [k for k in ["vertical", "ae"] if k in df.columns]
+    extra_keys = base_extra + v_ae_extra
     group_keys = (["periodo", "pep", "nome_cliente", "empresa"] if breakdown else ["pep", "nome_cliente", "empresa"]) + extra_keys
     agg = df.groupby(group_keys, as_index=False).agg(
         receita      =("receita",       "sum"),

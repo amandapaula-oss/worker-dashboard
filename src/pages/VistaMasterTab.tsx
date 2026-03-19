@@ -28,7 +28,9 @@ type DetalheWS = {
   ws: string;
   peso_ws: number;
   budget_rec: number;
+  trigger_rec_amount: number;
   real_rec: number;
+  receita_faltante: number;
   ating_rec: number;
   budget_mb_pct: number;
   real_mb_pct: number;
@@ -37,6 +39,13 @@ type DetalheWS = {
   bonus_rec: number;
   bonus_mb: number;
   bonus_ws: number;
+};
+
+type ClienteDetalhe = {
+  cliente: string;
+  budget_rec: number;
+  real_rec: number;
+  diferenca: number;
 };
 
 type DetalheCalculo = {
@@ -49,6 +58,8 @@ type DetalheCalculo = {
   // AE
   peso_receita?: number;
   peso_mb?: number;
+  trigger_rec?: number;
+  trigger_mb?: number;
   budget_rec_total?: number;
   real_rec_total?: number;
   ating_rec_total?: number;
@@ -56,6 +67,7 @@ type DetalheCalculo = {
   real_mb_pct?: number;
   ating_mb_total?: number;
   detalhe_ws?: DetalheWS[];
+  clientes_detalhe?: ClienteDetalhe[];
   // Diretor
   vertical?: string;
   mc_gate?: number;
@@ -250,7 +262,7 @@ export default function VistaMasterTab() {
         title={detalhe ? `Memória de Cálculo — ${detalhe.nome}` : "Carregando..."}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        width={600}
+        width={780}
         extra={
           detalhe && (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -323,18 +335,43 @@ function MetaRealRow({ label, meta, real, ating }: { label: string; meta: number
 }
 
 function DetalheAE({ d }: { d: DetalheCalculo }) {
+  const triggerRec = d.trigger_rec ?? 0.85;
+  const triggerMb  = d.trigger_mb  ?? 0.985;
+
   return (
     <div>
-      <Divider >Visão Geral</Divider>
+      {/* ── Regras de Apuração ── */}
+      <Divider>Regras de Apuração</Divider>
+      <div style={{ background: "#f6f8ff", border: "1px solid #d0d9f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 4 }}>
+        <div style={{ marginBottom: 6 }}>
+          <strong>Fórmula:</strong> Bônus = Salário × Peso Métrica × Peso WS × Atingimento
+        </div>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 6 }}>
+          <span>🎯 <strong>Trigger Receita:</strong> {fmtPct(triggerRec)} da meta — abaixo disso = 0%</span>
+          <span>🎯 <strong>Trigger MB% (Apps):</strong> {fmtPct(triggerMb)} da meta — abaixo = bônus MB bloqueado</span>
+        </div>
+        <div style={{ color: "#555", marginBottom: 6 }}>
+          Atingimento entre trigger e 100%: escala linear de 50% a 100%. Acima da meta: 100%.
+        </div>
+        <div>
+          <strong>Pesos desta posição:</strong>&nbsp;
+          Receita <Tag color="blue">{fmtPct(d.peso_receita || 0)}</Tag>
+          MB% <Tag color="purple">{fmtPct(d.peso_mb || 0)}</Tag>
+          Salário Q4 <Tag color="default">{fmt(d.salario_q4)}</Tag>
+        </div>
+      </div>
+
+      {/* ── Visão Geral ── */}
+      <Divider>Visão Geral</Divider>
       <MetaRealRow
-        label={`Receita (peso ${fmtPct(d.peso_receita || 0)})`}
+        label={`Receita Total (peso ${fmtPct(d.peso_receita || 0)})`}
         meta={d.budget_rec_total || 0}
         real={d.real_rec_total || 0}
         ating={d.ating_rec_total || 0}
       />
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontWeight: 600, marginBottom: 4 }}>
-          MB% (peso {fmtPct(d.peso_mb || 0)})
+          MB% Total (peso {fmtPct(d.peso_mb || 0)})
         </div>
         <div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 4 }}>
           <span>Meta: <strong>{(d.budget_mb_pct || 0).toFixed(2)}%</strong></span>
@@ -347,25 +384,128 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
         />
       </div>
 
+      {/* ── Detalhe por Workstream ── */}
       {d.detalhe_ws && d.detalhe_ws.length > 0 && (
         <>
-          <Divider >Detalhe por Workstream</Divider>
+          <Divider>Detalhe por Workstream</Divider>
           <Table
             size="small"
             pagination={false}
             dataSource={d.detalhe_ws}
             rowKey="ws"
+            scroll={{ x: "max-content" }}
             columns={[
-              { title: "WS", dataIndex: "ws", render: v => <Tag>{v.toUpperCase()}</Tag> },
-              { title: "Peso WS", dataIndex: "peso_ws", render: v => fmtPct(v) },
-              { title: "Meta Rec", dataIndex: "budget_rec", render: v => fmt(v) },
-              { title: "Real Rec", dataIndex: "real_rec", render: v => fmt(v) },
-              { title: "Ating.", dataIndex: "ating_rec", render: v => <span style={{ color: v >= 1 ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f" }}>{fmtPct(v)}</span> },
+              { title: "WS", dataIndex: "ws", width: 70, render: (v: string) => <Tag>{v.toUpperCase()}</Tag> },
+              { title: "Peso WS", dataIndex: "peso_ws", width: 80, render: (v: number) => fmtPct(v) },
+              { title: "Meta", dataIndex: "budget_rec", width: 130, align: "right" as const, render: (v: number) => fmt(v) },
               {
-                title: "Bônus WS", dataIndex: "bonus_ws",
-                render: v => <strong style={{ color: "#52c41a" }}>{fmt(v)}</strong>
+                title: "Mínimo p/ pontuar",
+                dataIndex: "trigger_rec_amount",
+                width: 140,
+                align: "right" as const,
+                render: (v: number) => <span style={{ color: "#888" }}>{fmt(v ?? 0)}</span>,
+              },
+              {
+                title: "Realizado",
+                dataIndex: "real_rec",
+                width: 130,
+                align: "right" as const,
+                render: (v: number, row: DetalheWS) => (
+                  <span style={{ color: v >= (row.trigger_rec_amount ?? 0) ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>
+                    {fmt(v)}
+                  </span>
+                ),
+              },
+              {
+                title: "Falta p/ mínimo",
+                dataIndex: "receita_faltante",
+                width: 130,
+                align: "right" as const,
+                render: (v: number) =>
+                  v > 0
+                    ? <Tag color="red" style={{ fontWeight: 600 }}>{fmt(v)}</Tag>
+                    : <Tag color="green">✓ Atingido</Tag>,
+              },
+              {
+                title: "Ating.",
+                dataIndex: "ating_rec",
+                width: 70,
+                render: (v: number) => (
+                  <span style={{ color: v >= 1 ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>
+                    {fmtPct(v)}
+                  </span>
+                ),
+              },
+              {
+                title: "Bônus WS",
+                dataIndex: "bonus_ws",
+                width: 120,
+                align: "right" as const,
+                render: (v: number) => <strong style={{ color: v > 0 ? "#52c41a" : "#999" }}>{fmt(v)}</strong>,
               },
             ]}
+          />
+        </>
+      )}
+
+      {/* ── Carteira de Clientes ── */}
+      {d.clientes_detalhe && d.clientes_detalhe.length > 0 && (
+        <>
+          <Divider>Carteira de Clientes</Divider>
+          <Table
+            size="small"
+            pagination={false}
+            dataSource={d.clientes_detalhe}
+            rowKey="cliente"
+            columns={[
+              {
+                title: "Cliente",
+                dataIndex: "cliente",
+                render: (v: string) => <strong>{toTitleCase(v)}</strong>,
+              },
+              {
+                title: "Budget Q4",
+                dataIndex: "budget_rec",
+                align: "right" as const,
+                render: (v: number) => fmt(v),
+              },
+              {
+                title: "Realizado",
+                dataIndex: "real_rec",
+                align: "right" as const,
+                render: (v: number, row: ClienteDetalhe) => (
+                  <span style={{
+                    color: v >= row.budget_rec ? "#52c41a" : v >= row.budget_rec * triggerRec ? "#faad14" : "#ff4d4f",
+                    fontWeight: 600,
+                  }}>
+                    {fmt(v)}
+                  </span>
+                ),
+              },
+              {
+                title: "vs Budget",
+                dataIndex: "diferenca",
+                align: "right" as const,
+                render: (v: number) => (
+                  <span style={{ color: v >= 0 ? "#52c41a" : "#ff4d4f" }}>
+                    {v >= 0 ? "+" : ""}{fmt(v)}
+                  </span>
+                ),
+              },
+            ]}
+            summary={rows => {
+              const totalBgt  = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.budget_rec, 0);
+              const totalReal = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.real_rec, 0);
+              const totalDif  = totalReal - totalBgt;
+              return (
+                <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
+                  <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="right">{fmt(totalBgt)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} align="right"><span style={{ color: totalReal >= totalBgt ? "#52c41a" : "#ff4d4f" }}>{fmt(totalReal)}</span></Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="right"><span style={{ color: totalDif >= 0 ? "#52c41a" : "#ff4d4f" }}>{totalDif >= 0 ? "+" : ""}{fmt(totalDif)}</span></Table.Summary.Cell>
+                </Table.Summary.Row>
+              );
+            }}
           />
         </>
       )}

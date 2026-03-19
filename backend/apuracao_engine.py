@@ -195,10 +195,20 @@ def calc_bonus_ae(nome: str) -> dict:
         realized_lb_ws[ws_key] = 0.0
 
     clientes_ae = rec_ae["cliente_norm"].dropna().unique()
+    clientes_detalhe = []
     for cli_n in clientes_ae:
         real_rec = _match_cliente(cli_n, d["rac_by_client"])
         real_lb  = _match_cliente(cli_n, d["marg_by_client"])
         real_rec_base = _match_cliente(cli_n, d["rec_by_client"])  # receita do margem (para mb%)
+        cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
+        cli_bgt  = float(cli_rows["q4"].sum())
+        cli_display = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
+        clientes_detalhe.append({
+            "cliente":    cli_display,
+            "budget_rec": round(cli_bgt, 2),
+            "real_rec":   round(real_rec, 2),
+            "diferenca":  round(real_rec - cli_bgt, 2),
+        })
 
         # Budget por WS para este cliente
         cli_rec_ws = rec_ae[rec_ae["cliente_norm"] == cli_n].groupby("ws_key")["q4"].sum()
@@ -258,25 +268,29 @@ def calc_bonus_ae(nome: str) -> dict:
 
         bonus_total += bonus_rec + bonus_mb
 
+        trigger_amount = round(bgt_r * TRIGGER_REC_Q4, 2)
         detalhe_ws.append({
-            "ws":            ws_k,
-            "peso_ws":       peso_ws,
-            "budget_rec":    round(bgt_r, 2),
-            "real_rec":      round(real_r, 2),
-            "ating_rec":     round(ating_rec, 4),
-            "budget_mb_pct": round(bgt_mb_pct_ws * 100, 2),
-            "real_mb_pct":   round(real_mb_pct_ws * 100, 2),
-            "ating_mb":      round(ating_mb, 4),
-            "mb_gate":       mb_gate,
-            "bonus_rec":     round(bonus_rec, 2),
-            "bonus_mb":      round(bonus_mb, 2),
-            "bonus_ws":      round(bonus_rec + bonus_mb, 2),
+            "ws":                  ws_k,
+            "peso_ws":             peso_ws,
+            "budget_rec":          round(bgt_r, 2),
+            "trigger_rec_amount":  trigger_amount,
+            "real_rec":            round(real_r, 2),
+            "receita_faltante":    round(max(0.0, trigger_amount - real_r), 2),
+            "ating_rec":           round(ating_rec, 4),
+            "budget_mb_pct":       round(bgt_mb_pct_ws * 100, 2),
+            "real_mb_pct":         round(real_mb_pct_ws * 100, 2),
+            "ating_mb":            round(ating_mb, 4),
+            "mb_gate":             mb_gate,
+            "bonus_rec":           round(bonus_rec, 2),
+            "bonus_mb":            round(bonus_mb, 2),
+            "bonus_ws":            round(bonus_rec + bonus_mb, 2),
         })
 
     # Atingimento total (para display)
     ating_rec_total = calc_atingimento(real_rec_total, bgt_rec_total, TRIGGER_REC_Q4)
     ating_mb_total  = calc_atingimento(real_mb_pct, bgt_mb_pct, TRIGGER_MB_Q4)
 
+    clientes_detalhe.sort(key=lambda x: x["budget_rec"], reverse=True)
     return {
         "nome":          pessoa["Nome"],
         "posicao":       posicao,
@@ -285,6 +299,8 @@ def calc_bonus_ae(nome: str) -> dict:
         "periodo":       "Q4 2025",
         "peso_receita":  peso_rec,
         "peso_mb":       peso_mb,
+        "trigger_rec":   TRIGGER_REC_Q4,
+        "trigger_mb":    TRIGGER_MB_Q4,
         "budget_rec_total":  round(bgt_rec_total, 2),
         "real_rec_total":    round(real_rec_total, 2),
         "ating_rec_total":   round(ating_rec_total, 4),
@@ -293,6 +309,7 @@ def calc_bonus_ae(nome: str) -> dict:
         "ating_mb_total":    round(ating_mb_total, 4),
         "bonus_total":       round(bonus_total, 2),
         "detalhe_ws":        detalhe_ws,
+        "clientes_detalhe":  clientes_detalhe,
     }
 
 
