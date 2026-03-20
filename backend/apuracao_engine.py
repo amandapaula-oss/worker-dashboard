@@ -676,11 +676,13 @@ def get_visao_master() -> list[dict]:
                 res = calc_bonus_ae(nome)
                 bgt_r = res["budget_rec_total"] or 1
                 bgt_m = res["budget_mb_pct"] or 1
+                nome_n_vis = norm(nome)
+                vertical_ae = AE_BS_OVERRIDE.get(nome_n_vis) or _resolve_vertical_for_ae(nome, ae_vert)
                 resultados.append({
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],
                     "contrato": res["contrato"],
-                    "vertical": _resolve_vertical_for_ae(nome, ae_vert),
+                    "vertical": vertical_ae,
                     "salario":  res["salario_q4"],
                     "bonus":    res["bonus_total"],
                     "ating_principal": res["ating_rec_total"],
@@ -697,11 +699,12 @@ def get_visao_master() -> list[dict]:
                     "tipo_calc":  "Comercial",
                 })
         except Exception as e:
+            nome_n_err = norm(nome)
             resultados.append({
                 "nome":     nome,
                 "posicao":  pos,
                 "contrato": str(p.get("Contrato", "")),
-                "vertical": _resolve_vertical_for_ae(nome, ae_vert),
+                "vertical": AE_BS_OVERRIDE.get(nome_n_err) or _resolve_vertical_for_ae(nome, ae_vert),
                 "salario":  sal,
                 "bonus":    0.0,
                 "ating_principal": 0.0,
