@@ -721,6 +721,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
               const totalReal  = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.real_rec, 0);
               const totalCusto = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_custo || 0), 0);
               const totalLb    = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_lb || 0), 0);
+              const totalMgPct = totalReal > 0 ? totalLb / totalReal * 100 : null;
               return (
                 <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
                   <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
@@ -730,7 +731,11 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={3} align="right">{fmt(Math.abs(totalCusto))}</Table.Summary.Cell>
                   <Table.Summary.Cell index={4} align="right">{fmt(totalLb)}</Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} />
+                  <Table.Summary.Cell index={5} align="right">
+                    {totalMgPct != null
+                      ? <span style={{ color: totalMgPct >= 30 ? "#52c41a" : totalMgPct >= 20 ? "#faad14" : "#ff4d4f", fontWeight: 700 }}>{totalMgPct.toFixed(1)}%</span>
+                      : "—"}
+                  </Table.Summary.Cell>
                 </Table.Summary.Row>
               );
             }}
@@ -858,6 +863,58 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
           },
         ]}
       />
+
+      {/* ── Clientes da Vertical ── */}
+      {d.clientes_detalhe && d.clientes_detalhe.length > 0 && (
+        <>
+          <Divider>Carteira de Clientes da Vertical</Divider>
+          <Table
+            size="small"
+            pagination={false}
+            dataSource={d.clientes_detalhe.map((r, i) => ({ ...r, key: i }))}
+            style={{ marginBottom: 16 }}
+            columns={[
+              { title: "Cliente", dataIndex: "cliente", ellipsis: true },
+              { title: "Budget Rec", dataIndex: "budget_rec", align: "right" as const, render: (v: number) => fmt(v) },
+              { title: "Rec Real", dataIndex: "real_rec", align: "right" as const,
+                render: (v: number, row: any) => (
+                  <span style={{ color: v >= row.budget_rec ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>{fmt(v)}</span>
+                )},
+              { title: "Custo", dataIndex: "real_custo", align: "right" as const,
+                render: (v: number) => v != null && v !== 0 ? <span style={{ color: "#595959" }}>{fmt(Math.abs(v))}</span> : <span style={{ color: "#ccc" }}>—</span> },
+              { title: "LB Real", dataIndex: "real_lb", align: "right" as const,
+                render: (v: number) => v != null && v !== 0 ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
+              { title: "Margem%", dataIndex: "margem_pct", align: "right" as const,
+                render: (v: number | null) => v != null
+                  ? <span style={{ color: v >= 30 ? "#52c41a" : v >= 20 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{v.toFixed(1)}%</span>
+                  : <span style={{ color: "#ccc" }}>—</span> },
+            ]}
+            summary={rows => {
+              const tBgt  = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.budget_rec, 0);
+              const tReal = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.real_rec, 0);
+              const tCust = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_custo || 0), 0);
+              const tLb   = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_lb || 0), 0);
+              const tMg   = tReal > 0 ? tLb / tReal * 100 : null;
+              return (
+                <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
+                  <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="right">{fmt(tBgt)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} align="right">
+                    <span style={{ color: tReal >= tBgt ? "#52c41a" : "#ff4d4f" }}>{fmt(tReal)}</span>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="right">{fmt(Math.abs(tCust))}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} align="right">{fmt(tLb)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} align="right">
+                    {tMg != null
+                      ? <span style={{ color: tMg >= 30 ? "#52c41a" : tMg >= 20 ? "#faad14" : "#ff4d4f" }}>{tMg.toFixed(1)}%</span>
+                      : "—"}
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              );
+            }}
+          />
+        </>
+      )}
 
       {/* ── Tabela de Cálculo ── */}
       <Divider>Cálculo do Bônus</Divider>

@@ -495,11 +495,27 @@ def calc_bonus_diretor(nome: str) -> dict:
         rec_dir = pd.DataFrame()
 
     bgt_rec_q4  = float(rec_dir["q4"].sum()) if not rec_dir.empty else 0.0
-    # Realizado receita: soma de RAC dos clientes da vertical
+    # Realizado receita: soma de RAC dos clientes da vertical + detalhe por cliente
     real_rec_q4 = 0.0
+    clientes_detalhe_dir = []
     if not rec_dir.empty:
         for cli_n in rec_dir["cliente_norm"].dropna().unique():
-            real_rec_q4 += _match_cliente(cli_n, rac_by_client)
+            r_rec   = _match_cliente(cli_n, rac_by_client)
+            r_lb    = _match_cliente(cli_n, d["marg_by_client"])
+            r_custo = _match_cliente(cli_n, d["custo_by_client"])
+            cli_rows = rec_dir[rec_dir["cliente_norm"] == cli_n]
+            b_rec    = float(cli_rows["q4"].sum())
+            cli_disp = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
+            real_rec_q4 += r_rec
+            clientes_detalhe_dir.append({
+                "cliente":    cli_disp,
+                "budget_rec": round(b_rec, 2),
+                "real_rec":   round(r_rec, 2),
+                "real_custo": round(r_custo, 2),
+                "real_lb":    round(r_lb, 2),
+                "margem_pct": round(r_lb / r_rec * 100, 1) if r_rec > 0 else None,
+            })
+    clientes_detalhe_dir.sort(key=lambda x: x["budget_rec"], reverse=True)
 
     ating_rec = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
 
@@ -619,6 +635,7 @@ def calc_bonus_diretor(nome: str) -> dict:
         "bonus_rec":         round(bonus_rec, 2),
         "bonus_mc":          round(bonus_mc, 2),
         "bonus_total":       round(bonus_total, 2),
+        "clientes_detalhe":  clientes_detalhe_dir,
     }
 
 
