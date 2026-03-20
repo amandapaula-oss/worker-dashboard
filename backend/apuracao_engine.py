@@ -401,7 +401,7 @@ DIRETOR_VERTICAL = {
     norm("Marcos"):       "Health",
     norm("Zanini"):       "Finance",
     norm("Artea"):        "Multisector",
-    norm("Henrique"):     "Logistics",
+    norm("Henrique"):     "Grupo Mult",
     norm("Alexsandro"):   "Retail",
 }
 
@@ -409,8 +409,8 @@ DIRETOR_VERTICAL = {
 DIRETOR_TCV_KEY = {
     "Health":       "Health",
     "Multisector":  "Multisector",
-    "Finance":      "Wagner",   # budget_tcv chave para Finance
-    "Logistics":    "Felipe",   # budget_tcv chave para Logistics
+    "Finance":      "Wagner",
+    "Grupo Mult":   "Felipe",
     "Retail":       "Retail",
 }
 
@@ -419,15 +419,15 @@ VERTICAL_BS_MAP = {
     "Health":       "Health",
     "Multisector":  "Multisector",
     "Finance":      "Finance",
-    "Logistics":    "Logistics",
+    "Grupo Mult":   "Grupo Mult",
     "Retail":       "Retail",
 }
 
-# Verticais Nexus correspondentes para MC% (nexus_agg.csv usa "Finance & Insurance")
+# Verticais Nexus correspondentes para MC% (nexus_agg.csv usa "Finance & Insurance" e "Logistics")
 NEXUS_VERTICAL_MAP = {
     "Finance":      ["Finance & Insurance"],
     "Health":       ["Health"],
-    "Logistics":    ["Logistics"],
+    "Grupo Mult":   ["Logistics"],
     "Multisector":  ["Multisector"],
     "Retail":       ["Retail"],
 }
@@ -702,6 +702,93 @@ def _resolve_vertical_for_ae(nome: str, lookup: dict) -> str:
     return ""
 
 
+# ─── Metas Anuais ────────────────────────────────────────────────────────────
+
+_METAS_ANUAIS_PATH = os.path.join(DIR, "metas_anuais.csv")
+_PERIODOS_ANUAIS   = ["Q1Y25", "Q2Y25", "Q3Y25"]  # Q4 calculado pelo engine
+
+@lru_cache(maxsize=1)
+def _load_metas_anuais() -> pd.DataFrame:
+    if not os.path.exists(_METAS_ANUAIS_PATH):
+        return pd.DataFrame()
+    df = pd.read_csv(_METAS_ANUAIS_PATH, encoding="utf-8-sig")
+    df["nome_norm"] = df["nome"].apply(norm)
+    df["periodo"]   = df["periodo"].str.upper().str.strip()
+    # Filtra apenas receita (ignora linhas de total e outros tipos)
+    df = df[df["meta_tipo"].str.lower() == "receita"]
+    df = df[df["ws"].str.lower() != "total"]
+    return df
+
+
+def calc_bonus_anual(nome: str, salario: float, q4_realizado: float, q4_meta: float) -> dict:
+    """
+    Calcula bônus anual (Q1+Q2+Q3 do CSV + Q4 do engine).
+    Valor cheio = 3 × salário × atingimento_anual
+    """
+    df = _load_metas_anuais()
+    nome_n = norm(nome)
+
+    if df.empty:
+        return {"disponivel": False}
+
+    pessoa = df[df["nome_norm"] == nome_n]
+    if pessoa.empty:
+        # Try first-name match
+        primeiro = nome_n.split()[0]
+        pessoa = df[df["nome_norm"].str.startswith(primeiro)]
+    if pessoa.empty:
+        return {"disponivel": False}
+
+    trimestres = []
+    for per in _PERIODOS_ANUAIS:
+        per_rows = pessoa[pessoa["periodo"] == per]
+        if per_rows.empty:
+            continue
+        meta_sum  = float(per_rows["meta"].sum())
+        real_sum  = float(per_rows["realizado"].sum())
+        apur_sum  = float(per_rows["apuracao"].sum())
+        sal_row   = float(per_rows["salario"].iloc[0]) if not per_rows.empty else 0.0
+        trimestres.append({
+            "periodo":   per,
+            "meta":      round(meta_sum, 2),
+            "realizado": round(real_sum, 2),
+            "apuracao":  round(apur_sum, 2),
+            "salario":   round(sal_row, 2),
+        })
+
+    # Q4 usando valores do engine
+    trimestres.append({
+        "periodo":   "Q4Y25",
+        "meta":      round(q4_meta, 2),
+        "realizado": round(q4_realizado, 2),
+        "apuracao":  None,  # calculado abaixo
+        "salario":   round(salario, 2),
+    })
+
+    # Totais anuais
+    total_meta  = sum(t["meta"]      for t in trimestres)
+    total_real  = sum(t["realizado"] for t in trimestres)
+
+    ating_anual = calc_atingimento(total_real, total_meta, 0.85)
+    bonus_anual = round(3 * salario * ating_anual, 2)
+
+    # Atualiza apuracao do Q4
+    for t in trimestres:
+        if t["periodo"] == "Q4Y25":
+            q4_ating = calc_atingimento(q4_realizado, q4_meta, 0.85)
+            t["apuracao"] = round(salario * q4_ating, 2)
+
+    return {
+        "disponivel":   True,
+        "trimestres":   trimestres,
+        "total_meta":   round(total_meta, 2),
+        "total_real":   round(total_real, 2),
+        "ating_anual":  round(ating_anual, 4),
+        "bonus_anual":  bonus_anual,
+        "salario":      round(salario, 2),
+    }
+
+
 # ─── Visão Master ────────────────────────────────────────────────────────────
 
 def get_visao_master() -> list[dict]:
@@ -722,6 +809,8 @@ def get_visao_master() -> list[dict]:
                 bgt_r = res["budget_rec_q4"] or 1
                 bgt_t = res["budget_tcv_q4"] or 1
                 bgt_m = res["budget_mc_pct"] or 1
+                anual = calc_bonus_anual(nome, res["salario_q4"],
+                                         res["real_rec_q4"], res["budget_rec_q4"])
                 resultados.append({
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],
@@ -741,6 +830,9 @@ def get_visao_master() -> list[dict]:
                     "mc_gate":   res["mc_gate"],
                     "gate_ok":   res["mc_gate"] == 1.0,
                     "tipo_calc": "Diretor",
+                    "bonus_anual":  anual.get("bonus_anual"),
+                    "ating_anual":  anual.get("ating_anual"),
+                    "anual_ok":     anual.get("disponivel", False),
                 })
             elif pos in ("AE", "AE2", "HUNTER", "ESTRATEGISTAS", "CS"):
                 res = calc_bonus_ae(nome)
@@ -748,6 +840,8 @@ def get_visao_master() -> list[dict]:
                 bgt_m = res["budget_mb_pct"] or 1
                 nome_n_vis = norm(nome)
                 vertical_ae = AE_BS_OVERRIDE.get(nome_n_vis) or _resolve_vertical_for_ae(nome, ae_vert)
+                anual = calc_bonus_anual(nome, res["salario_q4"],
+                                         res["real_rec_total"], res["budget_rec_total"])
                 resultados.append({
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],
@@ -767,6 +861,9 @@ def get_visao_master() -> list[dict]:
                     "mc_gate":    None,
                     "gate_ok":    bool(res.get("lb_gate", 1)),
                     "tipo_calc":  "Comercial",
+                    "bonus_anual":  anual.get("bonus_anual"),
+                    "ating_anual":  anual.get("ating_anual"),
+                    "anual_ok":     anual.get("disponivel", False),
                 })
         except Exception as e:
             nome_n_err = norm(nome)

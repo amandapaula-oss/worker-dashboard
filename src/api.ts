@@ -177,6 +177,10 @@ export async function getApuracaoVisaoMaster() {
   return apiFetch("/api/apuracao/visao-master");
 }
 
+export async function getApuracaoBonusAnual(nome: string) {
+  return apiFetch(`/api/apuracao/bonus-anual/${encodeURIComponent(nome)}`);
+}
+
 // ── Clientes ──────────────────────────────────────────────────────────────────
 
 export async function getClientes(params: Record<string, string> = {}) {

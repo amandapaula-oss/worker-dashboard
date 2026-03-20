@@ -178,7 +178,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       e.num_projetos  += 1;
     }
     return Array.from(map.values())
-      .map(r => ({ ...r, margem_pct: r.receita !== 0 ? r.margem / r.receita : null }))
+      .map(r => ({ ...r, margem_pct: r.receita > 0 ? r.margem / r.receita : null }))
       .sort((a, b) => a.nome_cliente.localeCompare(b.nome_cliente, "pt-BR"));
   }, [filteredProjetos]);
 

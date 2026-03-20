@@ -654,8 +654,8 @@ def get_margem_proj() -> pd.DataFrame:
     df = df.merge(rac_receita, left_on=["periodo", "pep_base", "nome_cliente"],
                   right_on=["periodo", "pep", "nome_cliente"], how="left", suffixes=("", "_rac_key"))
     df["receita"] = df["receita_rac"].where(df["receita_rac"].notna(), df["receita"])
-    df["margem"]  = df["receita"] - df["custo_rateado"].fillna(0)
-    df["margem_pct"] = df.apply(lambda r: r["margem"] / r["receita"] if r["receita"] else None, axis=1)
+    df["margem"]  = df["receita"] + df["custo_rateado"].fillna(0)
+    df["margem_pct"] = df.apply(lambda r: r["margem"] / r["receita"] if r["receita"] and r["receita"] > 0 else None, axis=1)
     df = df.drop(columns=["pep_base", "receita_rac", "pep_rac_key"], errors="ignore")
 
     vlookup, ae_lookup = _clientes_lookup()
@@ -1134,6 +1134,34 @@ def get_apuracao_visao_master(user=Depends(get_current_user)):
     """Retorna todos os avaliados com bônus calculado (visão consolidada)."""
     try:
         return get_visao_master()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/apuracao/bonus-anual/{nome}")
+def get_bonus_anual(nome: str, user=Depends(get_current_user)):
+    """Retorna detalhes do bônus anual (Q1-Q4) para uma pessoa."""
+    from apuracao_engine import calc_bonus_anual as _calc_anual
+    try:
+        d = _load_all()
+        pessoas = d["pessoas"]
+        nome_n = eng_norm(nome)
+        pessoa = pessoas[pessoas["nome_norm"] == nome_n]
+        if pessoa.empty:
+            raise HTTPException(status_code=404, detail="Pessoa não encontrada")
+        p   = pessoa.iloc[0]
+        pos = str(p["Posicao"]).upper().strip()
+        sal = float(p["Sal_Q4"] or 0)
+        if pos == "DIRETOR":
+            res = calc_bonus_diretor(nome)
+            q4_real = res["real_rec_q4"]
+            q4_meta = res["budget_rec_q4"]
+        else:
+            res = calc_bonus_ae(nome)
+            q4_real = res["real_rec_total"]
+            q4_meta = res["budget_rec_total"]
+        return _calc_anual(nome, sal, q4_real, q4_meta)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
