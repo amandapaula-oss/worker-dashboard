@@ -19,7 +19,11 @@ wp       = pd.read_excel(WP_PATH)
 rp       = pd.read_excel("relacao_pessoas.xlsx")
 metas    = pd.read_csv("metas_custo.csv", dtype={"numero_pessoal": str})
 rac_proj  = pd.read_csv("rac_projetos.csv",  dtype={"pep": str})
-rac_pess  = pd.read_csv("rac_pessoas.csv",   dtype={"pep": str, "cpf": str})
+rac_pess  = pd.read_csv("rac_pessoas.csv",   dtype={"pep": str})
+if "cpf" not in rac_pess.columns:
+    rac_pess["cpf"] = ""
+if "numero_pessoal" not in rac_pess.columns:
+    rac_pess["numero_pessoal"] = ""
 marg_pess = pd.read_csv("margem_pessoas.csv", dtype={"pep": str, "cpf": str})
 marg_proj = pd.read_csv("margem_projetos.csv", dtype={"pep": str})
 clt_bu   = pd.read_excel(BUILD_UP, sheet_name="CLT - DP")

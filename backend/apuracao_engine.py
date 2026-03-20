@@ -36,6 +36,13 @@ def _load_all():
     rac       = pd.read_csv(os.path.join(DIR, "rac_projetos.csv"),        encoding="utf-8-sig")
     margem    = pd.read_csv(os.path.join(DIR, "margem_projetos.csv"),     encoding="utf-8-sig")
     nexus     = pd.read_csv(os.path.join(DIR, "nexus_agg.csv"),           encoding="utf-8-sig")
+    lb_trigger_df = pd.read_csv(os.path.join(DIR, "premissas_lb_trigger.csv"), encoding="utf-8-sig")
+    lb_trigger_df["nome_norm"] = lb_trigger_df["nome"].apply(norm)
+    # dict: nome_norm → {meta_lb, trigger_lb}
+    lb_trigger_map = {
+        row["nome_norm"]: {"meta_lb": float(row["meta_lb"] or 0), "trigger_lb": float(row["trigger_lb"] or 0)}
+        for _, row in lb_trigger_df.iterrows()
+    }
 
     pessoas["nome_norm"] = pessoas["Nome"].apply(norm)
     bgt_rec["cliente_norm"] = bgt_rec["cliente"].apply(norm)
@@ -81,7 +88,8 @@ def _load_all():
         "rac_by_client":  rac_by_client,
         "marg_by_client": marg_by_client,
         "rec_by_client":  rec_by_client,
-        "nexus":    nexus,
+        "nexus":       nexus,
+        "lb_trigger":  lb_trigger_map,
     }
 
 
@@ -170,6 +178,8 @@ def calc_bonus_ae(nome: str) -> dict:
     if pessoa.empty:
         raise ValueError(f"Pessoa não encontrada: {nome}")
     pessoa = pessoa.iloc[0]
+    # Usa o nome completo normalizado da pessoa para todos os filtros
+    pessoa_nome_n = norm(str(pessoa["Nome"]))
 
     salario   = float(pessoa["Sal_Q4"] or 0)
     posicao   = str(pessoa["Posicao"]).upper().strip()
@@ -185,9 +195,9 @@ def calc_bonus_ae(nome: str) -> dict:
     peso_rec = float(pesos_row["Receita"] or 0)
     peso_mb  = float(pesos_row["MB_pct"] or 0)
 
-    # Budget Q4 por cliente/WS para este AE
-    rec_ae  = bgt_rec[bgt_rec["ae_q4"].apply(norm) == nome_n].copy()
-    lb_ae   = bgt_lb[bgt_lb["ae_q4"].apply(norm) == nome_n].copy()
+    # Budget Q4 por cliente/WS para este AE (usa nome completo)
+    rec_ae  = bgt_rec[bgt_rec["ae_q4"].apply(norm) == pessoa_nome_n].copy()
+    lb_ae   = bgt_lb[bgt_lb["ae_q4"].apply(norm) == pessoa_nome_n].copy()
 
     # Filtra pelo BS predominante (evita misturar verticais diferentes)
     if not rec_ae.empty and "bs" in rec_ae.columns:
@@ -229,11 +239,14 @@ def calc_bonus_ae(nome: str) -> dict:
         cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
         cli_bgt  = float(cli_rows["q4"].sum())
         cli_display = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
+        margem_pct = real_lb / real_rec if real_rec > 0 else None
         clientes_detalhe.append({
             "cliente":    cli_display,
             "budget_rec": round(cli_bgt, 2),
             "real_rec":   round(real_rec, 2),
             "diferenca":  round(real_rec - cli_bgt, 2),
+            "real_lb":    round(real_lb, 2),
+            "margem_pct": round(margem_pct * 100, 1) if margem_pct is not None else None,
         })
 
         cli_rec_ws    = cli_rows.groupby("ws_key")["q4"].sum()
@@ -333,9 +346,16 @@ def calc_bonus_ae(nome: str) -> dict:
     ating_rec_total = calc_atingimento(real_rec_total, bgt_rec_total, TRIGGER_REC_Q4)
     ating_mb_total  = calc_atingimento_mb(real_mb_pct, bgt_mb_pct)
 
-    # LB gate (Apps MB gate)
-    apps_ws = next((w for w in detalhe_ws if w["ws"] == "apps"), None)
-    lb_gate = int(apps_ws["mb_gate"]) if apps_ws else 1
+    # Gatilho Mestre: Lucro Bruto R$ (absoluto), lido da planilha de apuração
+    lb_trigger_info = d["lb_trigger"].get(pessoa_nome_n, {})
+    if not lb_trigger_info:  # fallback: busca por primeiro token
+        primeiro = pessoa_nome_n.split()[0]
+        lb_trigger_info = next(
+            (v for k, v in d["lb_trigger"].items() if k.startswith(primeiro)), {}
+        )
+    meta_lb_q4    = lb_trigger_info.get("meta_lb", 0.0)
+    trigger_lb_q4 = lb_trigger_info.get("trigger_lb", 0.0)
+    lb_gate = 1 if (trigger_lb_q4 <= 0 or real_lb_total >= trigger_lb_q4) else 0
 
     trigger_mb_pct_total = round(max(0.0, bgt_mb_pct * 100 - 1.5), 2)
 
@@ -351,6 +371,9 @@ def calc_bonus_ae(nome: str) -> dict:
         "trigger_rec":   TRIGGER_REC_Q4,
         "trigger_mb_pct_total": trigger_mb_pct_total,
         "lb_gate":       lb_gate,
+        "meta_lb_q4":    round(meta_lb_q4, 2),
+        "trigger_lb_q4": round(trigger_lb_q4, 2),
+        "real_lb_total": round(real_lb_total, 2),
         "budget_rec_total":  round(bgt_rec_total, 2),
         "real_rec_total":    round(real_rec_total, 2),
         "ating_rec_total":   round(ating_rec_total, 4),
