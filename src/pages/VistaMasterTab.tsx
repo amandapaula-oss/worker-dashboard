@@ -350,6 +350,7 @@ export default function VistaMasterTab() {
 
   const posicoes = ["Todos", ...Array.from(new Set(data.map(r => r.posicao)))];
   const totalBonus = filtered.reduce((s, r) => s + r.bonus, 0);
+  const totalBonusAnual = filtered.reduce((s, r) => s + (r.bonus_anual ?? 0), 0);
 
   const atCol = (v: number | null) => {
     if (v == null) return <span style={{ color: "#ccc" }}>—</span>;
@@ -486,7 +487,9 @@ export default function VistaMasterTab() {
               <Table.Summary.Cell index={8} align="right">
                 <span style={{ color: "#52c41a" }}>{fmt(totalBonus)}</span>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={9} />
+              <Table.Summary.Cell index={9} align="right">
+                <span style={{ color: "#52c41a" }}>{fmt(totalBonusAnual)}</span>
+              </Table.Summary.Cell>
             </Table.Summary.Row>
           )}
         />
