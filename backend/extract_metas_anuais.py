@@ -38,12 +38,17 @@ def find_header_row_and_sections(ws):
     """
     HDR_KEYS = ["Periodo", "BU", "Avaliado"]
 
+    # Percorre todas as linhas 1-9 e escolhe a que tem mais ocorrências de "Periodo"
+    best_r, best_cols = None, []
     for r in range(1, 10):
-        row_vals = {ws.cell(r, c).value: c for c in range(1, ws.max_column + 1)
-                    if ws.cell(r, c).value is not None}
-        # Find all columns named "Periodo" in this row
         periodo_cols = [c for c in range(1, ws.max_column + 1)
                         if str(ws.cell(r, c).value or "").strip() == "Periodo"]
+        if len(periodo_cols) > len(best_cols):
+            best_r, best_cols = r, periodo_cols
+
+    if best_r is not None:
+        r = best_r
+        periodo_cols = best_cols
         if len(periodo_cols) >= 1:
             sections = []
             for pc in periodo_cols:
@@ -76,6 +81,8 @@ def find_header_row_and_sections(ws):
                 })
             return r, sections
     return None, []
+
+
 
 
 def extract_sheet(ws):
