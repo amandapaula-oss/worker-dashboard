@@ -566,8 +566,8 @@ def calc_bonus_diretor(nome: str) -> dict:
         real_deductions  = float(nq4_actual[nq4_actual["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
         direct_costs = real_payroll + real_third_party + real_other_costs
         real_mc_pct = (gross_rev + direct_costs) / gross_rev if gross_rev else 0.0
-        # Fallback receita para verticais sem linhas no budget_receita.csv
-        if real_rec_q4 == 0 and gross_rev > 0:
+        # Diretor é responsável pela vertical inteira → usar nexus gross_rev como realizado
+        if gross_rev > 0:
             real_rec_q4 = float(gross_rev)
             ating_rec = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
     else:
