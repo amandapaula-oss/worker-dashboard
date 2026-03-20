@@ -59,7 +59,7 @@ type ClienteDetalhe = {
   cliente: string;
   budget_rec: number;
   real_rec: number;
-  diferenca: number;
+  real_custo?: number;
   real_lb?: number;
   margem_pct?: number | null;
 };
@@ -679,14 +679,12 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                 ),
               },
               {
-                title: "vs Budget",
-                dataIndex: "diferenca",
+                title: "Custo",
+                dataIndex: "real_custo",
                 align: "right" as const,
-                render: (v: number) => (
-                  <span style={{ color: v >= 0 ? "#52c41a" : "#ff4d4f" }}>
-                    {v >= 0 ? "+" : ""}{fmt(v)}
-                  </span>
-                ),
+                render: (v: number) => v > 0
+                  ? <span style={{ color: "#595959" }}>{fmt(v)}</span>
+                  : <span style={{ color: "#ccc" }}>—</span>,
               },
               {
                 title: "LB Real",
@@ -706,10 +704,10 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
               },
             ]}
             summary={rows => {
-              const totalBgt  = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.budget_rec, 0);
-              const totalReal = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.real_rec, 0);
-              const totalDif  = totalReal - totalBgt;
-              const totalLb   = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_lb || 0), 0);
+              const totalBgt   = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.budget_rec, 0);
+              const totalReal  = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.real_rec, 0);
+              const totalCusto = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_custo || 0), 0);
+              const totalLb    = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_lb || 0), 0);
               return (
                 <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
                   <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
@@ -717,9 +715,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                   <Table.Summary.Cell index={2} align="right">
                     <span style={{ color: totalReal >= totalBgt ? "#52c41a" : "#ff4d4f" }}>{fmt(totalReal)}</span>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} align="right">
-                    <span style={{ color: totalDif >= 0 ? "#52c41a" : "#ff4d4f" }}>{totalDif >= 0 ? "+" : ""}{fmt(totalDif)}</span>
-                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="right">{fmt(totalCusto)}</Table.Summary.Cell>
                   <Table.Summary.Cell index={4} align="right">{fmt(totalLb)}</Table.Summary.Cell>
                   <Table.Summary.Cell index={5} />
                 </Table.Summary.Row>

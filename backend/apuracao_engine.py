@@ -54,10 +54,11 @@ def _load_all():
     rac_q4["nome_norm"]  = rac_q4["nome_cliente"].apply(norm)
     marg_q4["nome_norm"] = marg_q4["nome_cliente"].apply(norm)
 
-    # Lookup: cliente_norm → realizado receita e margem (Q4)
-    rac_by_client  = rac_q4.groupby("nome_norm")["valor_liquido"].sum().to_dict()
-    marg_by_client = marg_q4.groupby("nome_norm")["margem"].sum().to_dict()
-    rec_by_client  = marg_q4.groupby("nome_norm")["receita"].sum().to_dict()
+    # Lookup: cliente_norm → realizado receita, margem e custo (Q4)
+    rac_by_client   = rac_q4.groupby("nome_norm")["valor_liquido"].sum().to_dict()
+    marg_by_client  = marg_q4.groupby("nome_norm")["margem"].sum().to_dict()
+    rec_by_client   = marg_q4.groupby("nome_norm")["receita"].sum().to_dict()
+    custo_by_client = marg_q4.groupby("nome_norm")["custo_rateado"].sum().to_dict()
 
     # Add aliases: nome_cliente → nome_base (e.g. "C6 BANK" → "BANCO C6 S.A.")
     # so budget entries keyed by friendly name can find the SAP name in the lookup
@@ -71,7 +72,7 @@ def _load_all():
                     nb = str(row.get("nome_base", "") or "").strip()
                     if nc and nb:
                         nc_n, nb_n = norm(nc), norm(nb)
-                        for lookup in [rac_by_client, marg_by_client, rec_by_client]:
+                        for lookup in [rac_by_client, marg_by_client, rec_by_client, custo_by_client]:
                             if nb_n in lookup and nc_n not in lookup:
                                 lookup[nc_n] = lookup[nb_n]
         except Exception:
@@ -85,9 +86,10 @@ def _load_all():
         "bgt_rec":  bgt_rec,
         "bgt_lb":   bgt_lb,
         "bgt_tcv":  bgt_tcv,
-        "rac_by_client":  rac_by_client,
-        "marg_by_client": marg_by_client,
-        "rec_by_client":  rec_by_client,
+        "rac_by_client":   rac_by_client,
+        "marg_by_client":  marg_by_client,
+        "rec_by_client":   rec_by_client,
+        "custo_by_client": custo_by_client,
         "nexus":       nexus,
         "lb_trigger":  lb_trigger_map,
     }
@@ -163,6 +165,11 @@ def _match_cliente(budget_norm: str, lookup: dict) -> float:
     return 0.0
 
 
+# BS forçado por AE (quando budget tem BS errado)
+AE_BS_OVERRIDE = {
+    norm("FABIO LUIS BERTI BARCELOS"): "Grupo Mult",
+}
+
 # ─── Cálculo AE ──────────────────────────────────────────────────────────────
 
 def calc_bonus_ae(nome: str) -> dict:
@@ -199,9 +206,9 @@ def calc_bonus_ae(nome: str) -> dict:
     rec_ae  = bgt_rec[bgt_rec["ae_q4"].apply(norm) == pessoa_nome_n].copy()
     lb_ae   = bgt_lb[bgt_lb["ae_q4"].apply(norm) == pessoa_nome_n].copy()
 
-    # Filtra pelo BS predominante (evita misturar verticais diferentes)
+    # Filtra pelo BS predominante (ou override fixo se cadastrado)
     if not rec_ae.empty and "bs" in rec_ae.columns:
-        primary_bs = rec_ae["bs"].value_counts().idxmax()
+        primary_bs = AE_BS_OVERRIDE.get(pessoa_nome_n) or rec_ae["bs"].value_counts().idxmax()
         rec_ae = rec_ae[rec_ae["bs"] == primary_bs].copy()
         if not lb_ae.empty and "bs" in lb_ae.columns:
             lb_ae = lb_ae[lb_ae["bs"] == primary_bs].copy()
@@ -234,8 +241,9 @@ def calc_bonus_ae(nome: str) -> dict:
     cli_contrib: dict[str, list] = {}  # {ws_k: [{cliente, budget_rec, real_rec}]}
 
     for cli_n in clientes_ae:
-        real_rec = _match_cliente(cli_n, d["rac_by_client"])
-        real_lb  = _match_cliente(cli_n, d["marg_by_client"])
+        real_rec  = _match_cliente(cli_n, d["rac_by_client"])
+        real_lb   = _match_cliente(cli_n, d["marg_by_client"])
+        real_custo = _match_cliente(cli_n, d["custo_by_client"])
         cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
         cli_bgt  = float(cli_rows["q4"].sum())
         cli_display = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
@@ -244,7 +252,7 @@ def calc_bonus_ae(nome: str) -> dict:
             "cliente":    cli_display,
             "budget_rec": round(cli_bgt, 2),
             "real_rec":   round(real_rec, 2),
-            "diferenca":  round(real_rec - cli_bgt, 2),
+            "real_custo": round(real_custo, 2),
             "real_lb":    round(real_lb, 2),
             "margem_pct": round(margem_pct * 100, 1) if margem_pct is not None else None,
         })
