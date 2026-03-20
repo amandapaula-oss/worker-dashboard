@@ -467,6 +467,9 @@ export default function VistaMasterTab() {
         {loadingDetalhe && <Spin />}
         {detalhe && !loadingDetalhe && (
           <div ref={printRef} style={{ padding: 8 }}>
+            <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a2e5a" }}>
+              Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q4 2025</span>
+            </h2>
             <DetalheDrawer d={detalhe} />
           </div>
         )}
@@ -839,15 +842,18 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         pagination={false}
         style={{ marginBottom: 16 }}
         dataSource={[
-          { key: "rec",   linha: "Receita Bruta (Gross Revenue)", bgt: d.bgt_gross_rev ?? d.budget_rec_q4 ?? 0, real: d.real_gross_rev ?? d.real_rec_q4 ?? 0, tipo: "receita" },
-          { key: "pay",   linha: "Custo — Folha (Payroll costs)",            bgt: d.bgt_payroll ?? 0,      real: d.real_payroll ?? 0,      tipo: "custo" },
-          { key: "trd",   linha: "Custo — Terceiros (Third-party costs)",    bgt: d.bgt_third_party ?? 0,  real: d.real_third_party ?? 0,  tipo: "custo" },
-          { key: "oth",   linha: "Custo — Outros (Other costs)",             bgt: d.bgt_other_costs ?? 0,  real: d.real_other_costs ?? 0,  tipo: "custo" },
-          { key: "pexp",  linha: "Despesa — Folha (Payroll expenses)",       bgt: d.bgt_payroll_exp ?? 0,  real: d.real_payroll_exp ?? 0,  tipo: "despesa" },
-          { key: "ded",   linha: "Despesa — Deduções (Deductions & taxes)",  bgt: d.bgt_deductions ?? 0,   real: d.real_deductions ?? 0,   tipo: "despesa" },
+          { key: "rec",  linha: "Receita Bruta", tipo: "receita",
+            bgt:  d.bgt_gross_rev ?? d.budget_rec_q4 ?? 0,
+            real: d.real_gross_rev ?? d.real_rec_q4 ?? 0 },
+          { key: "cst",  linha: "Custos (Payroll + Terceiros + Outros)", tipo: "custo",
+            bgt:  (d.bgt_payroll ?? 0) + (d.bgt_third_party ?? 0) + (d.bgt_other_costs ?? 0),
+            real: (d.real_payroll ?? 0) + (d.real_third_party ?? 0) + (d.real_other_costs ?? 0) },
+          { key: "desp", linha: "Despesas (Folha + Deduções)", tipo: "despesa",
+            bgt:  (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0),
+            real: (d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0) },
         ]}
         columns={[
-          { title: "Linha", dataIndex: "linha", width: "45%",
+          { title: "Linha", dataIndex: "linha", width: "50%",
             render: (v: string, row: any) => (
               <span style={{ color: row.tipo === "receita" ? "#1a2e5a" : row.tipo === "custo" ? "#c0392b" : "#e67e22", fontWeight: row.tipo === "receita" ? 700 : 400 }}>{v}</span>
             )

@@ -498,23 +498,42 @@ def calc_bonus_diretor(nome: str) -> dict:
     # Realizado receita: soma de RAC dos clientes da vertical + detalhe por cliente
     real_rec_q4 = 0.0
     clientes_detalhe_dir = []
+
+    # Base de clientes: preferência budget_receita; fallback clientes.csv filtrado pela BU
     if not rec_dir.empty:
-        for cli_n in rec_dir["cliente_norm"].dropna().unique():
-            r_rec   = _match_cliente(cli_n, rac_by_client)
-            r_lb    = _match_cliente(cli_n, d["marg_by_client"])
-            r_custo = _match_cliente(cli_n, d["custo_by_client"])
-            cli_rows = rec_dir[rec_dir["cliente_norm"] == cli_n]
-            b_rec    = float(cli_rows["q4"].sum())
-            cli_disp = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
-            real_rec_q4 += r_rec
-            clientes_detalhe_dir.append({
-                "cliente":    cli_disp,
-                "budget_rec": round(b_rec, 2),
-                "real_rec":   round(r_rec, 2),
-                "real_custo": round(r_custo, 2),
-                "real_lb":    round(r_lb, 2),
-                "margem_pct": round(r_lb / r_rec * 100, 1) if r_rec > 0 else None,
-            })
+        cli_source = [(norm(r["cliente"]), r["cliente"], float(r["q4"])) for _, r in rec_dir.iterrows()]
+    else:
+        # Fallback: clientes.csv → bu que bate com vertical do diretor
+        cli_source = []
+        clientes_path = os.path.join(DIR, "clientes.csv")
+        bu_key = bs_key  # Finance, Health, Retail, Multisector, Grupo Mult…
+        if os.path.exists(clientes_path) and bu_key:
+            try:
+                cdf = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
+                for _, row in cdf[cdf["bu"].str.lower() == bu_key.lower()].iterrows():
+                    nc = str(row["nome_cliente"]).strip()
+                    if nc:
+                        cli_source.append((norm(nc), nc, 0.0))
+            except Exception:
+                pass
+
+    seen_cli: set[str] = set()
+    for cli_n, cli_disp, b_rec in cli_source:
+        if cli_n in seen_cli:
+            continue
+        seen_cli.add(cli_n)
+        r_rec   = _match_cliente(cli_n, rac_by_client)
+        r_lb    = _match_cliente(cli_n, d["marg_by_client"])
+        r_custo = _match_cliente(cli_n, d["custo_by_client"])
+        real_rec_q4 += r_rec
+        clientes_detalhe_dir.append({
+            "cliente":    cli_disp,
+            "budget_rec": round(b_rec, 2),
+            "real_rec":   round(r_rec, 2),
+            "real_custo": round(r_custo, 2),
+            "real_lb":    round(r_lb, 2),
+            "margem_pct": round(r_lb / r_rec * 100, 1) if r_rec > 0 else None,
+        })
     clientes_detalhe_dir.sort(key=lambda x: x["budget_rec"], reverse=True)
 
     ating_rec = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
