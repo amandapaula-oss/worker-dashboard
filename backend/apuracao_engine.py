@@ -499,28 +499,33 @@ def calc_bonus_diretor(nome: str) -> dict:
     real_rec_q4 = 0.0
     clientes_detalhe_dir = []
 
-    # Base de clientes: preferência budget_receita; fallback clientes.csv filtrado pela BU
+    # Base de clientes: todos os clientes da vertical (budget_receita + clientes.csv)
+    # sem filtro de AE — o diretor é responsável pela vertical inteira
+    cli_budget: dict[str, tuple[str, float]] = {}  # {norm_name: (display, budget_q4)}
     if not rec_dir.empty:
-        # Agrupa por cliente (pode ter múltiplas linhas por WS)
         grp = rec_dir.groupby("cliente_norm", as_index=False).agg(
             cliente=("cliente", "first"), q4=("q4", "sum")
         )
-        cli_source = [(norm(r["cliente"]), r["cliente"], float(r["q4"])) for _, r in grp.iterrows()]
-    else:
-        # Fallback: clientes.csv → bu que bate com vertical do diretor
-        cli_source = []
-        clientes_path = os.path.join(DIR, "clientes.csv")
-        bu_key = bs_key  # Finance, Health, Retail, Multisector, Grupo Mult…
-        if os.path.exists(clientes_path) and bu_key:
-            try:
-                cdf = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
-                mask = (cdf["bu"].str.lower() == bu_key.lower()) & (cdf["ae"].str.strip() != "")
-                for _, row in cdf[mask].iterrows():
-                    nc = str(row["nome_cliente"]).strip()
-                    if nc:
-                        cli_source.append((norm(nc), nc, 0.0))
-            except Exception:
-                pass
+        for _, r in grp.iterrows():
+            k = norm(r["cliente"])
+            cli_budget[k] = (r["cliente"], float(r["q4"]))
+
+    # Complementa com clientes.csv (todos da BU, com ou sem AE)
+    clientes_path = os.path.join(DIR, "clientes.csv")
+    bu_key = bs_key or (vertical or "")
+    if os.path.exists(clientes_path) and bu_key:
+        try:
+            cdf = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
+            for _, row in cdf[cdf["bu"].str.lower() == bu_key.lower()].iterrows():
+                nc = str(row["nome_cliente"]).strip()
+                if nc:
+                    k = norm(nc)
+                    if k not in cli_budget:
+                        cli_budget[k] = (nc, 0.0)
+        except Exception:
+            pass
+
+    cli_source = [(k, disp, bgt) for k, (disp, bgt) in cli_budget.items()]
 
     seen_cli: set[str] = set()
     for cli_n, cli_disp, b_rec in cli_source:

@@ -874,9 +874,6 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
       {d.clientes_detalhe && d.clientes_detalhe.length > 0 && (
         <>
           <Divider>Carteira de Clientes da Vertical</Divider>
-          <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>
-            * Apenas clientes com AE atribuído. A receita total da vertical (Nexus) pode ser maior por incluir projetos sem AE.
-          </div>
           <Table
             size="small"
             pagination={false}
