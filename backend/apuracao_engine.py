@@ -514,18 +514,25 @@ def calc_bonus_diretor(nome: str) -> dict:
         nq4_actual = pd.DataFrame()
         nq4_budget = pd.DataFrame()
 
+    CUSTO_AGRUP   = ["Payroll costs", "Third-party costs", "Other costs"]
+    DESPESA_AGRUP = ["Payroll expenses", "Deductions and taxes"]
+
     if not nq4_actual.empty:
-        gross_rev = nq4_actual[nq4_actual["Agrupador"] == "Gross revenue"]["[Valor]"].sum()
-        direct_costs = nq4_actual[nq4_actual["Agrupador"].isin([
-            "Payroll costs", "Third-party costs", "Other costs"
-        ])]["[Valor]"].sum()
+        gross_rev        = float(nq4_actual[nq4_actual["Agrupador"] == "Gross revenue"]["[Valor]"].sum())
+        real_payroll     = float(nq4_actual[nq4_actual["Agrupador"] == "Payroll costs"]["[Valor]"].sum())
+        real_third_party = float(nq4_actual[nq4_actual["Agrupador"] == "Third-party costs"]["[Valor]"].sum())
+        real_other_costs = float(nq4_actual[nq4_actual["Agrupador"] == "Other costs"]["[Valor]"].sum())
+        real_payroll_exp = float(nq4_actual[nq4_actual["Agrupador"] == "Payroll expenses"]["[Valor]"].sum())
+        real_deductions  = float(nq4_actual[nq4_actual["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
+        direct_costs = real_payroll + real_third_party + real_other_costs
         real_mc_pct = (gross_rev + direct_costs) / gross_rev if gross_rev else 0.0
         # Fallback receita para verticais sem linhas no budget_receita.csv
         if real_rec_q4 == 0 and gross_rev > 0:
             real_rec_q4 = float(gross_rev)
             ating_rec = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
     else:
-        gross_rev = 0.0
+        gross_rev = real_payroll = real_third_party = real_other_costs = 0.0
+        real_payroll_exp = real_deductions = 0.0
         real_mc_pct = 0.0
 
     # Budget MC%: bgt_lb / bgt_rec para a vertical
@@ -533,14 +540,26 @@ def calc_bonus_diretor(nome: str) -> dict:
     bgt_lb  = d["bgt_lb"]
     lb_dir  = bgt_lb[bgt_lb["bs"].str.lower() == bs_key.lower()] if (vertical and bs_key) else pd.DataFrame()
     bgt_lb_q4  = float(lb_dir["q4"].sum()) if not lb_dir.empty else 0.0
+    bgt_gross = bgt_payroll = bgt_third_party = bgt_other_costs = bgt_payroll_exp = bgt_deductions = 0.0
     if bgt_rec_q4 == 0 and not nq4_budget.empty:
-        bgt_gross = nq4_budget[nq4_budget["Agrupador"] == "Gross revenue"]["[Valor]"].sum()
-        bgt_direct = nq4_budget[nq4_budget["Agrupador"].isin([
-            "Payroll costs", "Third-party costs", "Other costs"
-        ])]["[Valor]"].sum()
+        bgt_gross        = float(nq4_budget[nq4_budget["Agrupador"] == "Gross revenue"]["[Valor]"].sum())
+        bgt_payroll      = float(nq4_budget[nq4_budget["Agrupador"] == "Payroll costs"]["[Valor]"].sum())
+        bgt_third_party  = float(nq4_budget[nq4_budget["Agrupador"] == "Third-party costs"]["[Valor]"].sum())
+        bgt_other_costs  = float(nq4_budget[nq4_budget["Agrupador"] == "Other costs"]["[Valor]"].sum())
+        bgt_payroll_exp  = float(nq4_budget[nq4_budget["Agrupador"] == "Payroll expenses"]["[Valor]"].sum())
+        bgt_deductions   = float(nq4_budget[nq4_budget["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
+        bgt_direct = bgt_payroll + bgt_third_party + bgt_other_costs
         bgt_rec_q4 = float(bgt_gross)
         bgt_lb_q4  = float(bgt_gross + bgt_direct)
         ating_rec  = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
+    elif not lb_dir.empty:
+        # Para verticais com dados no budget_lb.csv, busca também o breakdown do nexus budget
+        bgt_gross       = float(nq4_budget[nq4_budget["Agrupador"] == "Gross revenue"]["[Valor]"].sum()) if not nq4_budget.empty else bgt_rec_q4
+        bgt_payroll     = float(nq4_budget[nq4_budget["Agrupador"] == "Payroll costs"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
+        bgt_third_party = float(nq4_budget[nq4_budget["Agrupador"] == "Third-party costs"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
+        bgt_other_costs = float(nq4_budget[nq4_budget["Agrupador"] == "Other costs"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
+        bgt_payroll_exp = float(nq4_budget[nq4_budget["Agrupador"] == "Payroll expenses"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
+        bgt_deductions  = float(nq4_budget[nq4_budget["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
     bgt_mc_pct = bgt_lb_q4 / bgt_rec_q4 if bgt_rec_q4 else 0.0
 
     # Trigger MC%: -1.5pp para Q4
@@ -583,6 +602,19 @@ def calc_bonus_diretor(nome: str) -> dict:
         "trigger_mc_pct":    round(trigger_mc_pct_val * 100, 2),
         "real_mc_pct":       round(real_mc_pct * 100, 2),
         "ating_mc":          round(ating_mc, 4),
+        # Breakdown custos/despesas para auditoria do MC%
+        "real_gross_rev":       round(gross_rev, 2),
+        "real_payroll":         round(real_payroll, 2),
+        "real_third_party":     round(real_third_party, 2),
+        "real_other_costs":     round(real_other_costs, 2),
+        "real_payroll_exp":     round(real_payroll_exp, 2),
+        "real_deductions":      round(real_deductions, 2),
+        "bgt_gross_rev":        round(bgt_gross, 2),
+        "bgt_payroll":          round(bgt_payroll, 2),
+        "bgt_third_party":      round(bgt_third_party, 2),
+        "bgt_other_costs":      round(bgt_other_costs, 2),
+        "bgt_payroll_exp":      round(bgt_payroll_exp, 2),
+        "bgt_deductions":       round(bgt_deductions, 2),
         "bonus_tcv":         round(bonus_tcv, 2),
         "bonus_rec":         round(bonus_rec, 2),
         "bonus_mc":          round(bonus_mc, 2),

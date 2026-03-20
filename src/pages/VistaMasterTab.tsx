@@ -106,6 +106,19 @@ type DetalheCalculo = {
   bonus_tcv?: number;
   bonus_rec?: number;
   bonus_mc?: number;
+  // Breakdown MC% (nexus)
+  real_gross_rev?: number;
+  real_payroll?: number;
+  real_third_party?: number;
+  real_other_costs?: number;
+  real_payroll_exp?: number;
+  real_deductions?: number;
+  bgt_gross_rev?: number;
+  bgt_payroll?: number;
+  bgt_third_party?: number;
+  bgt_other_costs?: number;
+  bgt_payroll_exp?: number;
+  bgt_deductions?: number;
 };
 
 const posicaoColor: Record<string, string> = {
@@ -812,6 +825,38 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         real={d.real_rec_q4 || 0}
         ating={d.ating_rec || 0}
         bonusAtMaxAting={d.salario_q4 * (d.peso_receita || 0)}
+      />
+
+      {/* ── Breakdown Custos / Despesas ── */}
+      <Divider>Custos e Despesas — Composição da MC% (Nexus Q4)</Divider>
+      <Table
+        size="small"
+        pagination={false}
+        style={{ marginBottom: 16 }}
+        dataSource={[
+          { key: "rec",   linha: "Receita Bruta (Gross Revenue)", bgt: d.bgt_gross_rev ?? d.budget_rec_q4 ?? 0, real: d.real_gross_rev ?? d.real_rec_q4 ?? 0, tipo: "receita" },
+          { key: "pay",   linha: "Custo — Folha (Payroll costs)",            bgt: d.bgt_payroll ?? 0,      real: d.real_payroll ?? 0,      tipo: "custo" },
+          { key: "trd",   linha: "Custo — Terceiros (Third-party costs)",    bgt: d.bgt_third_party ?? 0,  real: d.real_third_party ?? 0,  tipo: "custo" },
+          { key: "oth",   linha: "Custo — Outros (Other costs)",             bgt: d.bgt_other_costs ?? 0,  real: d.real_other_costs ?? 0,  tipo: "custo" },
+          { key: "pexp",  linha: "Despesa — Folha (Payroll expenses)",       bgt: d.bgt_payroll_exp ?? 0,  real: d.real_payroll_exp ?? 0,  tipo: "despesa" },
+          { key: "ded",   linha: "Despesa — Deduções (Deductions & taxes)",  bgt: d.bgt_deductions ?? 0,   real: d.real_deductions ?? 0,   tipo: "despesa" },
+        ]}
+        columns={[
+          { title: "Linha", dataIndex: "linha", width: "45%",
+            render: (v: string, row: any) => (
+              <span style={{ color: row.tipo === "receita" ? "#1a2e5a" : row.tipo === "custo" ? "#c0392b" : "#e67e22", fontWeight: row.tipo === "receita" ? 700 : 400 }}>{v}</span>
+            )
+          },
+          { title: "Budget Q4", dataIndex: "bgt", align: "right" as const,
+            render: (v: number) => <span style={{ color: "#888" }}>{v !== 0 ? fmt(v) : "—"}</span> },
+          { title: "Realizado Q4", dataIndex: "real", align: "right" as const,
+            render: (v: number, row: any) => {
+              if (v === 0) return <span style={{ color: "#ccc" }}>—</span>;
+              const color = row.tipo === "receita" ? "#1a2e5a" : row.tipo === "custo" ? "#c0392b" : "#e67e22";
+              return <span style={{ color, fontWeight: 600 }}>{fmt(v)}</span>;
+            }
+          },
+        ]}
       />
 
       {/* ── Tabela de Cálculo ── */}
