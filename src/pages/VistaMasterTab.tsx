@@ -229,6 +229,13 @@ function AchievementBar({ meta, trigger, realizado, bonusAtMaxAting }: {
         border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
         transform: "translateX(-50%)",
       }} />
+      <div style={{
+        position: "absolute", left: `${realizadoPos}%`, top: 33,
+        fontSize: 9, color: hitTrigger ? "#52c41a" : "#ff4d4f",
+        transform: "translateX(-50%)", whiteSpace: "nowrap", fontWeight: 600,
+      }}>
+        Realizado
+      </div>
     </div>
   );
 }
