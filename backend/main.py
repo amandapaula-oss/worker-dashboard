@@ -644,6 +644,20 @@ def _vertical_lookup() -> dict:
 def get_margem_proj() -> pd.DataFrame:
     df = read_csv_cached("margem_projetos.csv", dtype={"pep": str}).copy()
     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+
+    # Substitui receita pelo valor do RAC (fonte primária correta)
+    rac = read_csv_cached("rac_projetos.csv", dtype={"pep": str})
+    rac["pep"] = rac["pep"].str.split(".").str[0]
+    rac_receita = rac.groupby(["periodo", "pep", "nome_cliente"])["valor_liquido"].sum().reset_index()
+    rac_receita = rac_receita.rename(columns={"valor_liquido": "receita_rac"})
+    df["pep_base"] = df["pep"].str.split(".").str[0]
+    df = df.merge(rac_receita, left_on=["periodo", "pep_base", "nome_cliente"],
+                  right_on=["periodo", "pep", "nome_cliente"], how="left", suffixes=("", "_rac_key"))
+    df["receita"] = df["receita_rac"].where(df["receita_rac"].notna(), df["receita"])
+    df["margem"]  = df["receita"] - df["custo_rateado"].fillna(0)
+    df["margem_pct"] = df.apply(lambda r: r["margem"] / r["receita"] if r["receita"] else None, axis=1)
+    df = df.drop(columns=["pep_base", "receita_rac", "pep_rac_key"], errors="ignore")
+
     vlookup, ae_lookup = _clientes_lookup()
     key = df["nome_cliente"].str.upper().str.strip()
     df["vertical"] = key.map(vlookup).fillna("")
