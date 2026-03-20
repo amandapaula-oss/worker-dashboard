@@ -388,7 +388,7 @@ def calc_bonus_ae(nome: str) -> dict:
         "budget_mb_pct":     round(bgt_mb_pct * 100, 2),
         "real_mb_pct":       round(real_mb_pct * 100, 2),
         "ating_mb_total":    round(ating_mb_total, 4),
-        "bonus_total":       round(bonus_total, 2),
+        "bonus_total":       round(bonus_total * lb_gate, 2),
         "detalhe_ws":        detalhe_ws,
         "clientes_detalhe":  clientes_detalhe,
     }
@@ -508,24 +508,39 @@ def calc_bonus_diretor(nome: str) -> dict:
     nexus_q4 = nexus[nexus["Periodo"].isin(Q4_PERIODOS)]
     if vertical and vertical in NEXUS_VERTICAL_MAP:
         nexus_verticals = NEXUS_VERTICAL_MAP[vertical]
-        nq4 = nexus_q4[nexus_q4["[Vertical]"].isin(nexus_verticals)]
+        nq4_actual = nexus_q4[(nexus_q4["[Vertical]"].isin(nexus_verticals)) & (nexus_q4["[Tipo]"] == "Actual")]
+        nq4_budget = nexus_q4[(nexus_q4["[Vertical]"].isin(nexus_verticals)) & (nexus_q4["[Tipo]"] == "Budget")]
     else:
-        nq4 = pd.DataFrame()
+        nq4_actual = pd.DataFrame()
+        nq4_budget = pd.DataFrame()
 
-    if not nq4.empty:
-        gross_rev = nq4[nq4["Agrupador"] == "Gross revenue"]["[Valor]"].sum()
-        direct_costs = nq4[nq4["Agrupador"].isin([
+    if not nq4_actual.empty:
+        gross_rev = nq4_actual[nq4_actual["Agrupador"] == "Gross revenue"]["[Valor]"].sum()
+        direct_costs = nq4_actual[nq4_actual["Agrupador"].isin([
             "Payroll costs", "Third-party costs", "Other costs"
         ])]["[Valor]"].sum()
         real_mc_pct = (gross_rev + direct_costs) / gross_rev if gross_rev else 0.0
+        # Fallback receita para verticais sem linhas no budget_receita.csv
+        if real_rec_q4 == 0 and gross_rev > 0:
+            real_rec_q4 = float(gross_rev)
+            ating_rec = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
     else:
         gross_rev = 0.0
         real_mc_pct = 0.0
 
     # Budget MC%: bgt_lb / bgt_rec para a vertical
+    # Para verticais sem linhas no budget_receita.csv, usa nexus Budget
     bgt_lb  = d["bgt_lb"]
     lb_dir  = bgt_lb[bgt_lb["bs"].str.lower() == bs_key.lower()] if (vertical and bs_key) else pd.DataFrame()
     bgt_lb_q4  = float(lb_dir["q4"].sum()) if not lb_dir.empty else 0.0
+    if bgt_rec_q4 == 0 and not nq4_budget.empty:
+        bgt_gross = nq4_budget[nq4_budget["Agrupador"] == "Gross revenue"]["[Valor]"].sum()
+        bgt_direct = nq4_budget[nq4_budget["Agrupador"].isin([
+            "Payroll costs", "Third-party costs", "Other costs"
+        ])]["[Valor]"].sum()
+        bgt_rec_q4 = float(bgt_gross)
+        bgt_lb_q4  = float(bgt_gross + bgt_direct)
+        ating_rec  = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
     bgt_mc_pct = bgt_lb_q4 / bgt_rec_q4 if bgt_rec_q4 else 0.0
 
     # Trigger MC%: -1.5pp para Q4
