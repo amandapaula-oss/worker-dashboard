@@ -896,10 +896,10 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
                   : <span style={{ color: "#ccc" }}>—</span> },
             ]}
             summary={rows => {
-              const tBgt  = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.budget_rec, 0);
-              const tReal = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.real_rec, 0);
-              const tCust = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_custo || 0), 0);
-              const tLb   = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_lb || 0), 0);
+              const tBgt  = (rows as unknown as ClienteDetalhe[]).reduce((s, r) => s + r.budget_rec, 0);
+              const tReal = (rows as unknown as ClienteDetalhe[]).reduce((s, r) => s + r.real_rec, 0);
+              const tCust = (rows as unknown as ClienteDetalhe[]).reduce((s, r) => s + (r.real_custo || 0), 0);
+              const tLb   = (rows as unknown as ClienteDetalhe[]).reduce((s, r) => s + (r.real_lb || 0), 0);
               const tMg   = tReal > 0 ? tLb / tReal * 100 : null;
               return (
                 <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
