@@ -845,10 +845,10 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
           { key: "rec",  linha: "Receita Bruta", tipo: "receita",
             bgt:  d.bgt_gross_rev ?? d.budget_rec_q4 ?? 0,
             real: d.real_gross_rev ?? d.real_rec_q4 ?? 0 },
-          { key: "cst",  linha: "Custos (Payroll + Terceiros + Outros)", tipo: "custo",
+          { key: "cst",  linha: "Custos", tipo: "custo",
             bgt:  (d.bgt_payroll ?? 0) + (d.bgt_third_party ?? 0) + (d.bgt_other_costs ?? 0),
             real: (d.real_payroll ?? 0) + (d.real_third_party ?? 0) + (d.real_other_costs ?? 0) },
-          { key: "desp", linha: "Despesas (Folha + Deduções)", tipo: "despesa",
+          { key: "desp", linha: "Despesas", tipo: "despesa",
             bgt:  (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0),
             real: (d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0) },
         ]}
