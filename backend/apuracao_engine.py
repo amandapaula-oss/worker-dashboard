@@ -399,45 +399,37 @@ def calc_bonus_ae(nome: str) -> dict:
 # Mapeamento manual Diretor → vertical no nexus/budget
 DIRETOR_VERTICAL = {
     norm("Marcos"):       "Health",
-    norm("Zanini"):       "Finance & Insurance",  # PREMISSAS col W = Finance
-    norm("Artea"):        "Multisector",           # PREMISSAS col W = Multisector
+    norm("Zanini"):       "Finance",
+    norm("Artea"):        "Multisector",
     norm("Henrique"):     "Logistics",
     norm("Alexsandro"):   "Retail",
 }
 
 # Chave no budget_tcv para cada vertical de Diretor
 DIRETOR_TCV_KEY = {
-    "Health":              "Health",
-    "Multisector":         "Multisector",
-    "Finance & Insurance": "Wagner",   # budget_tcv chave para Finance
-    "Logistics":           "Felipe",   # budget_tcv chave para Logistics
-    "Retail":              "Retail",
-}
-
-# Verticais Nexus correspondentes para MC%
-NEXUS_VERTICAL_MAP = {
-    "Health":              ["Health"],
-    "Multisector":         ["Multisector"],
-    "Finance & Insurance": ["Finance & Insurance"],
-    "Logistics":           ["Logistics"],
-    "Retail":              ["Retail"],
+    "Health":       "Health",
+    "Multisector":  "Multisector",
+    "Finance":      "Wagner",   # budget_tcv chave para Finance
+    "Logistics":    "Felipe",   # budget_tcv chave para Logistics
+    "Retail":       "Retail",
 }
 
 # Mapeamento vertical → bs no budget_receita/lb
 VERTICAL_BS_MAP = {
-    "Health":              "Health",
-    "Multisector":         "Multisector",
-    "Finance & Insurance": "Finance",
-    "Logistics":           "Logistics",
-    "Retail":              "Retail",
+    "Health":       "Health",
+    "Multisector":  "Multisector",
+    "Finance":      "Finance",
+    "Logistics":    "Logistics",
+    "Retail":       "Retail",
 }
 
+# Verticais Nexus correspondentes para MC% (nexus_agg.csv usa "Finance & Insurance")
 NEXUS_VERTICAL_MAP = {
-    "Finance & Insurance": ["Finance & Insurance"],
-    "Health":              ["Health"],
-    "Logistics":           ["Logistics"],
-    "Multisector":         ["Multisector"],
-    "Retail":              ["Retail"],
+    "Finance":      ["Finance & Insurance"],
+    "Health":       ["Health"],
+    "Logistics":    ["Logistics"],
+    "Multisector":  ["Multisector"],
+    "Retail":       ["Retail"],
 }
 
 
