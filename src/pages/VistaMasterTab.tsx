@@ -60,6 +60,8 @@ type ClienteDetalhe = {
   budget_rec: number;
   real_rec: number;
   diferenca: number;
+  real_lb?: number;
+  margem_pct?: number | null;
 };
 
 type DetalheCalculo = {
@@ -75,6 +77,9 @@ type DetalheCalculo = {
   trigger_rec?: number;
   trigger_mb_pct_total?: number;
   lb_gate?: number;
+  meta_lb_q4?: number;
+  trigger_lb_q4?: number;
+  real_lb_total?: number;
   budget_rec_total?: number;
   real_rec_total?: number;
   ating_rec_total?: number;
@@ -342,7 +347,7 @@ export default function VistaMasterTab() {
             : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 18 }} />
           }
           <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>
-            {row.tipo_calc === "Diretor" ? "MC%" : "LB%"}
+            {row.tipo_calc === "Diretor" ? "MC%" : "LB R$"}
           </div>
         </div>
       ),
@@ -494,7 +499,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
   return (
     <div>
       {/* ── Gatilho Mestre ── */}
-      <Divider>Gatilho Mestre — Lucro Bruto % (Apps)</Divider>
+      <Divider>Gatilho Mestre — Lucro Bruto (R$)</Divider>
       <div style={{
         background: lbGateOk ? "#f6ffed" : "#fff2f0",
         border: `1px solid ${lbGateOk ? "#b7eb8f" : "#ffccc7"}`,
@@ -511,17 +516,24 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
             </div>
             <div style={{ fontSize: 12, color: "#666" }}>
               {lbGateOk
-                ? "MB% de Apps acima do mínimo — bônus MB habilitado"
-                : "MB% de Apps abaixo do mínimo — bônus MB bloqueado"}
+                ? "Lucro Bruto acima do mínimo — bônus habilitado"
+                : "Lucro Bruto abaixo do mínimo — bônus bloqueado"}
             </div>
           </div>
         </div>
-        <AchievementBar
-          meta={d.budget_mb_pct || 0}
-          trigger={triggerMbPctTotal}
-          realizado={d.real_mb_pct || 0}
-          bonusAtMaxAting={d.salario_q4 * (d.peso_mb || 0)}
-        />
+        {(d.meta_lb_q4 ?? 0) > 0 && (
+          <MetaRealRow
+            label="Lucro Bruto Q4"
+            meta={d.meta_lb_q4 || 0}
+            triggerAmt={d.trigger_lb_q4 || 0}
+            real={d.real_lb_total || 0}
+            ating={d.real_lb_total != null && d.trigger_lb_q4 != null && d.meta_lb_q4 != null
+              ? (d.real_lb_total >= d.meta_lb_q4 ? 1
+                : d.real_lb_total < d.trigger_lb_q4 ? 0
+                : (d.real_lb_total - d.trigger_lb_q4) / (d.meta_lb_q4 - d.trigger_lb_q4) * 0.5 + 0.5)
+              : 0}
+          />
+        )}
       </div>
 
       {/* ── Regras de Apuração ── */}
@@ -532,7 +544,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
         </div>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 6 }}>
           <span>🎯 <strong>Trigger Receita:</strong> {(triggerRec * 100).toFixed(0)}% da meta — abaixo disso = 0</span>
-          <span>🎯 <strong>Trigger MB% (Apps):</strong> meta − 1,5pp — abaixo disso = 0</span>
+          <span>🎯 <strong>Gatilho Mestre:</strong> Lucro Bruto ≥ mínimo da planilha — abaixo disso = 0</span>
         </div>
         <div style={{ color: "#555", marginBottom: 6 }}>
           Atingimento entre trigger e meta: escala linear de 50% a 100%. Acima da meta: 100%.
@@ -676,11 +688,28 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                   </span>
                 ),
               },
+              {
+                title: "LB Real",
+                dataIndex: "real_lb",
+                align: "right" as const,
+                render: (v: number) => v != null && v > 0
+                  ? <span style={{ color: "#595959" }}>{fmt(v)}</span>
+                  : <span style={{ color: "#ccc" }}>—</span>,
+              },
+              {
+                title: "Margem%",
+                dataIndex: "margem_pct",
+                align: "right" as const,
+                render: (v: number | null) => v != null
+                  ? <span style={{ color: v >= 30 ? "#52c41a" : v >= 20 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{v.toFixed(1)}%</span>
+                  : <span style={{ color: "#ccc" }}>—</span>,
+              },
             ]}
             summary={rows => {
               const totalBgt  = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.budget_rec, 0);
               const totalReal = (rows as ClienteDetalhe[]).reduce((s, r) => s + r.real_rec, 0);
               const totalDif  = totalReal - totalBgt;
+              const totalLb   = (rows as ClienteDetalhe[]).reduce((s, r) => s + (r.real_lb || 0), 0);
               return (
                 <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
                   <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
@@ -691,6 +720,8 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                   <Table.Summary.Cell index={3} align="right">
                     <span style={{ color: totalDif >= 0 ? "#52c41a" : "#ff4d4f" }}>{totalDif >= 0 ? "+" : ""}{fmt(totalDif)}</span>
                   </Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} align="right">{fmt(totalLb)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} />
                 </Table.Summary.Row>
               );
             }}

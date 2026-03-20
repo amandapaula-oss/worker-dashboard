@@ -89,7 +89,7 @@ export function useDraggableColumns<T extends { key?: string | number; dataIndex
 
               const onMove = (me: MouseEvent) => {
                 const delta = me.clientX - resizeStartX.current;
-                const newW = Math.max(50, resizeStartW.current + delta);
+                const newW = Math.max(20, resizeStartW.current + delta);
                 setWidths(prev => ({ ...prev, [resizeKey.current]: newW }));
               };
               const onUp = () => {
