@@ -703,7 +703,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                   : <span style={{ color: "#ccc" }}>—</span>,
               },
               {
-                title: "LB Real",
+                title: "Lucro Bruto",
                 dataIndex: "real_lb",
                 align: "right" as const,
                 render: (v: number) => v != null && v > 0
@@ -881,14 +881,19 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
             style={{ marginBottom: 16 }}
             columns={[
               { title: "Cliente", dataIndex: "cliente", ellipsis: true },
-              { title: "Budget Rec", dataIndex: "budget_rec", align: "right" as const, render: (v: number) => fmt(v) },
-              { title: "Rec Real", dataIndex: "real_rec", align: "right" as const,
-                render: (v: number, row: any) => (
-                  <span style={{ color: v >= row.budget_rec ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>{fmt(v)}</span>
-                )},
+              {
+                title: "Receita",
+                children: [
+                  { title: "Meta", dataIndex: "budget_rec", align: "right" as const, render: (v: number) => fmt(v) },
+                  { title: "Realizado", dataIndex: "real_rec", align: "right" as const,
+                    render: (v: number, row: any) => (
+                      <span style={{ color: v >= row.budget_rec ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>{fmt(v)}</span>
+                    )},
+                ],
+              },
               { title: "Custo", dataIndex: "real_custo", align: "right" as const,
                 render: (v: number) => v != null && v !== 0 ? <span style={{ color: "#595959" }}>{fmt(Math.abs(v))}</span> : <span style={{ color: "#ccc" }}>—</span> },
-              { title: "LB Real", dataIndex: "real_lb", align: "right" as const,
+              { title: "Lucro Bruto", dataIndex: "real_lb", align: "right" as const,
                 render: (v: number) => v != null && v !== 0 ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
               { title: "Margem%", dataIndex: "margem_pct", align: "right" as const,
                 render: (v: number | null) => v != null
