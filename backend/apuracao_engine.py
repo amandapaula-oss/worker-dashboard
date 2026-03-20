@@ -501,7 +501,11 @@ def calc_bonus_diretor(nome: str) -> dict:
 
     # Base de clientes: preferência budget_receita; fallback clientes.csv filtrado pela BU
     if not rec_dir.empty:
-        cli_source = [(norm(r["cliente"]), r["cliente"], float(r["q4"])) for _, r in rec_dir.iterrows()]
+        # Agrupa por cliente (pode ter múltiplas linhas por WS)
+        grp = rec_dir.groupby("cliente_norm", as_index=False).agg(
+            cliente=("cliente", "first"), q4=("q4", "sum")
+        )
+        cli_source = [(norm(r["cliente"]), r["cliente"], float(r["q4"])) for _, r in grp.iterrows()]
     else:
         # Fallback: clientes.csv → bu que bate com vertical do diretor
         cli_source = []
@@ -510,7 +514,8 @@ def calc_bonus_diretor(nome: str) -> dict:
         if os.path.exists(clientes_path) and bu_key:
             try:
                 cdf = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
-                for _, row in cdf[cdf["bu"].str.lower() == bu_key.lower()].iterrows():
+                mask = (cdf["bu"].str.lower() == bu_key.lower()) & (cdf["ae"].str.strip() != "")
+                for _, row in cdf[mask].iterrows():
                     nc = str(row["nome_cliente"]).strip()
                     if nc:
                         cli_source.append((norm(nc), nc, 0.0))
