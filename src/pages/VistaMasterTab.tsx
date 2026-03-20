@@ -682,8 +682,8 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                 title: "Custo",
                 dataIndex: "real_custo",
                 align: "right" as const,
-                render: (v: number) => v > 0
-                  ? <span style={{ color: "#595959" }}>{fmt(v)}</span>
+                render: (v: number) => v != null && v !== 0
+                  ? <span style={{ color: "#595959" }}>{fmt(Math.abs(v))}</span>
                   : <span style={{ color: "#ccc" }}>—</span>,
               },
               {
@@ -715,7 +715,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                   <Table.Summary.Cell index={2} align="right">
                     <span style={{ color: totalReal >= totalBgt ? "#52c41a" : "#ff4d4f" }}>{fmt(totalReal)}</span>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} align="right">{fmt(totalCusto)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="right">{fmt(Math.abs(totalCusto))}</Table.Summary.Cell>
                   <Table.Summary.Cell index={4} align="right">{fmt(totalLb)}</Table.Summary.Cell>
                   <Table.Summary.Cell index={5} />
                 </Table.Summary.Row>
