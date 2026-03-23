@@ -1015,9 +1015,6 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
 
       {/* ── TCV ── */}
       <Divider>TCV (peso {fmtPct(d.peso_tcv || 0)})</Divider>
-      <div style={{ fontSize: 12, marginBottom: 8, color: "#888" }}>
-        * TCV realizado requer base Salesforce (não disponível — zerado)
-      </div>
       <MetaRealRow
         label="TCV"
         meta={d.budget_tcv_q4 || 0}
@@ -1027,16 +1024,77 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         bonusAtMaxAting={d.salario_q4 * (d.peso_tcv || 0)}
       />
 
-      {/* ── Receita ── */}
-      <Divider>Receita (peso {fmtPct(d.peso_receita || 0)})</Divider>
-      <MetaRealRow
-        label="Receita"
-        meta={d.budget_rec_q4 || 0}
-        triggerAmt={(d.budget_rec_q4 || 0) * 0.85}
-        real={d.real_rec_q4 || 0}
-        ating={d.ating_rec || 0}
-        bonusAtMaxAting={d.salario_q4 * (d.peso_receita || 0)}
-      />
+      {/* ── Receita por WS ── */}
+      <Divider>Receita por WS (peso métrica {fmtPct(d.peso_receita || 0)})</Divider>
+      {d.detalhe_ws && d.detalhe_ws.length > 0 && (
+        <Table
+          size="small"
+          pagination={false}
+          style={{ marginBottom: 16 }}
+          dataSource={d.detalhe_ws.map(w => ({
+            key: w.ws,
+            ws: w.ws === "cloud" ? "CLOUD/CYBER" : w.ws.toUpperCase(),
+            peso_ws: w.peso_ws,
+            rec_meta: w.budget_rec,
+            rec_real: w.real_rec,
+            mb_meta: w.budget_mb_pct,
+            mb_real: w.real_mb_pct,
+            lb_meta: w.budget_rec * w.budget_mb_pct / 100,
+            lb_real: w.real_rec * w.real_mb_pct / 100,
+            bonus_ws: w.bonus_ws,
+          }))}
+          summary={() => {
+            const ws = d.detalhe_ws!;
+            const totRecMeta = ws.reduce((s, w) => s + w.budget_rec, 0);
+            const totRecReal = ws.reduce((s, w) => s + w.real_rec, 0);
+            const totLbMeta  = ws.reduce((s, w) => s + w.budget_rec * w.budget_mb_pct / 100, 0);
+            const totLbReal  = ws.reduce((s, w) => s + w.real_rec * w.real_mb_pct / 100, 0);
+            const mbMetaTot  = totRecMeta > 0 ? totLbMeta / totRecMeta * 100 : 0;
+            const mbRealTot  = totRecReal > 0 ? totLbReal / totRecReal * 100 : 0;
+            const totBonus   = ws.reduce((s, w) => s + w.bonus_ws, 0);
+            return (
+              <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f5ff" }}>
+                <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align="right">100%</Table.Summary.Cell>
+                <Table.Summary.Cell index={2} align="right">{fmt(totRecMeta)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={3} align="right">{fmt(totRecReal)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={4} align="right">{mbMetaTot.toFixed(1)}%</Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align="right">{mbRealTot.toFixed(1)}%</Table.Summary.Cell>
+                <Table.Summary.Cell index={6} align="right">{fmt(totLbMeta)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={7} align="right">{fmt(totLbReal)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={8} align="right">{fmt(totBonus)}</Table.Summary.Cell>
+              </Table.Summary.Row>
+            );
+          }}
+          columns={[
+            { title: "WS", dataIndex: "ws", width: 100 },
+            { title: "Peso", dataIndex: "peso_ws", width: 60, render: (v: number) => fmtPct(v) },
+            {
+              title: "Receita",
+              children: [
+                { title: "Meta", dataIndex: "rec_meta", align: "right" as const, render: (v: number) => fmt(v) },
+                { title: "Realizado", dataIndex: "rec_real", align: "right" as const,
+                  render: (v: number, row: any) => <span style={{ color: v >= row.rec_meta ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{fmt(v)}</span> },
+              ],
+            },
+            {
+              title: "MB%",
+              children: [
+                { title: "Meta", dataIndex: "mb_meta", align: "right" as const, render: (v: number) => v ? `${v.toFixed(1)}%` : "—" },
+                { title: "Realizado", dataIndex: "mb_real", align: "right" as const, render: (v: number) => v ? `${v.toFixed(1)}%` : "—" },
+              ],
+            },
+            {
+              title: "LB",
+              children: [
+                { title: "Meta", dataIndex: "lb_meta", align: "right" as const, render: (v: number) => fmt(v) },
+                { title: "Realizado", dataIndex: "lb_real", align: "right" as const, render: (v: number) => fmt(v) },
+              ],
+            },
+            { title: "Bônus", dataIndex: "bonus_ws", align: "right" as const, render: (v: number) => <strong>{fmt(v)}</strong> },
+          ]}
+        />
+      )}
 
       {/* ── Breakdown Custos / Despesas ── */}
       <Divider>Custos e Despesas — Composição da MC% (Nexus Q4)</Divider>
