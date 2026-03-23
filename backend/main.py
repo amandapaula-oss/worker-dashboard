@@ -739,6 +739,7 @@ def get_clientes_list(search: str = "", user=Depends(get_current_user)):
         custo_rateado=("custo_rateado","sum"),
         margem=("margem","sum"),
         num_projetos=("pep","nunique"),
+        vertical=("vertical","first"),
     )
     # Use nome_base for matching when available, otherwise nome_cliente
     if "nome_base" in clientes.columns:

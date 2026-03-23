@@ -127,6 +127,8 @@ export default function ClientesTab() {
 
   const bus   = useMemo(() => Array.from(new Set(clientes.map(c => c.bu).filter(Boolean))).sort(), [clientes]);
   const aes   = useMemo(() => Array.from(new Set(clientes.map(c => c.ae).filter(Boolean))).sort(), [clientes]);
+  const wss   = useMemo(() => Array.from(new Set(clientes.map(c => c.vertical).filter(Boolean))).sort(), [clientes]);
+  const [selWs, setSelWs] = useState<string[]>([]);
 
   const filtered = useMemo(() => {
     let rows = clientes;
@@ -136,8 +138,9 @@ export default function ClientesTab() {
     }
     if (selBu.length) rows = rows.filter(r => selBu.includes(r.bu));
     if (selAe.length) rows = rows.filter(r => selAe.includes(r.ae));
+    if (selWs.length) rows = rows.filter(r => selWs.includes(r.vertical));
     return rows;
-  }, [clientes, search, selBu, selAe]);
+  }, [clientes, search, selBu, selAe, selWs]);
 
   const handleSaveAe = async (nome_cliente: string, ae: string) => {
     await updateClienteAe(nome_cliente, ae);
@@ -180,6 +183,11 @@ export default function ClientesTab() {
       title: "BU", dataIndex: "bu", key: "bu", width: 130,
       render: (v: string) => <BuTag bu={v} />,
       sorter: (a: any, b: any) => String(a.bu).localeCompare(String(b.bu)),
+    },
+    {
+      title: "WS", dataIndex: "vertical", key: "vertical", width: 110,
+      sorter: (a: any, b: any) => String(a.vertical || "").localeCompare(String(b.vertical || ""), "pt-BR"),
+      render: (v: string) => v ? <Tag style={{ textTransform: "capitalize" }}>{v}</Tag> : <span style={{ color: "#aaa" }}>—</span>,
     },
     {
       title: "AE", dataIndex: "ae", key: "ae", width: 260,
@@ -281,6 +289,13 @@ export default function ClientesTab() {
             onChange={v => setSelAe(v)}
             options={aes.map(a => ({ label: a, value: a }))}
             maxTagCount="responsive" placeholder="Todos" />
+        </div>
+        <div style={{ flex: 1, minWidth: 140 }}>
+          <div style={labelStyle}>WS</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selWs}
+            onChange={v => setSelWs(v)}
+            options={wss.map(w => ({ label: w, value: w }))}
+            maxTagCount="responsive" placeholder="Todas" />
         </div>
       </div>
 
