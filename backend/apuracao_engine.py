@@ -524,6 +524,7 @@ def calc_bonus_diretor(nome: str) -> dict:
     peso_tcv = float(pesos_row["TCV"] or 0)
     peso_rec = float(pesos_row["Receita"] or 0)
     peso_mc  = float(pesos_row["MC_pct"] or 0)
+    peso_lb  = float(pesos_row["MB_pct"] or 0)   # LB absoluto (10%)
 
     # Vertical do diretor
     vertical = DIRETOR_VERTICAL.get(nome_n, None)
@@ -728,20 +729,26 @@ def calc_bonus_diretor(nome: str) -> dict:
 
     ating_mc = calc_atingimento(real_mc_pct, bgt_mc_pct, 0.0) if bgt_mc_pct > 0 else 0.0
 
+    # ─ LB absoluto (10%) ─
+    real_lb_dir = sum(_match_cliente(cli_n, d["marg_by_client"]) for cli_n, _, _ in cli_source)
+    ating_lb_dir = calc_atingimento(real_lb_dir, bgt_lb_q4, TRIGGER_REC_Q4) if bgt_lb_q4 > 0 else 0.0
+
     # ─ Bônus ─
     if mc_gate == 0:
         bonus_tcv = 0.0
         bonus_rec = 0.0
         bonus_mc  = 0.0
+        bonus_lb  = 0.0
         for ws in detalhe_ws_dir:
             ws["bonus_ws"] = 0.0
         bonus_rec_ws_total = 0.0
     else:
-        bonus_tcv = Q4_QTDE * 1.0 * ating_tcv * salario * peso_tcv
+        bonus_tcv = Q4_QTDE * 1.0 * ating_tcv  * salario * peso_tcv
         bonus_rec = bonus_rec_ws_total
-        bonus_mc  = Q4_QTDE * 1.0 * ating_mc  * salario * peso_mc
+        bonus_mc  = Q4_QTDE * 1.0 * ating_mc   * salario * peso_mc
+        bonus_lb  = Q4_QTDE * 1.0 * ating_lb_dir * salario * peso_lb
 
-    bonus_total = bonus_tcv + bonus_rec + bonus_mc
+    bonus_total = bonus_tcv + bonus_rec + bonus_mc + bonus_lb
 
     return {
         "nome":          pessoa["Nome"],
@@ -754,6 +761,11 @@ def calc_bonus_diretor(nome: str) -> dict:
         "peso_tcv":      peso_tcv,
         "peso_receita":  peso_rec,
         "peso_mc":       peso_mc,
+        "peso_lb":       peso_lb,
+        "budget_lb_q4":      round(bgt_lb_q4, 2),
+        "real_lb_q4":        round(real_lb_dir, 2),
+        "ating_lb":          round(ating_lb_dir, 4),
+        "bonus_lb":          round(bonus_lb, 2),
         "budget_tcv_q4":     round(bgt_tcv_q4, 2),
         "real_tcv_q4":       round(real_tcv_q4, 2),
         "ating_tcv":         round(ating_tcv, 4),
@@ -780,6 +792,7 @@ def calc_bonus_diretor(nome: str) -> dict:
         "bonus_tcv":         round(bonus_tcv, 2),
         "bonus_rec":         round(bonus_rec, 2),
         "bonus_mc":          round(bonus_mc, 2),
+        "bonus_lb":          round(bonus_lb, 2),
         "bonus_total":       round(bonus_total, 2),
         "detalhe_ws":        detalhe_ws_dir,
         "clientes_detalhe":  clientes_detalhe_dir,

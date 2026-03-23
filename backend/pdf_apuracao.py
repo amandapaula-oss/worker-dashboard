@@ -143,15 +143,19 @@ def gerar_pdf_ae(dados: dict) -> bytes:
     # ── Fórmula de cálculo ────────────────────────────────────────────────────
     story.append(Paragraph("3. Fórmula de Cálculo", secao))
     story.append(Paragraph(
-        "Bônus = Quantidade (1 quarter) × Peso WS × Atingimento × Salário × Peso Meta",
+        "<b>Bônus Receita (por WS)</b> = Salário × Peso Receita × Peso WS × Ating. Receita",
         normal
     ))
     story.append(Paragraph(
-        "Atingimento: 0% se abaixo do trigger | 50%→100% linear entre trigger e 100% da meta | 100% na meta",
+        "<b>Bônus MB% (por WS)</b> = Salário × Peso MB% × Peso WS × Ating. MB% × Gate MB",
         normal
     ))
     story.append(Paragraph(
-        "Trigger MB (somente Apps): Realizado MB% ≥ 98,5% da Meta MB% para ativar o bônus de MB.",
+        "Atingimento: 0 abaixo do trigger | escala linear 50%→100% entre trigger e meta | 100% acima da meta",
+        normal
+    ))
+    story.append(Paragraph(
+        "Gate MB (somente Apps): ativo apenas se Realizado MB% ≥ 98,5% da Meta MB%.",
         normal
     ))
 
@@ -159,15 +163,16 @@ def gerar_pdf_ae(dados: dict) -> bytes:
     if dados.get("detalhe_ws"):
         story.append(Paragraph("4. Detalhe por Workstream", secao))
 
+        ws_label = lambda ws: "CLOUD/CYBER" if ws == "cloud" else ws.upper()
+
         ws_data = [[
             "WS", "Peso WS",
             "Meta Rec.", "Real. Rec.", "Ating. Rec.",
             "Meta MB%", "Real MB%", "Ating. MB",
-            "Bônus Rec.", "Bônus MB", "Bônus WS"
         ]]
         for ws in dados["detalhe_ws"]:
             ws_data.append([
-                ws["ws"].upper(),
+                ws_label(ws["ws"]),
                 _pct(ws["peso_ws"]),
                 _fmt(ws["budget_rec"]),
                 _fmt(ws["real_rec"]),
@@ -175,11 +180,7 @@ def gerar_pdf_ae(dados: dict) -> bytes:
                 _pct_dir(ws["budget_mb_pct"]),
                 _pct_dir(ws["real_mb_pct"]),
                 _pct(ws["ating_mb"]),
-                _fmt(ws["bonus_rec"]),
-                _fmt(ws["bonus_mb"]),
-                _fmt(ws["bonus_ws"]),
             ])
-        # Linha de total
         ws_data.append([
             "TOTAL", "",
             _fmt(dados["budget_rec_total"]),
@@ -188,21 +189,76 @@ def gerar_pdf_ae(dados: dict) -> bytes:
             _pct_dir(dados["budget_mb_pct"]),
             _pct_dir(dados["real_mb_pct"]),
             _pct(dados["ating_mb_total"]),
-            _fmt(sum(w["bonus_rec"] for w in dados["detalhe_ws"])),
-            _fmt(sum(w["bonus_mb"] for w in dados["detalhe_ws"])),
-            _fmt(dados["bonus_total"]),
         ])
 
-        colw = [1.5*cm, 1.5*cm, 2.2*cm, 2.2*cm, 1.8*cm,
-                1.8*cm, 1.8*cm, 1.8*cm, 2.2*cm, 2.2*cm, 2.2*cm]
+        colw = [2*cm, 1.8*cm, 2.8*cm, 2.8*cm, 2*cm, 2*cm, 2*cm, 2*cm]
         t = Table(ws_data, colWidths=colw)
         ts = _tbl_style()
-        # Linha total em negrito com fundo azul claro
         n = len(ws_data) - 1
         ts.add("BACKGROUND", (0, n), (-1, n), colors.HexColor("#dce6f7"))
         ts.add("FONTNAME",   (0, n), (-1, n), "Helvetica-Bold")
         t.setStyle(ts)
         story.append(t)
+
+        # ── Cálculo detalhado por WS ──────────────────────────────────────────
+        story.append(Spacer(1, 0.3*cm))
+        story.append(Paragraph("5. Cálculo do Bônus por Workstream", secao))
+
+        sal  = dados["salario_q4"]
+        p_r  = dados["peso_receita"]
+        p_mb = dados["peso_mb"]
+
+        calc_style = ParagraphStyle("calc", fontSize=8, spaceAfter=3, leftIndent=10)
+        label_style = ParagraphStyle("label", fontSize=9, fontName="Helvetica-Bold",
+                                     textColor=AZUL, spaceBefore=8, spaceAfter=2)
+        result_style = ParagraphStyle("result", fontSize=9, fontName="Helvetica-Bold",
+                                      textColor=AZUL_DARK, alignment=TA_RIGHT)
+
+        bonus_grand = 0.0
+        for ws in dados["detalhe_ws"]:
+            b_rec = ws["bonus_rec"]
+            b_mb  = ws["bonus_mb"]
+            b_ws  = b_rec + b_mb
+            if b_ws == 0 and ws["budget_rec"] == 0:
+                continue
+            bonus_grand += b_ws
+
+            story.append(Paragraph(
+                f"<b>{ws_label(ws['ws'])}</b> — Peso WS: {_pct(ws['peso_ws'])}",
+                label_style
+            ))
+
+            # Receita
+            story.append(Paragraph(
+                f"Bônus Receita = Salário × Peso Rec. × Peso WS × Ating. Rec.",
+                calc_style
+            ))
+            story.append(Paragraph(
+                f"= {_fmt(sal)} × {_pct(p_r)} × {_pct(ws['peso_ws'])} × {_pct(ws['ating_rec'])}"
+                f"  =  <b>{_fmt(b_rec)}</b>",
+                calc_style
+            ))
+
+            # MB%
+            gate_txt = "" if ws.get("aplica_gate_mb") else " (Gate MB = N/A)"
+            story.append(Paragraph(
+                f"Bônus MB% = Salário × Peso MB% × Peso WS × Ating. MB%"
+                + (f" × Gate MB" if ws.get("aplica_gate_mb") else "") + gate_txt,
+                calc_style
+            ))
+            gate_val = f" × {int(ws.get('mb_gate', 1))}" if ws.get("aplica_gate_mb") else ""
+            story.append(Paragraph(
+                f"= {_fmt(sal)} × {_pct(p_mb)} × {_pct(ws['peso_ws'])} × {_pct(ws['ating_mb'])}"
+                f"{gate_val}  =  <b>{_fmt(b_mb)}</b>",
+                calc_style
+            ))
+
+            story.append(Paragraph(
+                f"Subtotal {ws_label(ws['ws'])}: {_fmt(b_ws)}",
+                ParagraphStyle("sub_ws", fontSize=8.5, fontName="Helvetica-Bold",
+                               textColor=VERDE if b_ws > 0 else VERMELHO,
+                               leftIndent=10, spaceAfter=4)
+            ))
 
     # ── Total ─────────────────────────────────────────────────────────────────
     story.append(Spacer(1, 0.5*cm))
