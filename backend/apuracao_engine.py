@@ -33,6 +33,8 @@ def _load_all():
     bgt_rec   = pd.read_csv(os.path.join(DIR, "budget_receita.csv"),      encoding="utf-8-sig")
     bgt_lb    = pd.read_csv(os.path.join(DIR, "budget_lb.csv"),           encoding="utf-8-sig")
     bgt_tcv   = pd.read_csv(os.path.join(DIR, "budget_tcv.csv"),          encoding="utf-8-sig")
+    tcv_real_df = pd.read_csv(os.path.join(DIR, "tcv_realizado.csv"),     encoding="utf-8-sig")
+    tcv_real_map = dict(zip(tcv_real_df["vertical"], tcv_real_df["tcv_realizado"].astype(float)))
     rac       = pd.read_csv(os.path.join(DIR, "rac_projetos.csv"),        encoding="utf-8-sig")
     margem    = pd.read_csv(os.path.join(DIR, "margem_projetos.csv"),     encoding="utf-8-sig")
     nexus     = pd.read_csv(os.path.join(DIR, "nexus_agg.csv"),           encoding="utf-8-sig")
@@ -112,6 +114,7 @@ def _load_all():
         "marg_by_client_ws":  marg_by_client_ws,
         "nexus":       nexus,
         "lb_trigger":  lb_trigger_map,
+        "tcv_real":    tcv_real_map,
     }
 
 
@@ -531,9 +534,8 @@ def calc_bonus_diretor(nome: str) -> dict:
     tcv_key = DIRETOR_TCV_KEY.get(vertical, nome_curto) if vertical else nome_curto
     tcv_rows = bgt_tcv[bgt_tcv["ae"].apply(lambda x: str(x).strip() if pd.notna(x) else "") == tcv_key]
     bgt_tcv_q4 = float(tcv_rows[tcv_rows["descricao"].apply(lambda x: "receita" in str(x).lower())]["q4"].sum())
-    # TCV realizado: sem fonte Salesforce, usar RAC como proxy
-    rac_by_client = d["rac_by_client"]
-    real_tcv_q4 = 0.0  # Placeholder – requer base Salesforce
+    # TCV realizado: lido do tcv_realizado.csv por vertical
+    real_tcv_q4 = float(d["tcv_real"].get(vertical, 0.0)) if vertical else 0.0
 
     ating_tcv = calc_atingimento(real_tcv_q4, bgt_tcv_q4, TRIGGER_REC_Q4)
 
