@@ -722,6 +722,16 @@ def _load_metas_anuais() -> pd.DataFrame:
     return df
 
 
+def _safe_float(v, default=0.0) -> float:
+    """Converte valor para float, retornando default para None/NaN/string vazia."""
+    import math
+    try:
+        f = float(v) if v is not None and str(v).strip() != "" else default
+        return default if math.isnan(f) or math.isinf(f) else f
+    except (TypeError, ValueError):
+        return default
+
+
 @lru_cache(maxsize=1)
 def _pesos_anuais() -> dict:
     """Retorna dict posicao_upper → {rec, lb_mb, tcv} para período Anual."""
@@ -732,10 +742,10 @@ def _pesos_anuais() -> dict:
     for _, row in anual.iterrows():
         pos = str(row["Posicao"]).upper().strip()
         result[pos] = {
-            "rec":   float(row.get("Receita", 0) or 0),
-            "lb_mb": float(row.get("MB_pct", 0) or 0),
-            "mc":    float(row.get("MC_pct", 0) or 0),
-            "tcv":   float(row.get("TCV", 0) or 0),
+            "rec":   _safe_float(row.get("Receita")),
+            "lb_mb": _safe_float(row.get("MB_pct")),
+            "mc":    _safe_float(row.get("MC_pct")),
+            "tcv":   _safe_float(row.get("TCV")),
         }
     return result
 
