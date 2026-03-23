@@ -52,6 +52,7 @@ type BonusAnualDetalhe = {
   disponivel: boolean;
   label_lb?: string;
   lb_gate?: number;
+  lb_trigger_anual?: number;
   trimestres?: TrimestralAnual[];
   total_rec_meta?: number;
   total_rec_real?: number;
@@ -657,10 +658,10 @@ function DetalheDrawer({ d, anual }: { d: DetalheCalculo; anual: BonusAnualDetal
               borderRadius: 6, padding: "8px 12px", marginBottom: 8 }}>
               <CloseCircleFilled style={{ color: "#ff4d4f" }} />
               <span style={{ fontWeight: 600, color: "#cf1322" }}>
-                Gatilho Mestre bloqueado — {anual.label_lb ?? "LB"} anual negativo
+                Gatilho Mestre bloqueado — {anual.label_lb ?? "LB"} anual abaixo do mínimo
               </span>
               <span style={{ color: "#888", fontSize: 12 }}>
-                ({fmt(anual.total_lb_real ?? 0)})
+                (realizado {fmt(anual.total_lb_real ?? 0)} / mínimo {fmt(anual.lb_trigger_anual ?? 0)})
               </span>
             </div>
           )}
