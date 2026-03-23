@@ -380,15 +380,14 @@ def calc_bonus_ae(nome: str) -> dict:
 
         ating_rec = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4)
 
-        # MB% por WS — se calculado der 100%, usa benchmark Q4 do WS
+        # MB% por WS — usa benchmark fixo Q4 para as verticais definidas
         bgt_mb_pct_ws  = bgt_lb_ / bgt_r if bgt_r > 0 else 0.0
         if real_r > 0:
-            _calc_mb = real_lb_ / real_r
-            if _calc_mb >= 1.0 and ws_k in WS_MB_BENCHMARK_Q4:
+            if ws_k in WS_MB_BENCHMARK_Q4:
                 real_mb_pct_ws = WS_MB_BENCHMARK_Q4[ws_k]
                 real_lb_       = real_r * real_mb_pct_ws
             else:
-                real_mb_pct_ws = _calc_mb
+                real_mb_pct_ws = real_lb_ / real_r
         else:
             real_mb_pct_ws = 0.0
 
@@ -730,12 +729,11 @@ def calc_bonus_diretor(nome: str) -> dict:
         real_lb_ws = realized_lb_ws_dir.get(ws_k, 0.0)
         bgt_mb_pct_ws  = round(bgt_lb_ws  / bgt_r  * 100, 2) if bgt_r  > 0 else 0.0
         if real_r > 0:
-            _calc_mb_dir = real_lb_ws / real_r
-            if _calc_mb_dir >= 1.0 and ws_k in WS_MB_BENCHMARK_Q4:
+            if ws_k in WS_MB_BENCHMARK_Q4:
                 real_mb_pct_ws = round(WS_MB_BENCHMARK_Q4[ws_k] * 100, 2)
                 real_lb_ws     = real_r * WS_MB_BENCHMARK_Q4[ws_k]
             else:
-                real_mb_pct_ws = round(_calc_mb_dir * 100, 2)
+                real_mb_pct_ws = round(real_lb_ws / real_r * 100, 2)
         else:
             real_mb_pct_ws = 0.0
         ating_r   = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4) if bgt_r > 0 else 0.0
