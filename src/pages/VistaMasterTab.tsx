@@ -792,7 +792,6 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
               mb_real: w.real_mb_pct,
               lb_meta: w.budget_rec * w.budget_mb_pct / 100,
               lb_real: w.real_rec * w.real_mb_pct / 100,
-              bonus_ws: w.bonus_ws,
             }))}
             summary={() => {
               const ws = d.detalhe_ws!;
@@ -817,9 +816,6 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                   <Table.Summary.Cell index={6} align="right">{fmt(totLbMeta)}</Table.Summary.Cell>
                   <Table.Summary.Cell index={7} align="right">
                     <span style={{ color: totLbReal >= totLbMeta ? "#52c41a" : "#ff4d4f" }}>{fmt(totLbReal)}</span>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={8} align="right">
-                    <span style={{ color: "#52c41a" }}>{fmt(d.bonus_total)}</span>
                   </Table.Summary.Cell>
                 </Table.Summary.Row>
               );
@@ -851,15 +847,50 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                     render: (v: number, row: any) => <span style={{ color: v >= row.lb_meta ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{v ? fmt(v) : "—"}</span> },
                 ],
               },
-              {
-                title: "Bônus",
-                dataIndex: "bonus_ws",
-                align: "right" as const,
-                width: 100,
-                render: (v: number) => <strong style={{ color: v > 0 ? "#52c41a" : "#999" }}>{fmt(v)}</strong>,
-              },
             ]}
           />
+
+          {/* ── Cálculo detalhado por WS ── */}
+          <Divider plain>Cálculo do Bônus por WS</Divider>
+          <div style={{ background: "#f8f9ff", border: "1px solid #d0d9f0", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13 }}>
+            <div style={{ marginBottom: 8, color: "#666" }}>
+              <strong>Fórmula:</strong> Bônus Rec. = Salário × Peso Rec. × Peso WS × Ating. Rec.
+              &nbsp;&nbsp;|&nbsp;&nbsp;
+              Bônus MB% = Salário × Peso MB% × Peso WS × Ating. MB% {d.detalhe_ws.some(w => w.aplica_gate_mb) ? "× Gate MB" : ""}
+            </div>
+            {d.detalhe_ws.filter(w => w.budget_rec > 0).map(w => {
+              const wsLabel = w.ws === "cloud" ? "CLOUD/CYBER" : w.ws.toUpperCase();
+              const sal = d.salario_q4;
+              const pRec = d.peso_receita || 0;
+              const pMb  = (d as any).peso_mb || 0;
+              const bRec = sal * pRec * w.peso_ws * (w.ating_rec ?? 0);
+              const gate = w.aplica_gate_mb ? (w.mb_gate ?? 1) : 1;
+              const bMb  = sal * pMb  * w.peso_ws * (w.ating_mb ?? 0) * gate;
+              return (
+                <div key={w.ws} style={{ borderTop: "1px solid #e8eaf0", paddingTop: 8, marginTop: 8 }}>
+                  <div style={{ fontWeight: 700, color: "#1a3c6e", marginBottom: 4 }}>
+                    {wsLabel} — Peso WS: {fmtPct(w.peso_ws)}
+                  </div>
+                  <div style={{ color: "#444", marginBottom: 1 }}>Bônus Receita = Salário × Peso Rec. × Peso WS × Ating. Rec.</div>
+                  <div style={{ fontFamily: "monospace", fontSize: 12, marginBottom: 6 }}>
+                    = {fmt(sal)} × {fmtPct(pRec)} × {fmtPct(w.peso_ws)} × {fmtPct(w.ating_rec ?? 0)}
+                    {" = "}<strong style={{ color: bRec > 0 ? "#52c41a" : "#ff4d4f", fontSize: 13 }}>{fmt(bRec)}</strong>
+                  </div>
+                  <div style={{ color: "#444", marginBottom: 1 }}>
+                    Bônus MB% = Salário × Peso MB% × Peso WS × Ating. MB%{w.aplica_gate_mb ? " × Gate MB" : ""}
+                  </div>
+                  <div style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    = {fmt(sal)} × {fmtPct(pMb)} × {fmtPct(w.peso_ws)} × {fmtPct(w.ating_mb ?? 0)}{w.aplica_gate_mb ? ` × ${gate}` : ""}
+                    {" = "}<strong style={{ color: bMb > 0 ? "#52c41a" : "#ff4d4f", fontSize: 13 }}>{fmt(bMb)}</strong>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ borderTop: "2px solid #d0d9f0", paddingTop: 8, marginTop: 8, textAlign: "right" }}>
+              <strong>Total Bônus: </strong>
+              <strong style={{ color: "#52c41a", fontSize: 14 }}>{fmt(d.bonus_total)}</strong>
+            </div>
+          </div>
         </>
       )}
 
