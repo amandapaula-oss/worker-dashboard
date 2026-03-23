@@ -591,7 +591,7 @@ def calc_bonus_diretor(nome: str) -> dict:
         if cli_n in seen_cli:
             continue
         seen_cli.add(cli_n)
-        r_rec   = _match_cliente(cli_n, rac_by_client)
+        r_rec   = _match_cliente(cli_n, d["rac_by_client"])
         r_lb    = _match_cliente(cli_n, d["marg_by_client"])
         r_custo = _match_cliente(cli_n, d["custo_by_client"])
         real_rec_q4 += r_rec
@@ -718,17 +718,17 @@ def calc_bonus_diretor(nome: str) -> dict:
         bonus_ws  = round(Q4_QTDE * salario * peso_rec * peso_ws * ating_r, 2)
         bonus_rec_ws_total += bonus_ws
         detalhe_ws_dir.append({
-            "ws":          ws_k,
-            "peso_ws":     round(peso_ws, 4),
-            "bgt_rec_ws":  round(bgt_r, 2),
-            "real_rec_ws": round(real_r, 2),
-            "ating_rec_ws": round(ating_r, 4),
-            "bgt_lb_ws":   round(bgt_lb_ws, 2),
-            "real_lb_ws":  round(real_lb_ws, 2),
-            "bgt_mb_pct_ws":  bgt_mb_pct_ws,
-            "real_mb_pct_ws": real_mb_pct_ws,
-            "ating_lb_ws":    round(ating_lb_ws, 4),
-            "bonus_ws":    bonus_ws,
+            "ws":           ws_k,
+            "peso_ws":      round(peso_ws, 4),
+            "budget_rec":   round(bgt_r, 2),
+            "real_rec":     round(real_r, 2),
+            "ating_rec":    round(ating_r, 4),
+            "bgt_lb_ws":    round(bgt_lb_ws, 2),
+            "real_lb_ws":   round(real_lb_ws, 2),
+            "budget_mb_pct": bgt_mb_pct_ws,
+            "real_mb_pct":   real_mb_pct_ws,
+            "ating_mb":      round(ating_lb_ws, 4),
+            "bonus_ws":     bonus_ws,
         })
 
     # ─ LB absoluto (10%) ─
