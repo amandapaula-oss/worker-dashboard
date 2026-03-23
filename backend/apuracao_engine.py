@@ -327,9 +327,9 @@ def calc_bonus_ae(nome: str) -> dict:
                         "real_rec":   round(cli_real_ws, 2),
                     })
             for ws_k in WS_PESOS_Q4:
-                if ws_k in WS_MB_BENCHMARK_Q4:
+                if ws_k in WS_MB_BENCHMARK_Q4 and bgt_rec_ws.get(ws_k, 0) > 0:
                     realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + actual_rec_ws[ws_k] * WS_MB_BENCHMARK_Q4[ws_k]
-                else:
+                elif ws_k not in WS_MB_BENCHMARK_Q4:
                     realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
         else:
             # Fallback: proporção do budget (comportamento anterior)
@@ -377,9 +377,9 @@ def calc_bonus_ae(nome: str) -> dict:
 
         ating_rec = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4)
 
-        # MB% por WS — usa benchmark fixo Q4 para as verticais definidas
+        # MB% por WS — usa benchmark fixo Q4 apenas quando há orçamento para o WS
         bgt_mb_pct_ws  = bgt_lb_ / bgt_r if bgt_r > 0 else 0.0
-        if real_r > 0:
+        if real_r > 0 and bgt_r > 0:
             if ws_k in WS_MB_BENCHMARK_Q4:
                 real_mb_pct_ws = WS_MB_BENCHMARK_Q4[ws_k]
                 real_lb_       = real_r * real_mb_pct_ws
@@ -387,6 +387,7 @@ def calc_bonus_ae(nome: str) -> dict:
                 real_mb_pct_ws = real_lb_ / real_r
         else:
             real_mb_pct_ws = 0.0
+            real_lb_       = 0.0
 
         # Trigger MB: meta - 1.5pp (absoluto)
         trigger_mb_value = round(max(0.0, bgt_mb_pct_ws * 100 - 1.5), 2)
@@ -656,9 +657,9 @@ def calc_bonus_diretor(nome: str) -> dict:
                 prop = actual_rec_ws[ws_k] / actual_rec_total
                 realized_rec_ws_dir[ws_k] = realized_rec_ws_dir.get(ws_k, 0.0) + r_rec * prop
             for ws_k in WS_PESOS_Q4:
-                if ws_k in WS_MB_BENCHMARK_Q4:
+                if ws_k in WS_MB_BENCHMARK_Q4 and bgt_rec_ws.get(ws_k, 0) > 0:
                     realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + actual_rec_ws[ws_k] * WS_MB_BENCHMARK_Q4[ws_k]
-                else:
+                elif ws_k not in WS_MB_BENCHMARK_Q4:
                     realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
 
     # ─ MC% ─
