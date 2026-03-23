@@ -607,8 +607,7 @@ def calc_bonus_diretor(nome: str) -> dict:
 
     ating_rec = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
 
-    # ─ WS breakdown ─
-    # Budget por WS: agrupa budget_receita da vertical por ws_key
+    # ─ WS breakdown — Parte 1: budget e realizado por WS (antes do MC%) ─
     if not rec_dir.empty:
         bgt_rec_ws_dir = rec_dir.copy()
         bgt_rec_ws_dir["ws_key"] = rec_dir["ws"].apply(_norm_ws)
@@ -617,7 +616,6 @@ def calc_bonus_diretor(nome: str) -> dict:
         bgt_rec_ws = {}
     bgt_rec_ws["total"] = sum(v for k, v in bgt_rec_ws.items() if k != "total")
 
-    # Realizado por WS: usa distribuição real dos projetos dos clientes da vertical
     realized_rec_ws_dir: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     realized_lb_ws_dir:  dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     for cli_n, cli_disp, _ in cli_source:
@@ -636,33 +634,6 @@ def calc_bonus_diretor(nome: str) -> dict:
             for ws_k in WS_PESOS_Q4:
                 prop = (actual_marg_ws[ws_k] / actual_marg_total) if actual_marg_total != 0 else (actual_rec_ws[ws_k] / actual_rec_total)
                 realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + r_lb * prop
-
-    # Pesos WS fixos para diretores (70/8/8/8/6)
-    dir_ws_weights = d["pesos_ws_pessoa"].get(norm(str(pessoa["Nome"])), dict(WS_PESOS_Q4))
-
-    detalhe_ws_dir = []
-    bonus_rec_ws_total = 0.0
-    for ws_k in WS_PESOS_Q4:
-        peso_ws   = dir_ws_weights.get(ws_k, 0.0)
-        bgt_r     = bgt_rec_ws.get(ws_k, 0.0)
-        real_r    = realized_rec_ws_dir.get(ws_k, 0.0)
-        bgt_lb_   = bgt_rec_ws.get(ws_k, 0.0) * (bgt_lb_q4 / bgt_rec_q4 if bgt_rec_q4 else 0)
-        real_lb_  = realized_lb_ws_dir.get(ws_k, 0.0)
-        bgt_mb_pct_ws  = round(bgt_lb_ / bgt_r * 100, 2) if bgt_r > 0 else 0.0
-        real_mb_pct_ws = round(real_lb_ / real_r * 100, 2) if real_r > 0 else 0.0
-        ating_r   = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4) if bgt_r > 0 else 0.0
-        bonus_ws  = round(Q4_QTDE * salario * peso_rec * peso_ws * ating_r, 2)
-        bonus_rec_ws_total += bonus_ws
-        detalhe_ws_dir.append({
-            "ws":              ws_k,
-            "peso_ws":         round(peso_ws, 4),
-            "budget_rec":      round(bgt_r, 2),
-            "real_rec":        round(real_r, 2),
-            "budget_mb_pct":   bgt_mb_pct_ws,
-            "real_mb_pct":     real_mb_pct_ws,
-            "ating_rec":       round(ating_r, 4),
-            "bonus_ws":        bonus_ws,
-        })
 
     # ─ MC% ─
     # Nexus: Margem de Contribuição = Gross Revenue - Direct costs (Payroll + Third-party + Other)
@@ -728,6 +699,37 @@ def calc_bonus_diretor(nome: str) -> dict:
     mc_gate = 1.0 if real_mc_pct >= trigger_mc_pct_val else 0.0
 
     ating_mc = calc_atingimento(real_mc_pct, bgt_mc_pct, 0.0) if bgt_mc_pct > 0 else 0.0
+
+    # ─ WS breakdown — Parte 2: detalhe_ws_dir (bgt_lb_q4 já disponível) ─
+    dir_ws_weights = d["pesos_ws_pessoa"].get(norm(str(pessoa["Nome"])), dict(WS_PESOS_Q4))
+    detalhe_ws_dir = []
+    bonus_rec_ws_total = 0.0
+    for ws_k, _default_peso in WS_PESOS_Q4.items():
+        peso_ws = dir_ws_weights.get(ws_k, _default_peso)
+        bgt_r   = bgt_rec_ws.get(ws_k, 0.0)
+        real_r  = realized_rec_ws_dir.get(ws_k, 0.0)
+        # LB proporcional ao WS
+        bgt_lb_ws  = bgt_r * (bgt_lb_q4 / bgt_rec_q4 if bgt_rec_q4 else 0.0)
+        real_lb_ws = realized_lb_ws_dir.get(ws_k, 0.0)
+        bgt_mb_pct_ws  = round(bgt_lb_ws  / bgt_r  * 100, 2) if bgt_r  > 0 else 0.0
+        real_mb_pct_ws = round(real_lb_ws / real_r * 100, 2) if real_r > 0 else 0.0
+        ating_r   = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4) if bgt_r > 0 else 0.0
+        ating_lb_ws = calc_atingimento(real_lb_ws, bgt_lb_ws, TRIGGER_REC_Q4) if bgt_lb_ws > 0 else 0.0
+        bonus_ws  = round(Q4_QTDE * salario * peso_rec * peso_ws * ating_r, 2)
+        bonus_rec_ws_total += bonus_ws
+        detalhe_ws_dir.append({
+            "ws":          ws_k,
+            "peso_ws":     round(peso_ws, 4),
+            "bgt_rec_ws":  round(bgt_r, 2),
+            "real_rec_ws": round(real_r, 2),
+            "ating_rec_ws": round(ating_r, 4),
+            "bgt_lb_ws":   round(bgt_lb_ws, 2),
+            "real_lb_ws":  round(real_lb_ws, 2),
+            "bgt_mb_pct_ws":  bgt_mb_pct_ws,
+            "real_mb_pct_ws": real_mb_pct_ws,
+            "ating_lb_ws":    round(ating_lb_ws, 4),
+            "bonus_ws":    bonus_ws,
+        })
 
     # ─ LB absoluto (10%) ─
     real_lb_dir = sum(_match_cliente(cli_n, d["marg_by_client"]) for cli_n, _, _ in cli_source)
