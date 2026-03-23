@@ -60,6 +60,18 @@ def _load_all():
     rec_by_client   = marg_q4.groupby("nome_norm")["receita"].sum().to_dict()
     custo_by_client = marg_q4.groupby("nome_norm")["custo_rateado"].sum().to_dict()
 
+    # Lookup: (cliente_norm, ws_key) → receita e margem reais por WS
+    # Usa categoria_bu dos projetos reais, não o budget
+    if "categoria_bu" in marg_q4.columns:
+        marg_q4["ws_key"] = marg_q4["categoria_bu"].apply(
+            lambda x: _norm_ws(str(x)) if pd.notna(x) and str(x).strip() else "demais"
+        )
+        rec_by_client_ws  = marg_q4.groupby(["nome_norm", "ws_key"])["receita"].sum().to_dict()
+        marg_by_client_ws = marg_q4.groupby(["nome_norm", "ws_key"])["margem"].sum().to_dict()
+    else:
+        rec_by_client_ws  = {}
+        marg_by_client_ws = {}
+
     # Add aliases: nome_cliente → nome_base (e.g. "C6 BANK" → "BANCO C6 S.A.")
     # so budget entries keyed by friendly name can find the SAP name in the lookup
     clientes_path = os.path.join(DIR, "clientes.csv")
@@ -75,6 +87,12 @@ def _load_all():
                         for lookup in [rac_by_client, marg_by_client, rec_by_client, custo_by_client]:
                             if nb_n in lookup and nc_n not in lookup:
                                 lookup[nc_n] = lookup[nb_n]
+                        # Alias WS lookups: (nc_n, ws) → (nb_n, ws)
+                        for ws_k in WS_PESOS_Q4:
+                            if (nb_n, ws_k) in rec_by_client_ws and (nc_n, ws_k) not in rec_by_client_ws:
+                                rec_by_client_ws[(nc_n, ws_k)]  = rec_by_client_ws[(nb_n, ws_k)]
+                            if (nb_n, ws_k) in marg_by_client_ws and (nc_n, ws_k) not in marg_by_client_ws:
+                                marg_by_client_ws[(nc_n, ws_k)] = marg_by_client_ws[(nb_n, ws_k)]
         except Exception:
             pass
 
@@ -86,10 +104,12 @@ def _load_all():
         "bgt_rec":  bgt_rec,
         "bgt_lb":   bgt_lb,
         "bgt_tcv":  bgt_tcv,
-        "rac_by_client":   rac_by_client,
-        "marg_by_client":  marg_by_client,
-        "rec_by_client":   rec_by_client,
-        "custo_by_client": custo_by_client,
+        "rac_by_client":      rac_by_client,
+        "marg_by_client":     marg_by_client,
+        "rec_by_client":      rec_by_client,
+        "custo_by_client":    custo_by_client,
+        "rec_by_client_ws":   rec_by_client_ws,
+        "marg_by_client_ws":  marg_by_client_ws,
         "nexus":       nexus,
         "lb_trigger":  lb_trigger_map,
     }
@@ -163,6 +183,16 @@ def _match_cliente(budget_norm: str, lookup: dict) -> float:
         if budget_norm in k or k.startswith(budget_norm[:8]):
             return v
     return 0.0
+
+
+def _match_cliente_ws(cli_n: str, ws_lookup: dict) -> dict:
+    """Retorna {ws_key: value} para um cliente com fuzzy match (mesmo critério de _match_cliente)."""
+    result = {}
+    prefix = cli_n[:8]
+    for (k_nome, k_ws), v in ws_lookup.items():
+        if k_nome == cli_n or cli_n in k_nome or k_nome.startswith(prefix):
+            result[k_ws] = result.get(k_ws, 0.0) + v
+    return result
 
 
 # BS forçado por AE (quando budget tem BS errado)
@@ -257,27 +287,60 @@ def calc_bonus_ae(nome: str) -> dict:
             "margem_pct": round(margem_pct * 100, 1) if margem_pct is not None else None,
         })
 
+        # Distribui realizado pela WS real dos projetos (categoria_bu do margem)
+        # em vez de proporcional ao budget
+        actual_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws"])
+        actual_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws"])
+        # Garante todas as chaves de WS
+        actual_rec_ws  = {ws_k: actual_rec_ws.get(ws_k, 0.0)  for ws_k in WS_PESOS_Q4}
+        actual_marg_ws = {ws_k: actual_marg_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4}
+        actual_rec_total  = sum(actual_rec_ws.values())
+        actual_marg_total = sum(actual_marg_ws.values())
+
+        # Budget por WS deste cliente (para comparação de meta)
         cli_rec_ws    = cli_rows.groupby("ws_key")["q4"].sum()
-        cli_rec_total = float(cli_rec_ws.sum())
-        cli_lb_ws     = (
-            lb_ae[lb_ae["cliente_norm"] == cli_n].groupby("ws_key")["q4"].sum()
-            if not lb_ae.empty else pd.Series(dtype=float)
-        )
-        cli_lb_total = float(cli_lb_ws.sum()) if len(cli_lb_ws) else 1.0
 
-        for ws_k, bv in cli_rec_ws.items():
-            prop = float(bv) / cli_rec_total if cli_rec_total > 0 else 0.0
-            cli_real_ws = real_rec * prop
-            realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
-            cli_contrib.setdefault(ws_k, []).append({
-                "cliente":    cli_display,
-                "budget_rec": round(float(bv), 2),
-                "real_rec":   round(cli_real_ws, 2),
-            })
-
-        for ws_k, bv in cli_lb_ws.items():
-            prop = float(bv) / cli_lb_total if cli_lb_total > 0 else 0.0
-            realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + real_lb * prop
+        if actual_rec_total > 0:
+            # Usa proporção real da WS dos projetos
+            for ws_k in WS_PESOS_Q4:
+                prop = actual_rec_ws[ws_k] / actual_rec_total
+                cli_real_ws = real_rec * prop
+                realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
+                bv = float(cli_rec_ws.get(ws_k, 0.0))
+                if cli_real_ws > 0 or bv > 0:
+                    cli_contrib.setdefault(ws_k, []).append({
+                        "cliente":    cli_display,
+                        "budget_rec": round(bv, 2),
+                        "real_rec":   round(cli_real_ws, 2),
+                    })
+            if actual_marg_total != 0:
+                for ws_k in WS_PESOS_Q4:
+                    prop = actual_marg_ws[ws_k] / actual_marg_total
+                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + real_lb * prop
+            else:
+                for ws_k in WS_PESOS_Q4:
+                    prop = actual_rec_ws[ws_k] / actual_rec_total
+                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + real_lb * prop
+        else:
+            # Fallback: proporção do budget (comportamento anterior)
+            cli_rec_total = float(cli_rec_ws.sum())
+            cli_lb_ws = (
+                lb_ae[lb_ae["cliente_norm"] == cli_n].groupby("ws_key")["q4"].sum()
+                if not lb_ae.empty else pd.Series(dtype=float)
+            )
+            cli_lb_total = float(cli_lb_ws.sum()) if len(cli_lb_ws) else 1.0
+            for ws_k, bv in cli_rec_ws.items():
+                prop = float(bv) / cli_rec_total if cli_rec_total > 0 else 0.0
+                cli_real_ws = real_rec * prop
+                realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
+                cli_contrib.setdefault(ws_k, []).append({
+                    "cliente":    cli_display,
+                    "budget_rec": round(float(bv), 2),
+                    "real_rec":   round(cli_real_ws, 2),
+                })
+            for ws_k, bv in cli_lb_ws.items():
+                prop = float(bv) / cli_lb_total if cli_lb_total > 0 else 0.0
+                realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + real_lb * prop
 
     realized_rec_ws["total"] = sum(v for k, v in realized_rec_ws.items() if k != "total")
     realized_lb_ws["total"]  = sum(v for k, v in realized_lb_ws.items() if k != "total")
