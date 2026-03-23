@@ -739,8 +739,11 @@ def get_clientes_list(search: str = "", user=Depends(get_current_user)):
         custo_rateado=("custo_rateado","sum"),
         margem=("margem","sum"),
         num_projetos=("pep","nunique"),
-        vertical=("vertical","first"),
     )
+    # WS: categoria_bu com maior receita por cliente (ignora Vazio/vazio)
+    proj_ws = proj[~proj["categoria_bu"].isin(["", "Vazio"])].sort_values("receita", ascending=False)
+    ws_first = proj_ws.groupby("nome_upper")["categoria_bu"].first()
+    totais["ws"] = totais["nome_upper"].map(ws_first).fillna("")
     # Use nome_base for matching when available, otherwise nome_cliente
     if "nome_base" in clientes.columns:
         clientes["nome_upper"] = clientes.apply(

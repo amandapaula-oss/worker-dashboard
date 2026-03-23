@@ -127,7 +127,7 @@ export default function ClientesTab() {
 
   const bus   = useMemo(() => Array.from(new Set(clientes.map(c => c.bu).filter(Boolean))).sort(), [clientes]);
   const aes   = useMemo(() => Array.from(new Set(clientes.map(c => c.ae).filter(Boolean))).sort(), [clientes]);
-  const wss   = useMemo(() => Array.from(new Set(clientes.map(c => c.vertical).filter(Boolean))).sort(), [clientes]);
+  const wss   = useMemo(() => Array.from(new Set(clientes.map(c => c.ws).filter(Boolean))).sort(), [clientes]);
   const [selWs, setSelWs] = useState<string[]>([]);
 
   const filtered = useMemo(() => {
@@ -138,7 +138,7 @@ export default function ClientesTab() {
     }
     if (selBu.length) rows = rows.filter(r => selBu.includes(r.bu));
     if (selAe.length) rows = rows.filter(r => selAe.includes(r.ae));
-    if (selWs.length) rows = rows.filter(r => selWs.includes(r.vertical));
+    if (selWs.length) rows = rows.filter(r => selWs.includes(r.ws));
     return rows;
   }, [clientes, search, selBu, selAe, selWs]);
 
@@ -185,9 +185,9 @@ export default function ClientesTab() {
       sorter: (a: any, b: any) => String(a.bu).localeCompare(String(b.bu)),
     },
     {
-      title: "WS", dataIndex: "vertical", key: "vertical", width: 110,
-      sorter: (a: any, b: any) => String(a.vertical || "").localeCompare(String(b.vertical || ""), "pt-BR"),
-      render: (v: string) => v ? <Tag style={{ textTransform: "capitalize" }}>{v}</Tag> : <span style={{ color: "#aaa" }}>—</span>,
+      title: "WS", dataIndex: "ws", key: "ws", width: 110,
+      sorter: (a: any, b: any) => String(a.ws || "").localeCompare(String(b.ws || ""), "pt-BR"),
+      render: (v: string) => v ? <Tag>{v}</Tag> : <span style={{ color: "#aaa" }}>—</span>,
     },
     {
       title: "AE", dataIndex: "ae", key: "ae", width: 260,
