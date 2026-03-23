@@ -603,7 +603,7 @@ function DetalheDrawer({ d, anual }: { d: DetalheCalculo; anual: BonusAnualDetal
                 ],
               },
               {
-                title: `${anual.label_lb ?? "LB"}%`,
+                title: `${anual.label_lb === "LB" ? "MB" : anual.label_lb ?? "LB"}%`,
                 children: [
                   { title: "Meta", dataIndex: "mb_meta", key: "mb_meta", align: "right" as const, render: (v: number | null) => v != null ? `${v.toFixed(1)}%` : <span style={{ color: "#ccc" }}>—</span> },
                   { title: "Realizado", dataIndex: "mb_real", key: "mb_real", align: "right" as const,
@@ -645,7 +645,7 @@ function DetalheDrawer({ d, anual }: { d: DetalheCalculo; anual: BonusAnualDetal
               </div>
             </div>
             <div style={{ flex: 1, background: "#f5f5f5", borderRadius: 6, padding: "8px 12px" }}>
-              <div style={{ fontSize: 11, color: "#888" }}>{anual.label_lb ?? "LB"}% ({((anual.peso_lb ?? 0) * 100).toFixed(0)}%)</div>
+              <div style={{ fontSize: 11, color: "#888" }}>{anual.label_lb === "LB" ? "MB" : anual.label_lb ?? "LB"}% ({((anual.peso_lb ?? 0) * 100).toFixed(0)}%)</div>
               <div style={{ fontWeight: 700, color: (anual.ating_lb ?? 0) >= 1 ? "#52c41a" : (anual.ating_lb ?? 0) > 0 ? "#faad14" : "#ff4d4f" }}>
                 {fmtPct(anual.ating_lb ?? 0)}
               </div>
