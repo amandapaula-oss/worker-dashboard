@@ -142,6 +142,15 @@ WS_PESOS_Q4 = {
     "demais":     0.06,
 }
 
+# MB% benchmark Q4 por WS — usado quando o cálculo resulta em 100% (sem dados de custo)
+WS_MB_BENCHMARK_Q4 = {
+    "cloud":  0.34,
+    "dados":  0.35,
+    "hyper":  0.35,
+    "demais": 0.37,
+    # "apps": sem benchmark definido — usa valor calculado
+}
+
 WS_MAP = {
     # Normaliza nomes de WS do budget para chaves internas
     "apps":       "apps",
@@ -371,9 +380,17 @@ def calc_bonus_ae(nome: str) -> dict:
 
         ating_rec = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4)
 
-        # MB% por WS
+        # MB% por WS — se calculado der 100%, usa benchmark Q4 do WS
         bgt_mb_pct_ws  = bgt_lb_ / bgt_r if bgt_r > 0 else 0.0
-        real_mb_pct_ws = real_lb_ / real_r if real_r > 0 else 0.0
+        if real_r > 0:
+            _calc_mb = real_lb_ / real_r
+            if _calc_mb >= 1.0 and ws_k in WS_MB_BENCHMARK_Q4:
+                real_mb_pct_ws = WS_MB_BENCHMARK_Q4[ws_k]
+                real_lb_       = real_r * real_mb_pct_ws
+            else:
+                real_mb_pct_ws = _calc_mb
+        else:
+            real_mb_pct_ws = 0.0
 
         # Trigger MB: meta - 1.5pp (absoluto)
         trigger_mb_value = round(max(0.0, bgt_mb_pct_ws * 100 - 1.5), 2)
@@ -712,7 +729,15 @@ def calc_bonus_diretor(nome: str) -> dict:
         bgt_lb_ws  = bgt_r * (bgt_lb_q4 / bgt_rec_q4 if bgt_rec_q4 else 0.0)
         real_lb_ws = realized_lb_ws_dir.get(ws_k, 0.0)
         bgt_mb_pct_ws  = round(bgt_lb_ws  / bgt_r  * 100, 2) if bgt_r  > 0 else 0.0
-        real_mb_pct_ws = round(real_lb_ws / real_r * 100, 2) if real_r > 0 else 0.0
+        if real_r > 0:
+            _calc_mb_dir = real_lb_ws / real_r
+            if _calc_mb_dir >= 1.0 and ws_k in WS_MB_BENCHMARK_Q4:
+                real_mb_pct_ws = round(WS_MB_BENCHMARK_Q4[ws_k] * 100, 2)
+                real_lb_ws     = real_r * WS_MB_BENCHMARK_Q4[ws_k]
+            else:
+                real_mb_pct_ws = round(_calc_mb_dir * 100, 2)
+        else:
+            real_mb_pct_ws = 0.0
         ating_r   = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4) if bgt_r > 0 else 0.0
         ating_lb_ws = calc_atingimento(real_lb_ws, bgt_lb_ws, TRIGGER_REC_Q4) if bgt_lb_ws > 0 else 0.0
         bonus_ws  = round(Q4_QTDE * salario * peso_rec * peso_ws * ating_r, 2)
