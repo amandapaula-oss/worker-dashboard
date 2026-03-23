@@ -35,6 +35,16 @@ def _load_all():
     bgt_tcv   = pd.read_csv(os.path.join(DIR, "budget_tcv.csv"),          encoding="utf-8-sig")
     tcv_real_df = pd.read_csv(os.path.join(DIR, "tcv_realizado.csv"),     encoding="utf-8-sig")
     tcv_real_map = dict(zip(tcv_real_df["vertical"], tcv_real_df["tcv_realizado"].astype(float)))
+    pesos_ws_df = pd.read_csv(os.path.join(DIR, "premissas_pesos_ws_pessoa.csv"), encoding="utf-8-sig")
+    pesos_ws_df["nome_norm"] = pesos_ws_df["nome"].apply(norm)
+    # dict: nome_norm → {ws_key: peso}
+    pesos_ws_pessoa = {
+        row["nome_norm"]: {
+            ws_k: float(row.get(ws_k, 0.0) or 0.0)
+            for ws_k in WS_PESOS_Q4
+        }
+        for _, row in pesos_ws_df.iterrows()
+    }
     rac       = pd.read_csv(os.path.join(DIR, "rac_projetos.csv"),        encoding="utf-8-sig")
     margem    = pd.read_csv(os.path.join(DIR, "margem_projetos.csv"),     encoding="utf-8-sig")
     nexus     = pd.read_csv(os.path.join(DIR, "nexus_agg.csv"),           encoding="utf-8-sig")
@@ -112,9 +122,10 @@ def _load_all():
         "custo_by_client":    custo_by_client,
         "rec_by_client_ws":   rec_by_client_ws,
         "marg_by_client_ws":  marg_by_client_ws,
-        "nexus":       nexus,
-        "lb_trigger":  lb_trigger_map,
-        "tcv_real":    tcv_real_map,
+        "nexus":         nexus,
+        "lb_trigger":    lb_trigger_map,
+        "tcv_real":      tcv_real_map,
+        "pesos_ws_pessoa": pesos_ws_pessoa,
     }
 
 
@@ -252,15 +263,8 @@ def calc_bonus_ae(nome: str) -> dict:
     bgt_rec_ws["total"] = rec_ae["q4"].sum()
     bgt_lb_ws["total"]  = lb_ae["q4"].sum()
 
-    # Pesos por WS derivados do budget da pessoa (em vez de global fixo)
-    total_bgt_for_weights = sum(v for k, v in bgt_rec_ws.items() if k != "total")
-    if total_bgt_for_weights > 0:
-        person_ws_weights = {
-            k: bgt_rec_ws.get(k, 0.0) / total_bgt_for_weights
-            for k in WS_PESOS_Q4
-        }
-    else:
-        person_ws_weights = dict(WS_PESOS_Q4)
+    # Pesos por WS: usa premissas_pesos_ws_pessoa.csv; fallback global WS_PESOS_Q4
+    person_ws_weights = d["pesos_ws_pessoa"].get(pessoa_nome_n, dict(WS_PESOS_Q4))
 
     # Realizado por cliente, alocado por WS proporcionalmente ao budget
     realized_rec_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
