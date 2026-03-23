@@ -641,6 +641,15 @@ def _clientes_lookup() -> tuple[dict, dict]:
 def _vertical_lookup() -> dict:
     return _clientes_lookup()[0]
 
+# Benchmark de margem Q4 por categoria_bu — alinhado com apuracao_engine.py
+WS_MB_BENCHMARK = {
+    "Cloud/Cyber": 0.34,
+    "Dados":       0.35,
+    "Hyper":       0.35,
+    "Demais":      0.37,
+    # Apps: usa margem calculada
+}
+
 def get_margem_proj() -> pd.DataFrame:
     df = read_csv_cached("margem_projetos.csv", dtype={"pep": str}).copy()
     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
@@ -654,7 +663,22 @@ def get_margem_proj() -> pd.DataFrame:
     df = df.merge(rac_receita, left_on=["periodo", "pep_base", "nome_cliente"],
                   right_on=["periodo", "pep", "nome_cliente"], how="left", suffixes=("", "_rac_key"))
     df["receita"] = df["receita_rac"].where(df["receita_rac"].notna(), df["receita"])
-    df["margem"]  = df["receita"] + df["custo_rateado"].fillna(0)
+
+    # Simula custo/margem usando benchmark para WS com margem definida
+    def _apply_benchmark(row, field):
+        cat = row.get("categoria_bu", "")
+        rec = row["receita"] if pd.notna(row["receita"]) else 0.0
+        if cat in WS_MB_BENCHMARK and rec != 0:
+            if field == "margem":
+                return rec * WS_MB_BENCHMARK[cat]
+            else:  # custo_rateado
+                return -rec * (1 - WS_MB_BENCHMARK[cat])
+        if field == "margem":
+            return rec + (row["custo_rateado"] if pd.notna(row["custo_rateado"]) else 0)
+        return row["custo_rateado"]
+
+    df["margem"]       = df.apply(_apply_benchmark, field="margem", axis=1)
+    df["custo_rateado"]= df.apply(_apply_benchmark, field="custo_rateado", axis=1)
     df["margem_pct"] = df.apply(lambda r: r["margem"] / r["receita"] if r["receita"] and r["receita"] > 0 else None, axis=1)
     df = df.drop(columns=["pep_base", "receita_rac", "pep_rac_key"], errors="ignore")
 
