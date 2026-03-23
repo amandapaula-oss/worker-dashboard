@@ -196,9 +196,7 @@ def _match_cliente_ws(cli_n: str, ws_lookup: dict) -> dict:
 
 
 # BS forçado por AE (quando budget tem BS errado)
-AE_BS_OVERRIDE = {
-    norm("FABIO LUIS BERTI BARCELOS"): "Grupo Mult",
-}
+AE_BS_OVERRIDE: dict = {}
 
 # ─── Cálculo AE ──────────────────────────────────────────────────────────────
 
