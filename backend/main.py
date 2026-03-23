@@ -1155,11 +1155,15 @@ def get_bonus_anual(nome: str, user=Depends(get_current_user)):
             res = calc_bonus_diretor(nome)
             q4_real = res["real_rec_q4"]
             q4_meta = res["budget_rec_q4"]
+            q4_lb_real = res.get("real_mc_pct", 0) / 100 * q4_real if res.get("real_mc_pct") else 0
+            q4_lb_meta = res.get("budget_mc_pct", 0) / 100 * q4_meta if res.get("budget_mc_pct") else 0
         else:
             res = calc_bonus_ae(nome)
             q4_real = res["real_rec_total"]
             q4_meta = res["budget_rec_total"]
-        return _calc_anual(nome, sal, q4_real, q4_meta)
+            q4_lb_real = res.get("real_lb_total", 0)
+            q4_lb_meta = res.get("budget_mb_pct", 0) / 100 * q4_meta if res.get("budget_mb_pct") else 0
+        return _calc_anual(nome, pos, sal, q4_real, q4_meta, q4_lb_real, q4_lb_meta)
     except HTTPException:
         raise
     except Exception as e:

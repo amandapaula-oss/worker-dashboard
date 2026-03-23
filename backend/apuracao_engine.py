@@ -707,85 +707,154 @@ def _resolve_vertical_for_ae(nome: str, lookup: dict) -> str:
 _METAS_ANUAIS_PATH = os.path.join(DIR, "metas_anuais.csv")
 _PERIODOS_ANUAIS   = ["Q1Y25", "Q2Y25", "Q3Y25"]  # Q4 calculado pelo engine
 
+# Tipos de margem por grupo
+_TIPOS_LB  = {"lb", "mb%"}   # AEs Finance/Health/Multisector
+_TIPOS_MC  = {"mc", "mc%"}   # Diretores e Retail
+
 @lru_cache(maxsize=1)
 def _load_metas_anuais() -> pd.DataFrame:
     if not os.path.exists(_METAS_ANUAIS_PATH):
         return pd.DataFrame()
     df = pd.read_csv(_METAS_ANUAIS_PATH, encoding="utf-8-sig")
-    df["nome_norm"] = df["nome"].apply(norm)
-    df["periodo"]   = df["periodo"].str.upper().str.strip()
-    # Filtra apenas receita (ignora linhas de total e outros tipos)
-    df = df[df["meta_tipo"].str.lower() == "receita"]
-    df = df[df["ws"].str.lower() != "total"]
+    df["nome_norm"]   = df["nome"].apply(norm)
+    df["periodo"]     = df["periodo"].str.upper().str.strip()
+    df["meta_tipo_n"] = df["meta_tipo"].str.lower().str.strip()
     return df
 
 
-def calc_bonus_anual(nome: str, salario: float, q4_realizado: float, q4_meta: float) -> dict:
+@lru_cache(maxsize=1)
+def _pesos_anuais() -> dict:
+    """Retorna dict posicao_upper → {rec, lb_mb, tcv} para período Anual."""
+    path = os.path.join(DIR, "premissas_pesos_meta.csv")
+    df = pd.read_csv(path, encoding="utf-8-sig")
+    anual = df[df["Periodo"].str.lower() == "anual"]
+    result = {}
+    for _, row in anual.iterrows():
+        pos = str(row["Posicao"]).upper().strip()
+        result[pos] = {
+            "rec":   float(row.get("Receita", 0) or 0),
+            "lb_mb": float(row.get("MB_pct", 0) or 0),
+            "mc":    float(row.get("MC_pct", 0) or 0),
+            "tcv":   float(row.get("TCV", 0) or 0),
+        }
+    return result
+
+
+def calc_bonus_anual(nome: str, posicao: str, salario: float,
+                     q4_rec_real: float, q4_rec_meta: float,
+                     q4_lb_real: float = 0, q4_lb_meta: float = 0) -> dict:
     """
     Calcula bônus anual (Q1+Q2+Q3 do CSV + Q4 do engine).
+    Inclui Receita e LB/MB% (AEs) ou MC/MC% (Diretores).
     Valor cheio = 3 × salário × atingimento_anual
     """
-    df = _load_metas_anuais()
+    df_all = _load_metas_anuais()
     nome_n = norm(nome)
 
-    if df.empty:
+    if df_all.empty:
         return {"disponivel": False}
 
-    pessoa = df[df["nome_norm"] == nome_n]
-    if pessoa.empty:
-        # Try first-name match
+    pessoa_all = df_all[df_all["nome_norm"] == nome_n]
+    if pessoa_all.empty:
         primeiro = nome_n.split()[0]
-        pessoa = df[df["nome_norm"].str.startswith(primeiro)]
-    if pessoa.empty:
+        pessoa_all = df_all[df_all["nome_norm"].str.startswith(primeiro)]
+    if pessoa_all.empty:
         return {"disponivel": False}
+
+    # Detecta qual tipo de margem a pessoa usa (LB/MB% ou MC/MC%)
+    tipos_presentes = set(pessoa_all["meta_tipo_n"].unique())
+    usa_mc = bool(tipos_presentes & _TIPOS_MC)
+    tipo_lb_key  = "mc"   if usa_mc else "lb"
+    tipos_lb_set = _TIPOS_MC if usa_mc else _TIPOS_LB
+    label_lb     = "MC"   if usa_mc else "LB"
+
+    # Pesos anuais
+    pos_up = posicao.upper().strip()
+    pesos  = _pesos_anuais().get(pos_up, {"rec": 0.5, "lb_mb": 0.4, "mc": 0.0, "tcv": 0.0})
+    peso_rec  = pesos["rec"]
+    peso_lb   = pesos["mc"] if usa_mc else pesos["lb_mb"]
 
     trimestres = []
     for per in _PERIODOS_ANUAIS:
-        per_rows = pessoa[pessoa["periodo"] == per]
-        if per_rows.empty:
+        # Receita (ws != "Total")
+        rec_rows = pessoa_all[(pessoa_all["periodo"] == per) &
+                              (pessoa_all["meta_tipo_n"] == "receita") &
+                              (pessoa_all["ws"].str.lower() != "total")]
+        # LB/MC — linha Total (ws == "Total")
+        lb_rows  = pessoa_all[(pessoa_all["periodo"] == per) &
+                              (pessoa_all["meta_tipo_n"].isin(tipos_lb_set)) &
+                              (pessoa_all["ws"].str.lower() == "total") &
+                              (pessoa_all["meta_tipo_n"] != "mb%") &   # usa LB amount, não pct
+                              (pessoa_all["meta_tipo_n"] != "mc%")]    # usa MC amount, não pct
+        if rec_rows.empty:
             continue
-        meta_sum  = float(per_rows["meta"].sum())
-        real_sum  = float(per_rows["realizado"].sum())
-        apur_sum  = float(per_rows["apuracao"].sum())
-        sal_row   = float(per_rows["salario"].iloc[0]) if not per_rows.empty else 0.0
+
+        rec_meta = float(rec_rows["meta"].sum())
+        rec_real = float(rec_rows["realizado"].sum())
+        lb_meta  = float(lb_rows["meta"].sum())  if not lb_rows.empty else 0.0
+        lb_real  = float(lb_rows["realizado"].sum()) if not lb_rows.empty else 0.0
+        mb_meta  = round(lb_meta / rec_meta * 100, 2) if rec_meta > 0 else None
+        mb_real  = round(lb_real / rec_real * 100, 2) if rec_real > 0 else None
+        sal_row  = float(rec_rows["salario"].iloc[0])
+
         trimestres.append({
             "periodo":   per,
-            "meta":      round(meta_sum, 2),
-            "realizado": round(real_sum, 2),
-            "apuracao":  round(apur_sum, 2),
+            "rec_meta":  round(rec_meta, 2),
+            "rec_real":  round(rec_real, 2),
+            "lb_meta":   round(lb_meta, 2),
+            "lb_real":   round(lb_real, 2),
+            "mb_meta":   mb_meta,
+            "mb_real":   mb_real,
             "salario":   round(sal_row, 2),
         })
 
-    # Q4 usando valores do engine
+    # Q4 vindo do engine
+    q4_mb_meta = round(q4_lb_meta / q4_rec_meta * 100, 2) if q4_rec_meta > 0 else None
+    q4_mb_real = round(q4_lb_real / q4_rec_real * 100, 2) if q4_rec_real > 0 else None
     trimestres.append({
-        "periodo":   "Q4Y25",
-        "meta":      round(q4_meta, 2),
-        "realizado": round(q4_realizado, 2),
-        "apuracao":  None,  # calculado abaixo
-        "salario":   round(salario, 2),
+        "periodo":  "Q4Y25",
+        "rec_meta": round(q4_rec_meta, 2),
+        "rec_real": round(q4_rec_real, 2),
+        "lb_meta":  round(q4_lb_meta, 2),
+        "lb_real":  round(q4_lb_real, 2),
+        "mb_meta":  q4_mb_meta,
+        "mb_real":  q4_mb_real,
+        "salario":  round(salario, 2),
     })
 
     # Totais anuais
-    total_meta  = sum(t["meta"]      for t in trimestres)
-    total_real  = sum(t["realizado"] for t in trimestres)
+    total_rec_meta = sum(t["rec_meta"] for t in trimestres)
+    total_rec_real = sum(t["rec_real"] for t in trimestres)
+    total_lb_meta  = sum(t["lb_meta"]  for t in trimestres)
+    total_lb_real  = sum(t["lb_real"]  for t in trimestres)
 
-    ating_anual = calc_atingimento(total_real, total_meta, 0.85)
+    # Atingimentos anuais
+    ating_rec = calc_atingimento(total_rec_real, total_rec_meta, 0.85)
+
+    total_mb_meta = total_lb_meta / total_rec_meta if total_rec_meta > 0 else 0
+    total_mb_real = total_lb_real / total_rec_real if total_rec_real > 0 else 0
+    ating_lb  = calc_atingimento_mb(total_mb_real, total_mb_meta, MB_TRIGGER_DELTA) if total_mb_meta > 0 else 0.0
+
+    ating_anual = peso_rec * ating_rec + peso_lb * ating_lb
     bonus_anual = round(3 * salario * ating_anual, 2)
 
-    # Atualiza apuracao do Q4
-    for t in trimestres:
-        if t["periodo"] == "Q4Y25":
-            q4_ating = calc_atingimento(q4_realizado, q4_meta, 0.85)
-            t["apuracao"] = round(salario * q4_ating, 2)
-
     return {
-        "disponivel":   True,
-        "trimestres":   trimestres,
-        "total_meta":   round(total_meta, 2),
-        "total_real":   round(total_real, 2),
-        "ating_anual":  round(ating_anual, 4),
-        "bonus_anual":  bonus_anual,
-        "salario":      round(salario, 2),
+        "disponivel":    True,
+        "label_lb":      label_lb,
+        "trimestres":    trimestres,
+        "total_rec_meta": round(total_rec_meta, 2),
+        "total_rec_real": round(total_rec_real, 2),
+        "total_lb_meta":  round(total_lb_meta, 2),
+        "total_lb_real":  round(total_lb_real, 2),
+        "total_mb_meta":  round(total_mb_meta * 100, 2),
+        "total_mb_real":  round(total_mb_real * 100, 2),
+        "ating_rec":      round(ating_rec, 4),
+        "ating_lb":       round(ating_lb, 4),
+        "peso_rec":       peso_rec,
+        "peso_lb":        peso_lb,
+        "ating_anual":    round(ating_anual, 4),
+        "bonus_anual":    bonus_anual,
+        "salario":        round(salario, 2),
     }
 
 
@@ -809,8 +878,11 @@ def get_visao_master() -> list[dict]:
                 bgt_r = res["budget_rec_q4"] or 1
                 bgt_t = res["budget_tcv_q4"] or 1
                 bgt_m = res["budget_mc_pct"] or 1
-                anual = calc_bonus_anual(nome, res["salario_q4"],
-                                         res["real_rec_q4"], res["budget_rec_q4"])
+                q4_mc_real = res["real_mc_pct"] / 100 * res["real_rec_q4"] if res.get("real_mc_pct") else 0
+                q4_mc_meta = res["budget_mc_pct"] / 100 * res["budget_rec_q4"] if res.get("budget_mc_pct") else 0
+                anual = calc_bonus_anual(nome, pos, res["salario_q4"],
+                                         res["real_rec_q4"], res["budget_rec_q4"],
+                                         q4_mc_real, q4_mc_meta)
                 resultados.append({
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],
@@ -840,8 +912,10 @@ def get_visao_master() -> list[dict]:
                 bgt_m = res["budget_mb_pct"] or 1
                 nome_n_vis = norm(nome)
                 vertical_ae = AE_BS_OVERRIDE.get(nome_n_vis) or _resolve_vertical_for_ae(nome, ae_vert)
-                anual = calc_bonus_anual(nome, res["salario_q4"],
-                                         res["real_rec_total"], res["budget_rec_total"])
+                q4_lb_meta = res["budget_mb_pct"] / 100 * res["budget_rec_total"] if res.get("budget_mb_pct") else 0
+                anual = calc_bonus_anual(nome, pos, res["salario_q4"],
+                                         res["real_rec_total"], res["budget_rec_total"],
+                                         res.get("real_lb_total", 0), q4_lb_meta)
                 resultados.append({
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],

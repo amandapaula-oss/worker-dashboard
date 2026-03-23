@@ -39,17 +39,29 @@ type MasterRow = {
 
 type TrimestralAnual = {
   periodo: string;
-  meta: number;
-  realizado: number;
-  apuracao: number | null;
+  rec_meta: number;
+  rec_real: number;
+  lb_meta: number;
+  lb_real: number;
+  mb_meta: number | null;
+  mb_real: number | null;
   salario: number;
 };
 
 type BonusAnualDetalhe = {
   disponivel: boolean;
+  label_lb?: string;
   trimestres?: TrimestralAnual[];
-  total_meta?: number;
-  total_real?: number;
+  total_rec_meta?: number;
+  total_rec_real?: number;
+  total_lb_meta?: number;
+  total_lb_real?: number;
+  total_mb_meta?: number;
+  total_mb_real?: number;
+  ating_rec?: number;
+  ating_lb?: number;
+  peso_rec?: number;
+  peso_lb?: number;
   ating_anual?: number;
   bonus_anual?: number;
   salario?: number;
@@ -566,38 +578,85 @@ function DetalheDrawer({ d, anual }: { d: DetalheCalculo; anual: BonusAnualDetal
             pagination={false}
             style={{ marginBottom: 16 }}
             columns={[
-              { title: "Trimestre", dataIndex: "periodo", key: "periodo", width: 90 },
-              { title: "Meta", dataIndex: "meta", key: "meta", align: "right" as const,
-                render: (v: number) => fmt(v) },
-              { title: "Realizado", dataIndex: "realizado", key: "realizado", align: "right" as const,
-                render: (v: number, row: TrimestralAnual) => (
-                  <span style={{ color: v >= row.meta ? "#52c41a" : v >= row.meta * 0.85 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>
-                    {fmt(v)}
-                  </span>
-                ) },
-              { title: "Apuração", dataIndex: "apuracao", key: "apuracao", align: "right" as const,
-                render: (v: number | null) => v != null ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
+              { title: "Trimestre", dataIndex: "periodo", key: "periodo", width: 80 },
+              {
+                title: "Receita",
+                children: [
+                  { title: "Meta", dataIndex: "rec_meta", key: "rec_meta", align: "right" as const, render: (v: number) => fmt(v) },
+                  { title: "Realizado", dataIndex: "rec_real", key: "rec_real", align: "right" as const,
+                    render: (v: number, row: TrimestralAnual) => (
+                      <span style={{ color: v >= row.rec_meta ? "#52c41a" : v >= row.rec_meta * 0.85 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>
+                        {fmt(v)}
+                      </span>
+                    )},
+                ],
+              },
+              {
+                title: anual.label_lb ?? "LB",
+                children: [
+                  { title: "Meta", dataIndex: "lb_meta", key: "lb_meta", align: "right" as const, render: (v: number) => v ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
+                  { title: "Realizado", dataIndex: "lb_real", key: "lb_real", align: "right" as const,
+                    render: (v: number, row: TrimestralAnual) => v
+                      ? <span style={{ color: v >= row.lb_meta ? "#52c41a" : "#faad14", fontWeight: 600 }}>{fmt(v)}</span>
+                      : <span style={{ color: "#ccc" }}>—</span> },
+                ],
+              },
+              {
+                title: `${anual.label_lb ?? "LB"}%`,
+                children: [
+                  { title: "Meta", dataIndex: "mb_meta", key: "mb_meta", align: "right" as const, render: (v: number | null) => v != null ? `${v.toFixed(1)}%` : <span style={{ color: "#ccc" }}>—</span> },
+                  { title: "Realizado", dataIndex: "mb_real", key: "mb_real", align: "right" as const,
+                    render: (v: number | null, row: TrimestralAnual) => v != null
+                      ? <span style={{ color: v >= (row.mb_meta ?? 0) ? "#52c41a" : "#faad14", fontWeight: 600 }}>{v.toFixed(1)}%</span>
+                      : <span style={{ color: "#ccc" }}>—</span> },
+                ],
+              },
             ]}
             summary={() => (
               <Table.Summary.Row style={{ fontWeight: 700, background: "#f6ffed" }}>
-                <Table.Summary.Cell index={0}>Total Anual</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} align="right">{fmt(anual.total_meta ?? 0)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align="right">{fmt(anual.total_rec_meta ?? 0)}</Table.Summary.Cell>
                 <Table.Summary.Cell index={2} align="right">
-                  <span style={{ color: (anual.total_real ?? 0) >= (anual.total_meta ?? 1) ? "#52c41a" : "#ff4d4f" }}>
-                    {fmt(anual.total_real ?? 0)}
+                  <span style={{ color: (anual.total_rec_real ?? 0) >= (anual.total_rec_meta ?? 1) ? "#52c41a" : "#ff4d4f" }}>
+                    {fmt(anual.total_rec_real ?? 0)}
                   </span>
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={3} />
+                <Table.Summary.Cell index={3} align="right">{fmt(anual.total_lb_meta ?? 0)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={4} align="right">
+                  <span style={{ color: (anual.total_lb_real ?? 0) >= (anual.total_lb_meta ?? 1) ? "#52c41a" : "#ff4d4f" }}>
+                    {fmt(anual.total_lb_real ?? 0)}
+                  </span>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align="right">{anual.total_mb_meta != null ? `${anual.total_mb_meta.toFixed(1)}%` : "—"}</Table.Summary.Cell>
+                <Table.Summary.Cell index={6} align="right">
+                  <span style={{ color: (anual.total_mb_real ?? 0) >= (anual.total_mb_meta ?? 0) ? "#52c41a" : "#ff4d4f" }}>
+                    {anual.total_mb_real != null ? `${anual.total_mb_real.toFixed(1)}%` : "—"}
+                  </span>
+                </Table.Summary.Cell>
               </Table.Summary.Row>
             )}
           />
+          <div style={{ display: "flex", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, background: "#f5f5f5", borderRadius: 6, padding: "8px 12px" }}>
+              <div style={{ fontSize: 11, color: "#888" }}>Receita ({((anual.peso_rec ?? 0) * 100).toFixed(0)}%)</div>
+              <div style={{ fontWeight: 700, color: (anual.ating_rec ?? 0) >= 1 ? "#52c41a" : (anual.ating_rec ?? 0) > 0 ? "#faad14" : "#ff4d4f" }}>
+                {fmtPct(anual.ating_rec ?? 0)}
+              </div>
+            </div>
+            <div style={{ flex: 1, background: "#f5f5f5", borderRadius: 6, padding: "8px 12px" }}>
+              <div style={{ fontSize: 11, color: "#888" }}>{anual.label_lb ?? "LB"}% ({((anual.peso_lb ?? 0) * 100).toFixed(0)}%)</div>
+              <div style={{ fontWeight: 700, color: (anual.ating_lb ?? 0) >= 1 ? "#52c41a" : (anual.ating_lb ?? 0) > 0 ? "#faad14" : "#ff4d4f" }}>
+                {fmtPct(anual.ating_lb ?? 0)}
+              </div>
+            </div>
+          </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
             background: (anual.ating_anual ?? 0) > 0 ? "#f6ffed" : "#fff2f0",
             border: `1px solid ${(anual.ating_anual ?? 0) > 0 ? "#b7eb8f" : "#ffccc7"}`,
             borderRadius: 8, padding: "12px 16px", marginBottom: 8 }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14 }}>Atingimento Anual</div>
-              <div style={{ fontSize: 13, color: "#555" }}>3 × salário × atingimento</div>
+              <div style={{ fontSize: 12, color: "#555" }}>3 × salário × atingimento</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 20, fontWeight: 700,
