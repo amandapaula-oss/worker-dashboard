@@ -326,14 +326,11 @@ def calc_bonus_ae(nome: str) -> dict:
                         "budget_rec": round(bv, 2),
                         "real_rec":   round(cli_real_ws, 2),
                     })
-            if actual_marg_total != 0:
-                for ws_k in WS_PESOS_Q4:
-                    prop = actual_marg_ws[ws_k] / actual_marg_total
-                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + real_lb * prop
-            else:
-                for ws_k in WS_PESOS_Q4:
-                    prop = actual_rec_ws[ws_k] / actual_rec_total
-                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + real_lb * prop
+            for ws_k in WS_PESOS_Q4:
+                if ws_k in WS_MB_BENCHMARK_Q4:
+                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + actual_rec_ws[ws_k] * WS_MB_BENCHMARK_Q4[ws_k]
+                else:
+                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
         else:
             # Fallback: proporção do budget (comportamento anterior)
             cli_rec_total = float(cli_rec_ws.sum())
@@ -608,8 +605,19 @@ def calc_bonus_diretor(nome: str) -> dict:
             continue
         seen_cli.add(cli_n)
         r_rec   = _match_cliente(cli_n, d["rac_by_client"])
-        r_lb    = _match_cliente(cli_n, d["marg_by_client"])
         r_custo = _match_cliente(cli_n, d["custo_by_client"])
+        # LB ajustado: benchmark para WS definidos, LB real para apps
+        _cli_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws"])
+        _cli_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws"])
+        _cli_rec_total = sum(_cli_rec_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4)
+        if _cli_rec_total > 0:
+            r_lb = sum(
+                _cli_rec_ws.get(ws_k, 0.0) * WS_MB_BENCHMARK_Q4[ws_k] if ws_k in WS_MB_BENCHMARK_Q4
+                else _cli_marg_ws.get(ws_k, 0.0)
+                for ws_k in WS_PESOS_Q4
+            )
+        else:
+            r_lb = _match_cliente(cli_n, d["marg_by_client"])
         real_rec_q4 += r_rec
         clientes_detalhe_dir.append({
             "cliente":    cli_disp,
@@ -648,8 +656,10 @@ def calc_bonus_diretor(nome: str) -> dict:
                 prop = actual_rec_ws[ws_k] / actual_rec_total
                 realized_rec_ws_dir[ws_k] = realized_rec_ws_dir.get(ws_k, 0.0) + r_rec * prop
             for ws_k in WS_PESOS_Q4:
-                prop = (actual_marg_ws[ws_k] / actual_marg_total) if actual_marg_total != 0 else (actual_rec_ws[ws_k] / actual_rec_total)
-                realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + r_lb * prop
+                if ws_k in WS_MB_BENCHMARK_Q4:
+                    realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + actual_rec_ws[ws_k] * WS_MB_BENCHMARK_Q4[ws_k]
+                else:
+                    realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
 
     # ─ MC% ─
     # Nexus: Margem de Contribuição = Gross Revenue - Direct costs (Payroll + Third-party + Other)
@@ -755,7 +765,7 @@ def calc_bonus_diretor(nome: str) -> dict:
         })
 
     # ─ LB absoluto (10%) ─
-    real_lb_dir = sum(_match_cliente(cli_n, d["marg_by_client"]) for cli_n, _, _ in cli_source)
+    real_lb_dir = sum(realized_lb_ws_dir.values())
     ating_lb_dir = calc_atingimento(real_lb_dir, bgt_lb_q4, TRIGGER_REC_Q4) if bgt_lb_q4 > 0 else 0.0
 
     # ─ Bônus ─
