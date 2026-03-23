@@ -201,14 +201,30 @@ def _preload_heavy():
         import traceback; traceback.print_exc()
         print(f"Erro ao carregar Nexus: {e}")
 
+@app.get("/")
+@app.head("/")
+async def root():
+    return {"status": "ok"}
+
+@app.get("/health")
+@app.head("/health")
+async def health():
+    return {"status": "ok"}
+
 @app.on_event("startup")
 async def startup():
-    print("Carregando Worker...")
-    get_df()
-    get_nomes()
-    print("Worker carregado. Iniciando carregamento pesado em background...")
+    # Tudo em background para o servidor declarar "Live" imediatamente
     import threading
-    threading.Thread(target=_preload_heavy, daemon=True).start()
+    def _preload_all():
+        try:
+            print("Carregando Worker (background)...")
+            get_df()
+            get_nomes()
+            print("Worker carregado. Carregando dados pesados...")
+        except Exception as e:
+            print(f"Erro no preload leve: {e}")
+        _preload_heavy()
+    threading.Thread(target=_preload_all, daemon=True).start()
 
 # ── P&L Engine ─────────────────────────────────────────────────────────────────
 
