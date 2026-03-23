@@ -782,59 +782,80 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
           <Table
             size="small"
             pagination={false}
-            dataSource={[
-              ...d.detalhe_ws.map(w => ({
-                key: w.ws,
-                ws: w.ws.toUpperCase(),
-                peso_ws: fmtPct(w.peso_ws),
-                ating_rec: fmtPct(w.ating_rec),
-                bonus_rec: w.bonus_rec,
-                ating_mb: w.aplica_gate_mb ? fmtPct(w.ating_mb) : "—",
-                bonus_mb: w.bonus_mb,
-                bonus_ws: w.bonus_ws,
-              })),
-            ]}
-            summary={() => (
-              <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
-                <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} />
-                <Table.Summary.Cell index={2} />
-                <Table.Summary.Cell index={3} align="right">
-                  {fmt(d.detalhe_ws!.reduce((s, w) => s + w.bonus_rec, 0))}
-                </Table.Summary.Cell>
-                <Table.Summary.Cell index={4} />
-                <Table.Summary.Cell index={5} align="right">
-                  {fmt(d.detalhe_ws!.reduce((s, w) => s + w.bonus_mb, 0))}
-                </Table.Summary.Cell>
-                <Table.Summary.Cell index={6} align="right">
-                  <span style={{ color: "#52c41a" }}>{fmt(d.bonus_total)}</span>
-                </Table.Summary.Cell>
-              </Table.Summary.Row>
-            )}
+            dataSource={d.detalhe_ws.map(w => ({
+              key: w.ws,
+              ws: w.ws.toUpperCase(),
+              peso_ws: w.peso_ws,
+              rec_meta: w.budget_rec,
+              rec_real: w.real_rec,
+              mb_meta: w.budget_mb_pct,
+              mb_real: w.real_mb_pct,
+              lb_meta: w.budget_rec * w.budget_mb_pct / 100,
+              lb_real: w.real_rec * w.real_mb_pct / 100,
+              bonus_ws: w.bonus_ws,
+            }))}
+            summary={() => {
+              const ws = d.detalhe_ws!;
+              const totRecMeta = ws.reduce((s, w) => s + w.budget_rec, 0);
+              const totRecReal = ws.reduce((s, w) => s + w.real_rec, 0);
+              const totLbMeta  = ws.reduce((s, w) => s + w.budget_rec * w.budget_mb_pct / 100, 0);
+              const totLbReal  = ws.reduce((s, w) => s + w.real_rec * w.real_mb_pct / 100, 0);
+              const mbMetaTot  = totRecMeta > 0 ? totLbMeta / totRecMeta * 100 : 0;
+              const mbRealTot  = totRecReal > 0 ? totLbReal / totRecReal * 100 : 0;
+              return (
+                <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
+                  <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} />
+                  <Table.Summary.Cell index={2} align="right">{fmt(totRecMeta)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="right">
+                    <span style={{ color: totRecReal >= totRecMeta ? "#52c41a" : "#ff4d4f" }}>{fmt(totRecReal)}</span>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} align="right">{mbMetaTot.toFixed(1)}%</Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} align="right">
+                    <span style={{ color: mbRealTot >= mbMetaTot ? "#52c41a" : "#ff4d4f" }}>{mbRealTot.toFixed(1)}%</span>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} align="right">{fmt(totLbMeta)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={7} align="right">
+                    <span style={{ color: totLbReal >= totLbMeta ? "#52c41a" : "#ff4d4f" }}>{fmt(totLbReal)}</span>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={8} align="right">
+                    <span style={{ color: "#52c41a" }}>{fmt(d.bonus_total)}</span>
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              );
+            }}
             columns={[
-              { title: "WS", dataIndex: "ws", width: 70 },
-              { title: "Peso WS", dataIndex: "peso_ws", width: 80 },
-              { title: "Ating. Rec.", dataIndex: "ating_rec", width: 90 },
+              { title: "WS", dataIndex: "ws", width: 60 },
+              { title: "Peso", dataIndex: "peso_ws", width: 60, render: (v: number) => fmtPct(v) },
               {
-                title: "Bônus Rec.",
-                dataIndex: "bonus_rec",
-                align: "right" as const,
-                width: 110,
-                render: (v: number) => fmt(v),
-              },
-              { title: "Ating. MB%", dataIndex: "ating_mb", width: 90 },
-              {
-                title: "Bônus MB%",
-                dataIndex: "bonus_mb",
-                align: "right" as const,
-                width: 110,
-                render: (v: number) => fmt(v),
+                title: "Receita",
+                children: [
+                  { title: "Meta", dataIndex: "rec_meta", align: "right" as const, render: (v: number) => fmt(v) },
+                  { title: "Realizado", dataIndex: "rec_real", align: "right" as const,
+                    render: (v: number, row: any) => <span style={{ color: v >= row.rec_meta ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{fmt(v)}</span> },
+                ],
               },
               {
-                title: "Bônus WS",
+                title: "MB%",
+                children: [
+                  { title: "Meta", dataIndex: "mb_meta", align: "right" as const, render: (v: number) => `${v.toFixed(1)}%` },
+                  { title: "Realizado", dataIndex: "mb_real", align: "right" as const,
+                    render: (v: number, row: any) => <span style={{ color: v >= row.mb_meta ? "#52c41a" : "#faad14", fontWeight: 600 }}>{v.toFixed(1)}%</span> },
+                ],
+              },
+              {
+                title: "LB",
+                children: [
+                  { title: "Meta", dataIndex: "lb_meta", align: "right" as const, render: (v: number) => v ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
+                  { title: "Realizado", dataIndex: "lb_real", align: "right" as const,
+                    render: (v: number, row: any) => <span style={{ color: v >= row.lb_meta ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{v ? fmt(v) : "—"}</span> },
+                ],
+              },
+              {
+                title: "Bônus",
                 dataIndex: "bonus_ws",
                 align: "right" as const,
-                width: 110,
+                width: 100,
                 render: (v: number) => <strong style={{ color: v > 0 ? "#52c41a" : "#999" }}>{fmt(v)}</strong>,
               },
             ]}
