@@ -51,6 +51,7 @@ type TrimestralAnual = {
 type BonusAnualDetalhe = {
   disponivel: boolean;
   label_lb?: string;
+  lb_gate?: number;
   trimestres?: TrimestralAnual[];
   total_rec_meta?: number;
   total_rec_real?: number;
@@ -650,17 +651,30 @@ function DetalheDrawer({ d, anual }: { d: DetalheCalculo; anual: BonusAnualDetal
               </div>
             </div>
           </div>
+          {anual.lb_gate === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8,
+              background: "#fff2f0", border: "1px solid #ffccc7",
+              borderRadius: 6, padding: "8px 12px", marginBottom: 8 }}>
+              <CloseCircleFilled style={{ color: "#ff4d4f" }} />
+              <span style={{ fontWeight: 600, color: "#cf1322" }}>
+                Gatilho Mestre bloqueado — {anual.label_lb ?? "LB"} anual negativo
+              </span>
+              <span style={{ color: "#888", fontSize: 12 }}>
+                ({fmt(anual.total_lb_real ?? 0)})
+              </span>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-            background: (anual.ating_anual ?? 0) > 0 ? "#f6ffed" : "#fff2f0",
-            border: `1px solid ${(anual.ating_anual ?? 0) > 0 ? "#b7eb8f" : "#ffccc7"}`,
+            background: anual.lb_gate === 0 ? "#f5f5f5" : (anual.ating_anual ?? 0) > 0 ? "#f6ffed" : "#fff2f0",
+            border: `1px solid ${anual.lb_gate === 0 ? "#d9d9d9" : (anual.ating_anual ?? 0) > 0 ? "#b7eb8f" : "#ffccc7"}`,
             borderRadius: 8, padding: "12px 16px", marginBottom: 8 }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14 }}>Atingimento Anual</div>
-              <div style={{ fontSize: 12, color: "#555" }}>3 × salário × atingimento</div>
+              <div style={{ fontSize: 12, color: "#555" }}>3 × salário × atingimento{anual.lb_gate === 0 ? " × 0 (bloqueado)" : ""}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 20, fontWeight: 700,
-                color: (anual.ating_anual ?? 0) >= 1 ? "#52c41a" : (anual.ating_anual ?? 0) > 0 ? "#faad14" : "#ff4d4f" }}>
+                color: anual.lb_gate === 0 ? "#8c8c8c" : (anual.ating_anual ?? 0) >= 1 ? "#52c41a" : (anual.ating_anual ?? 0) > 0 ? "#faad14" : "#ff4d4f" }}>
                 {fmt(anual.bonus_anual ?? 0)}
               </div>
               <div style={{ fontSize: 12, color: "#888" }}>{fmtPct(anual.ating_anual ?? 0)}</div>

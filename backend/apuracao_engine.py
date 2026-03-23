@@ -845,12 +845,16 @@ def calc_bonus_anual(nome: str, posicao: str, salario: float,
     total_mb_real = total_lb_real / total_rec_real if total_rec_real > 0 else 0
     ating_lb  = calc_atingimento_mb(total_mb_real, total_mb_meta, MB_TRIGGER_DELTA) if total_mb_meta > 0 else 0.0
 
+    # Gatilho mestre anual: LB/MC anual deve ser positivo
+    lb_gate = 1 if total_lb_real > 0 else 0
+
     ating_anual = peso_rec * ating_rec + peso_lb * ating_lb
-    bonus_anual = round(3 * salario * ating_anual, 2)
+    bonus_anual = round(3 * salario * ating_anual * lb_gate, 2)
 
     return {
         "disponivel":    True,
         "label_lb":      label_lb,
+        "lb_gate":        lb_gate,
         "trimestres":    trimestres,
         "total_rec_meta": round(total_rec_meta, 2),
         "total_rec_real": round(total_rec_real, 2),
