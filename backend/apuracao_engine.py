@@ -124,9 +124,8 @@ TRIGGER_REC_Q4 = 0.85   # Receita/TCV/MC
 TRIGGER_MB_Q4  = 0.985  # MB%
 
 WS_PESOS_Q4 = {
+    "cloud":      0.08,   # Cloud/Cyber combinados
     "apps":       0.70,
-    "cloud":      0.04,
-    "cyber":      0.04,
     "dados":      0.08,
     "hyper":      0.08,
     "demais":     0.06,
@@ -136,7 +135,7 @@ WS_MAP = {
     # Normaliza nomes de WS do budget para chaves internas
     "apps":       "apps",
     "cloud":      "cloud",
-    "cyber":      "cyber",
+    "cyber":      "cloud",   # Cyber combinado com Cloud
     "cloud/cyber":"cloud",
     "cloudcyber": "cloud",
     "dados":      "dados",

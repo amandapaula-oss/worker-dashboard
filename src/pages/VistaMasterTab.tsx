@@ -784,7 +784,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
             pagination={false}
             dataSource={d.detalhe_ws.map(w => ({
               key: w.ws,
-              ws: w.ws.toUpperCase(),
+              ws: w.ws === "cloud" ? "CLOUD/CYBER" : w.ws.toUpperCase(),
               peso_ws: w.peso_ws,
               rec_meta: w.budget_rec,
               rec_real: w.real_rec,
