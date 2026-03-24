@@ -405,7 +405,11 @@ def calc_bonus_ae(nome: str) -> dict:
             ating_mb = calc_atingimento_mb(real_mb_pct_ws, bgt_mb_pct_ws)
             mb_gate  = 1.0 if ating_mb > 0 else 0.0
         else:
-            ating_mb = calc_atingimento_mb(real_mb_pct_ws, bgt_mb_pct_ws) if bgt_mb_pct_ws > 0 else 1.0
+            # WS sem orçamento E sem receita não geram bônus MB (evita ating=1.0 com inatividade)
+            if bgt_r == 0 and real_r == 0:
+                ating_mb = 0.0
+            else:
+                ating_mb = calc_atingimento_mb(real_mb_pct_ws, bgt_mb_pct_ws) if bgt_mb_pct_ws > 0 else 1.0
             mb_gate  = 1.0
 
         bonus_rec = Q4_QTDE * peso_ws * ating_rec * salario * peso_rec
