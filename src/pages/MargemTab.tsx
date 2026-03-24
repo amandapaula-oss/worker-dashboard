@@ -733,8 +733,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     }] : []),
   ];
 
-  // KPI cards (visíveis só na view de clientes)
-  const kpiBlock = !selectedCliente && !selectedPep && (() => {
+  // KPI cards (visíveis só na view de clientes, não durante drill-down de pessoa)
+  const kpiBlock = !selectedCliente && !selectedPep && !selectedPessoa && (() => {
     const receita       = clientesData.reduce((s, r) => s + r.receita, 0);
     const custo_rateado = clientesData.reduce((s, r) => s + r.custo_rateado, 0);
     const margem        = clientesData.reduce((s, r) => s + r.margem, 0);

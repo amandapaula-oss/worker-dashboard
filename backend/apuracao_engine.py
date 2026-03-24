@@ -208,12 +208,19 @@ def _match_cliente(budget_norm: str, lookup: dict) -> float:
 
 
 def _match_cliente_ws(cli_n: str, ws_lookup: dict) -> dict:
-    """Retorna {ws_key: value} para um cliente com fuzzy match (mesmo critério de _match_cliente)."""
+    """Retorna {ws_key: value} para um cliente com fuzzy match (mesmo critério de _match_cliente).
+    Prefere match exato para evitar dupla contagem quando o alias já está no dict."""
+    # Verifica se há chave exata — se sim, usa só ela (evita somar alias + original)
+    has_exact = any(k_nome == cli_n for (k_nome, _) in ws_lookup)
     result = {}
     prefix = cli_n[:8]
     for (k_nome, k_ws), v in ws_lookup.items():
-        if k_nome == cli_n or cli_n in k_nome or k_nome.startswith(prefix):
-            result[k_ws] = result.get(k_ws, 0.0) + v
+        if has_exact:
+            if k_nome == cli_n:
+                result[k_ws] = result.get(k_ws, 0.0) + v
+        else:
+            if cli_n in k_nome or k_nome.startswith(prefix):
+                result[k_ws] = result.get(k_ws, 0.0) + v
     return result
 
 
