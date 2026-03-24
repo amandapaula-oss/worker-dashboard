@@ -98,8 +98,10 @@ type DetalheCalculo = {
   real_tcv_q4?: number;
   ating_tcv?: number;
   budget_rec_q4?: number;
+  budget_lb_q4?: number;
   real_rec_q4?: number;
   real_rec_sap?: number;
+  real_lb_q4?: number;
   ating_rec?: number;
   budget_mc_pct?: number;
   trigger_mc_pct?: number;
