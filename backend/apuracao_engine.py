@@ -294,6 +294,7 @@ def calc_bonus_ae(nome: str) -> dict:
     # Realizado por cliente, alocado por WS proporcionalmente ao budget
     realized_rec_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     realized_lb_ws:  dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_lb_financeiro_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     real_lb_financeiro: float = 0.0  # LB real (marg_by_client) para o gatilho
 
     clientes_ae = rec_ae["cliente_norm"].dropna().unique()
@@ -304,7 +305,7 @@ def calc_bonus_ae(nome: str) -> dict:
         real_rec  = _match_cliente(cli_n, d["rac_by_client"])
         real_lb   = _match_cliente(cli_n, d["marg_by_client"])
         real_custo = _match_cliente(cli_n, d["custo_by_client"])
-        real_lb_financeiro += real_lb
+        lb_visual  = real_rec - abs(real_custo)  # LB financeiro do cliente (mesma base da aba margem por cliente)
         cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
         cli_bgt  = float(cli_rows["q4"].sum())
         cli_display = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
@@ -344,6 +345,8 @@ def calc_bonus_ae(nome: str) -> dict:
                     _ws_lb = actual_marg_ws.get(ws_k, 0.0)
                     realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
+                # LB financeiro por WS: lb_visual do cliente distribuído pela proporção de receita real
+                realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + lb_visual * prop
         else:
             # Fallback: proporção do budget (comportamento anterior)
             cli_rec_total = float(cli_rec_ws.sum())
@@ -356,6 +359,7 @@ def calc_bonus_ae(nome: str) -> dict:
                 prop = float(bv) / cli_rec_total if cli_rec_total > 0 else 0.0
                 cli_real_ws = real_rec * prop
                 realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
+                realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + lb_visual * prop
                 cli_contrib.setdefault(ws_k, []).append({
                     "cliente":    cli_display,
                     "budget_rec": round(float(bv), 2),
@@ -367,8 +371,7 @@ def calc_bonus_ae(nome: str) -> dict:
                 realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
 
-                # Margem financeira para visualizacao (Receita - Custo abs)
-        lb_visual = real_rec - abs(real_custo)
+        real_lb_financeiro += lb_visual
         margem_pct_visual = lb_visual / real_rec if real_rec > 0 else None
         
         clientes_detalhe.append({
@@ -382,6 +385,7 @@ def calc_bonus_ae(nome: str) -> dict:
 
     realized_rec_ws["total"] = sum(v for k, v in realized_rec_ws.items() if k != "total")
     realized_lb_ws["total"]  = sum(v for k, v in realized_lb_ws.items() if k != "total")
+    realized_lb_financeiro_ws["total"] = sum(v for k, v in realized_lb_financeiro_ws.items() if k != "total")
 
     # Calcular MB% realizado vs budget
     bgt_rec_total  = bgt_rec_ws.get("total", 1) or 1
@@ -458,6 +462,8 @@ def calc_bonus_ae(nome: str) -> dict:
             "bonus_rec":           round(bonus_rec, 2),
             "bonus_mb":            round(bonus_mb, 2),
             "bonus_ws":            round(bonus_rec + bonus_mb, 2),
+            # LB financeiro (mesmo da aba margem por cliente, distribuído por WS)
+            "real_lb_financeiro":  round(realized_lb_financeiro_ws.get(ws_k, 0.0), 2),
             # Clientes nesta WS
             "clientes_ws":         cli_contrib.get(ws_k, []),
         })

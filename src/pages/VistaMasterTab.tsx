@@ -52,6 +52,7 @@ type DetalheWS = {
   bonus_rec: number;
   bonus_mb: number;
   bonus_ws: number;
+  real_lb_financeiro?: number;
   clientes_ws?: Array<{ cliente: string; budget_rec: number; real_rec: number }>;
 };
 
@@ -618,14 +619,14 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
               mb_meta: w.budget_mb_pct,
               mb_real: w.real_mb_pct,
               lb_meta: w.budget_rec * w.budget_mb_pct / 100,
-              lb_real: w.real_rec * w.real_mb_pct / 100,
+              lb_real: w.real_lb_financeiro ?? (w.real_rec * w.real_mb_pct / 100),
             }))}
             summary={() => {
               const ws = d.detalhe_ws!;
               const totRecMeta = ws.reduce((s, w) => s + w.budget_rec, 0);
               const totRecReal = ws.reduce((s, w) => s + w.real_rec, 0);
               const totLbMeta  = ws.reduce((s, w) => s + w.budget_rec * w.budget_mb_pct / 100, 0);
-              const totLbReal  = ws.reduce((s, w) => s + w.real_rec * w.real_mb_pct / 100, 0);
+              const totLbReal  = ws.reduce((s, w) => s + (w.real_lb_financeiro ?? w.real_rec * w.real_mb_pct / 100), 0);
               const mbMetaTot  = totRecMeta > 0 ? totLbMeta / totRecMeta * 100 : 0;
               const mbRealTot  = totRecReal > 0 ? totLbReal / totRecReal * 100 : 0;
               return (
@@ -900,14 +901,14 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
               mb_meta: w.budget_mb_pct,
               mb_real: w.real_mb_pct,
               lb_meta: w.budget_rec * w.budget_mb_pct / 100,
-              lb_real: w.real_rec * w.real_mb_pct / 100,
+              lb_real: w.real_lb_financeiro ?? (w.real_rec * w.real_mb_pct / 100),
             }))}
             summary={() => {
               const ws = d.detalhe_ws!;
               const totRecMeta = ws.reduce((s, w) => s + w.budget_rec, 0);
               const totRecReal = ws.reduce((s, w) => s + w.real_rec, 0);
               const totLbMeta  = ws.reduce((s, w) => s + w.budget_rec * w.budget_mb_pct / 100, 0);
-              const totLbReal  = ws.reduce((s, w) => s + w.real_rec * w.real_mb_pct / 100, 0);
+              const totLbReal  = ws.reduce((s, w) => s + (w.real_lb_financeiro ?? w.real_rec * w.real_mb_pct / 100), 0);
               const mbMetaTot  = totRecMeta > 0 ? totLbMeta / totRecMeta * 100 : 0;
               const mbRealTot  = totRecReal > 0 ? totLbReal / totRecReal * 100 : 0;
               return (
