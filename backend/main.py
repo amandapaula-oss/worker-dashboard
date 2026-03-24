@@ -788,23 +788,33 @@ def get_clientes_list(search: str = "", user=Depends(get_current_user)):
     clientes = read_clientes_csv()
     proj = get_margem_proj()
     proj["nome_upper"] = proj["nome_cliente"].str.upper().str.strip()
+    
+    if "nome_base" in clientes.columns:
+        clientes["nome_upper"] = clientes.apply(
+            lambda r: str(r.get("nome_base", "")).upper().strip() if str(r.get("nome_base", "")).strip() else str(r.get("nome_cliente", "")).upper().strip(), axis=1
+        )
+    else:
+        clientes["nome_upper"] = clientes.get("nome_cliente", pd.Series(dtype=str)).astype(str).str.upper().str.strip()
+        
+    missing_mask = ~proj["nome_upper"].isin(clientes["nome_upper"])
+    missing_clientes = proj.loc[missing_mask, ["nome_cliente", "nome_upper"]].drop_duplicates("nome_upper").copy()
+    
+    if not missing_clientes.empty:
+        missing_clientes["bu"] = ""
+        missing_clientes["ae"] = ""
+        clientes = pd.concat([clientes, missing_clientes], ignore_index=True)
+
     totais = proj.groupby("nome_upper", as_index=False).agg(
         receita=("receita","sum"),
         custo_rateado=("custo_rateado","sum"),
         margem=("margem","sum"),
         num_projetos=("pep","nunique"),
     )
-    # WS: categoria_bu com maior receita por cliente (ignora Vazio/vazio)
+    
     proj_ws = proj[~proj["categoria_bu"].isin(["", "Vazio"])].sort_values("receita", ascending=False)
     ws_first = proj_ws.groupby("nome_upper")["categoria_bu"].first()
     totais["ws"] = totais["nome_upper"].map(ws_first).fillna("")
-    # Use nome_base for matching when available, otherwise nome_cliente
-    if "nome_base" in clientes.columns:
-        clientes["nome_upper"] = clientes.apply(
-            lambda r: r["nome_base"].upper().strip() if r["nome_base"].strip() else r["nome_cliente"].upper().strip(), axis=1
-        )
-    else:
-        clientes["nome_upper"] = clientes["nome_cliente"].str.upper().str.strip()
+
     merged = clientes.merge(totais, on="nome_upper", how="left").drop(columns=["nome_upper"])
     if "nome_base" in merged.columns:
         merged = merged.drop(columns=["nome_base"])
