@@ -697,7 +697,8 @@ def calc_bonus_diretor(nome: str) -> dict:
         real_payroll_exp = float(nq4_actual[nq4_actual["Agrupador"] == "Payroll expenses"]["[Valor]"].sum())
         real_deductions  = float(nq4_actual[nq4_actual["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
         direct_costs = real_payroll + real_third_party + real_other_costs
-        real_mc_pct = (gross_rev + direct_costs) / gross_rev if gross_rev else 0.0
+        despesas = real_payroll_exp + real_deductions
+        real_mc_pct = (gross_rev + direct_costs + despesas) / gross_rev if gross_rev else 0.0
         # Diretor é responsável pela vertical inteira → usar nexus gross_rev como realizado
         if gross_rev > 0:
             real_rec_q4 = float(gross_rev)
@@ -732,7 +733,8 @@ def calc_bonus_diretor(nome: str) -> dict:
         bgt_other_costs = float(nq4_budget[nq4_budget["Agrupador"] == "Other costs"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
         bgt_payroll_exp = float(nq4_budget[nq4_budget["Agrupador"] == "Payroll expenses"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
         bgt_deductions  = float(nq4_budget[nq4_budget["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
-    bgt_mc_pct = bgt_lb_q4 / bgt_rec_q4 if bgt_rec_q4 else 0.0
+    _bgt_direct = bgt_payroll + bgt_third_party + bgt_other_costs
+    bgt_mc_pct = (bgt_gross + _bgt_direct + bgt_payroll_exp + bgt_deductions) / bgt_gross if bgt_gross else (bgt_lb_q4 / bgt_rec_q4 if bgt_rec_q4 else 0.0)
 
     # Trigger MC%: -1.5pp para Q4
     trigger_mc_pct_val = max(0, bgt_mc_pct - 0.015)
