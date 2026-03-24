@@ -345,8 +345,8 @@ def calc_bonus_ae(nome: str) -> dict:
                     _ws_lb = actual_marg_ws.get(ws_k, 0.0)
                     realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
-                # LB financeiro por WS: lb_visual do cliente distribuído pela proporção de receita real
-                realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + lb_visual * prop
+                # LB financeiro por WS: direto do margem_projetos (mesma fonte da aba margem por cliente)
+                realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
         else:
             # Fallback: proporção do budget (comportamento anterior)
             cli_rec_total = float(cli_rec_ws.sum())
@@ -359,7 +359,7 @@ def calc_bonus_ae(nome: str) -> dict:
                 prop = float(bv) / cli_rec_total if cli_rec_total > 0 else 0.0
                 cli_real_ws = real_rec * prop
                 realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
-                realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + lb_visual * prop
+                realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + real_lb * prop
                 cli_contrib.setdefault(ws_k, []).append({
                     "cliente":    cli_display,
                     "budget_rec": round(float(bv), 2),
@@ -371,15 +371,15 @@ def calc_bonus_ae(nome: str) -> dict:
                 realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
 
-        real_lb_financeiro += lb_visual
-        margem_pct_visual = lb_visual / real_rec if real_rec > 0 else None
-        
+        real_lb_financeiro += real_lb
+        margem_pct_visual = real_lb / real_rec if real_rec > 0 else None
+
         clientes_detalhe.append({
             "cliente":    cli_display,
             "budget_rec": round(cli_bgt, 2),
             "real_rec":   round(real_rec, 2),
             "real_custo": round(real_custo, 2),
-            "real_lb":    round(lb_visual, 2),
+            "real_lb":    round(real_lb, 2),
             "margem_pct": round(margem_pct_visual * 100, 1) if margem_pct_visual is not None else None,
         })
 
