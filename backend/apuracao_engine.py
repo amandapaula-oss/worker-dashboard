@@ -63,6 +63,15 @@ def _load_all():
     rac_q4   = rac[rac["periodo"].isin(Q4_PERIODOS)].copy()
     marg_q4  = margem[margem["periodo"].isin(Q4_PERIODOS)].copy()
 
+    # Override de margem para projetos OpenX: assume MB% = 45%
+    if "no_hierarquia" in marg_q4.columns:
+        openx_mask = marg_q4["no_hierarquia"].str.upper().str.strip() == "OPENX"
+        marg_q4.loc[openx_mask, "margem"]       = marg_q4.loc[openx_mask, "receita"] * 0.45
+        marg_q4.loc[openx_mask, "custo_rateado"]= marg_q4.loc[openx_mask, "receita"] * -0.55
+        marg_q4.loc[openx_mask, "margem_pct"]   = marg_q4.loc[openx_mask, "receita"].apply(
+            lambda r: 0.45 if r != 0 else 0.0
+        )
+
     rac_q4["nome_norm"]  = rac_q4["nome_cliente"].apply(norm)
     marg_q4["nome_norm"] = marg_q4["nome_cliente"].apply(norm)
 
@@ -593,6 +602,8 @@ def calc_bonus_diretor(nome: str) -> dict:
         )
         for _, r in grp.iterrows():
             k = norm(r["cliente"])
+            if not k:  # ignora linhas com cliente vazio
+                continue
             cli_budget[k] = (r["cliente"], float(r["q4"]))
 
     # Complementa com clientes.csv (todos da BU, com ou sem AE)
@@ -624,8 +635,9 @@ def calc_bonus_diretor(nome: str) -> dict:
         _cli_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws"])
         _cli_rec_total = sum(_cli_rec_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4)
         if _cli_rec_total > 0:
+            # Usa RAC × proporção WS × benchmark (mesma fórmula da tabela de WS)
             r_lb = sum(
-                _cli_rec_ws.get(ws_k, 0.0) * WS_MB_BENCHMARK_Q4[ws_k] if ws_k in WS_MB_BENCHMARK_Q4
+                r_rec * (_cli_rec_ws.get(ws_k, 0.0) / _cli_rec_total) * WS_MB_BENCHMARK_Q4[ws_k] if ws_k in WS_MB_BENCHMARK_Q4
                 else _cli_marg_ws.get(ws_k, 0.0)
                 for ws_k in WS_PESOS_Q4
             )
