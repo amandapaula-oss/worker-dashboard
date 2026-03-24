@@ -115,6 +115,27 @@ def _load_all():
         rec_by_client_ws  = {}
         marg_by_client_ws = {}
 
+    # Lookups sem time Hyper: exclui projetos de empresa Hyper/BR07 para evitar
+    # atribuição cruzada de receita do time Hyper a AEs de outras verticais.
+    # Empresas Hyper no rac_projetos.csv: BR07, BR0C
+    # Empresas Hyper no margem_projetos.csv: "Hyper", "BR07" (código residual)
+    _EXCL_RAC  = {"BR07", "BR0C"}
+    _EXCL_MARG = {"Hyper", "BR07"}
+    rac_q4_nh  = rac_q4[~rac_q4["empresa"].isin(_EXCL_RAC)]
+    marg_q4_nh = marg_q4[~marg_q4["empresa"].isin(_EXCL_MARG)]
+
+    rac_by_client_nh   = rac_q4_nh.groupby("nome_norm")["valor_liquido"].sum().to_dict()
+    marg_by_client_nh  = marg_q4_nh.groupby("nome_norm")["margem"].sum().to_dict()
+    rec_by_client_nh   = marg_q4_nh.groupby("nome_norm")["receita"].sum().to_dict()
+    custo_by_client_nh = marg_q4_nh.groupby("nome_norm")["custo_rateado"].sum().to_dict()
+
+    if "ws_key" in marg_q4_nh.columns:
+        rec_by_client_ws_nh  = marg_q4_nh.groupby(["nome_norm", "ws_key"])["receita"].sum().to_dict()
+        marg_by_client_ws_nh = marg_q4_nh.groupby(["nome_norm", "ws_key"])["margem"].sum().to_dict()
+    else:
+        rec_by_client_ws_nh  = {}
+        marg_by_client_ws_nh = {}
+
     # Add aliases: nome_cliente → nome_base (e.g. "C6 BANK" → "BANCO C6 S.A.")
     # so budget entries keyed by friendly name can find the SAP name in the lookup
     clientes_path = os.path.join(DIR, "clientes.csv")
@@ -127,7 +148,8 @@ def _load_all():
                     nb = str(row.get("nome_base", "") or "").strip()
                     if nc and nb:
                         nc_n, nb_n = norm(nc), norm(nb)
-                        for lookup in [rac_by_client, marg_by_client, rec_by_client, custo_by_client]:
+                        for lookup in [rac_by_client, marg_by_client, rec_by_client, custo_by_client,
+                                       rac_by_client_nh, marg_by_client_nh, rec_by_client_nh, custo_by_client_nh]:
                             if nb_n in lookup and nc_n not in lookup:
                                 lookup[nc_n] = lookup[nb_n]
                         # Alias WS lookups: (nc_n, ws) → (nb_n, ws)
@@ -136,6 +158,10 @@ def _load_all():
                                 rec_by_client_ws[(nc_n, ws_k)]  = rec_by_client_ws[(nb_n, ws_k)]
                             if (nb_n, ws_k) in marg_by_client_ws and (nc_n, ws_k) not in marg_by_client_ws:
                                 marg_by_client_ws[(nc_n, ws_k)] = marg_by_client_ws[(nb_n, ws_k)]
+                            if (nb_n, ws_k) in rec_by_client_ws_nh and (nc_n, ws_k) not in rec_by_client_ws_nh:
+                                rec_by_client_ws_nh[(nc_n, ws_k)]  = rec_by_client_ws_nh[(nb_n, ws_k)]
+                            if (nb_n, ws_k) in marg_by_client_ws_nh and (nc_n, ws_k) not in marg_by_client_ws_nh:
+                                marg_by_client_ws_nh[(nc_n, ws_k)] = marg_by_client_ws_nh[(nb_n, ws_k)]
         except Exception:
             pass
 
@@ -153,6 +179,12 @@ def _load_all():
         "custo_by_client":    custo_by_client,
         "rec_by_client_ws":   rec_by_client_ws,
         "marg_by_client_ws":  marg_by_client_ws,
+        "rac_by_client_nh":      rac_by_client_nh,
+        "marg_by_client_nh":     marg_by_client_nh,
+        "rec_by_client_nh":      rec_by_client_nh,
+        "custo_by_client_nh":    custo_by_client_nh,
+        "rec_by_client_ws_nh":   rec_by_client_ws_nh,
+        "marg_by_client_ws_nh":  marg_by_client_ws_nh,
         "nexus":         nexus,
         "lb_trigger":    lb_trigger_map,
         "tcv_real":      tcv_real_map,
@@ -326,9 +358,9 @@ def calc_bonus_ae(nome: str) -> dict:
     cli_contrib: dict[str, list] = {}  # {ws_k: [{cliente, budget_rec, real_rec}]}
 
     for cli_n in clientes_ae:
-        real_rec  = _match_cliente(cli_n, d["rac_by_client"])
-        real_lb   = _match_cliente(cli_n, d["marg_by_client"])
-        real_custo = _match_cliente(cli_n, d["custo_by_client"])
+        real_rec  = _match_cliente(cli_n, d["rac_by_client_nh"])
+        real_lb   = _match_cliente(cli_n, d["marg_by_client_nh"])
+        real_custo = _match_cliente(cli_n, d["custo_by_client_nh"])
         lb_visual  = real_rec - abs(real_custo)  # LB financeiro do cliente (mesma base da aba margem por cliente)
         cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
         cli_bgt  = float(cli_rows["q4"].sum())
@@ -337,8 +369,9 @@ def calc_bonus_ae(nome: str) -> dict:
 
         # Distribui realizado pela WS real dos projetos (categoria_bu do margem)
         # em vez de proporcional ao budget
-        actual_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws"])
-        actual_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws"])
+        # Usa lookups sem time Hyper (_nh) para não atribuir receita do time Hyper a este AE
+        actual_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws_nh"])
+        actual_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws_nh"])
         # Garante todas as chaves de WS
         actual_rec_ws  = {ws_k: actual_rec_ws.get(ws_k, 0.0)  for ws_k in WS_PESOS_Q4}
         actual_marg_ws = {ws_k: actual_marg_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4}
