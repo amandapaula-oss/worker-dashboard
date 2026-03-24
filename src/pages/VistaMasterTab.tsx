@@ -99,6 +99,7 @@ type DetalheCalculo = {
   ating_tcv?: number;
   budget_rec_q4?: number;
   real_rec_q4?: number;
+  real_rec_sap?: number;
   ating_rec?: number;
   budget_mc_pct?: number;
   trigger_mc_pct?: number;
@@ -997,38 +998,38 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         pagination={false}
         style={{ marginBottom: 16 }}
         dataSource={(() => {
-          const rec    = d.real_rec_q4 ?? 0;
-          const custos = (d.real_payroll ?? 0) + (d.real_third_party ?? 0) + (d.real_other_costs ?? 0);
-          const desp   = (d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0);
-          const mc     = rec + custos + desp;
-          const bgtRec  = d.bgt_gross_rev ?? d.budget_rec_q4 ?? 0;
-          const bgtCust = (d.bgt_payroll ?? 0) + (d.bgt_third_party ?? 0) + (d.bgt_other_costs ?? 0);
+          const rec  = d.real_rec_sap ?? d.real_rec_q4 ?? 0;
+          const lb   = d.real_lb_q4 ?? 0;
+          const desp = (d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0);
+          const mc   = lb + desp;
+          const bgtRec  = d.budget_rec_q4 ?? 0;
+          const bgtLb   = d.budget_lb_q4 ?? 0;
           const bgtDesp = (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0);
-          const bgtMc   = bgtRec + bgtCust + bgtDesp;
+          const bgtMc   = bgtLb + bgtDesp;
           return [
-            { key: "rec",  linha: "Receita Bruta",              tipo: "receita", bgt: bgtRec,  real: rec,    pct: null },
-            { key: "cst",  linha: "Custos",                     tipo: "custo",   bgt: bgtCust, real: custos, pct: null },
-            { key: "desp", linha: "Despesas",                   tipo: "despesa", bgt: bgtDesp, real: desp,   pct: null },
-            { key: "mc",   linha: "Margem de Contribuição (MC)", tipo: "mc",      bgt: bgtMc,   real: mc,     pct: rec ? `${(mc/rec*100).toFixed(1)}%` : null },
+            { key: "rec",  linha: "Receita",                    tipo: "receita", bgt: bgtRec,  real: rec,  pct: null },
+            { key: "lb",   linha: "Lucro Bruto (MB)",           tipo: "mb",      bgt: bgtLb,   real: lb,   pct: rec ? `${(lb/rec*100).toFixed(1)}%` : null },
+            { key: "desp", linha: "Despesas",                   tipo: "despesa", bgt: bgtDesp, real: desp, pct: null },
+            { key: "mc",   linha: "Margem de Contribuição (MC)", tipo: "mc",      bgt: bgtMc,   real: mc,   pct: rec ? `${(mc/rec*100).toFixed(1)}%` : null },
           ];
         })()}
         columns={[
           { title: "Linha", dataIndex: "linha", width: "45%",
             render: (v: string, row: any) => {
               const color = row.tipo === "receita" ? "#1a2e5a"
-                : row.tipo === "custo" ? "#c0392b"
+                : row.tipo === "mb" ? "#1a6e3c"
                 : row.tipo === "despesa" ? "#e67e22"
                 : "#0050b3";
-              return <span style={{ color, fontWeight: row.tipo === "mc" ? 700 : 400 }}>{v}</span>;
+              return <span style={{ color, fontWeight: row.tipo === "mb" || row.tipo === "mc" ? 700 : 400 }}>{v}</span>;
             }
           },
           { title: "Budget Q4", dataIndex: "bgt", align: "right" as const,
             render: (v: number) => <span style={{ color: "#888" }}>{v !== 0 ? fmt(v) : "—"}</span> },
           { title: "Realizado Q4", dataIndex: "real", align: "right" as const,
             render: (v: number, row: any) => {
-              if (v === 0 && row.tipo !== "mc") return <span style={{ color: "#ccc" }}>—</span>;
+              if (v === 0 && row.tipo !== "mb" && row.tipo !== "mc") return <span style={{ color: "#ccc" }}>—</span>;
               const color = row.tipo === "receita" ? "#1a2e5a"
-                : row.tipo === "custo" ? "#c0392b"
+                : row.tipo === "mb" ? "#1a6e3c"
                 : row.tipo === "despesa" ? "#e67e22"
                 : "#0050b3";
               return <span style={{ color, fontWeight: 600 }}>{fmt(v)}</span>;

@@ -796,7 +796,11 @@ def calc_bonus_diretor(nome: str) -> dict:
                     realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
 
     # ─ MC% ─
-    # Nexus: Margem de Contribuição = Gross Revenue - Direct costs (Payroll + Third-party + Other)
+    # MC% = (LB SAP + Despesas Nexus) / Receita SAP
+    # Salva rec/LB SAP antes do possível override pelo Nexus gross_rev
+    _real_rec_sap = real_rec_q4
+    _real_lb_sap  = sum(realized_lb_ws_dir.values())
+
     nexus_q4 = nexus[nexus["Periodo"].isin(Q4_PERIODOS)]
     if vertical and vertical in NEXUS_VERTICAL_MAP:
         nexus_verticals = NEXUS_VERTICAL_MAP[vertical]
@@ -818,7 +822,8 @@ def calc_bonus_diretor(nome: str) -> dict:
         real_deductions  = float(nq4_actual[nq4_actual["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
         direct_costs = real_payroll + real_third_party + real_other_costs
         despesas = real_payroll_exp + real_deductions
-        real_mc_pct = (gross_rev + direct_costs + despesas) / gross_rev if gross_rev else 0.0
+        # MC% = (LB SAP + Despesas Nexus) / Receita SAP
+        real_mc_pct = (_real_lb_sap + despesas) / _real_rec_sap if _real_rec_sap else 0.0
         # Diretor é responsável pela vertical inteira → usar nexus gross_rev como realizado
         if gross_rev > 0:
             real_rec_q4 = float(gross_rev)
@@ -854,7 +859,9 @@ def calc_bonus_diretor(nome: str) -> dict:
         bgt_payroll_exp = float(nq4_budget[nq4_budget["Agrupador"] == "Payroll expenses"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
         bgt_deductions  = float(nq4_budget[nq4_budget["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum()) if not nq4_budget.empty else 0.0
     _bgt_direct = bgt_payroll + bgt_third_party + bgt_other_costs
-    bgt_mc_pct = (bgt_gross + _bgt_direct + bgt_payroll_exp + bgt_deductions) / bgt_gross if bgt_gross else (bgt_lb_q4 / bgt_rec_q4 if bgt_rec_q4 else 0.0)
+    # Budget MC% = (LB SAP budget + Despesas Nexus budget) / Receita SAP budget
+    # Para diretores sem budget SAP (bgt_rec_q4 = Nexus gross), usa fórmula Nexus completa
+    bgt_mc_pct = (bgt_lb_q4 + bgt_payroll_exp + bgt_deductions) / bgt_rec_q4 if bgt_rec_q4 else 0.0
 
     # Trigger MC%: -1.5pp para Q4
     trigger_mc_pct_val = max(0, bgt_mc_pct - 0.015)
@@ -942,11 +949,12 @@ def calc_bonus_diretor(nome: str) -> dict:
         "ating_tcv":         round(ating_tcv, 4),
         "budget_rec_q4":     round(bgt_rec_q4, 2),
         "real_rec_q4":       round(real_rec_q4, 2),
+        "real_rec_sap":      round(_real_rec_sap, 2),   # rec SAP para display MB/MC
         "ating_rec":         round(ating_rec, 4),
         "budget_mc_pct":     round(bgt_mc_pct * 100, 2),
         "trigger_mc_pct":    round(trigger_mc_pct_val * 100, 2),
         "real_mc_pct":       round(real_mc_pct * 100, 2),
-        "real_mb_pct":       round((gross_rev + direct_costs) / gross_rev * 100, 2) if gross_rev else 0.0,
+        "real_mb_pct":       round(_real_lb_sap / _real_rec_sap * 100, 2) if _real_rec_sap else 0.0,
         "ating_mc":          round(ating_mc, 4),
         # Breakdown custos/despesas para auditoria do MC%
         "real_gross_rev":       round(gross_rev, 2),
