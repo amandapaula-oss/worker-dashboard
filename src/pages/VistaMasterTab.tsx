@@ -862,11 +862,6 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
 
       {/* ── MC% ── */}
       <Divider>MC% — Gatilho Mestre (peso {fmtPct(d.peso_mc || 0)})</Divider>
-      {d.real_mb_pct != null && (
-        <div style={{ background: "#f6ffed", border: "1px solid #b7eb8f", borderRadius: 6, padding: "6px 12px", marginBottom: 8, fontSize: 12, color: "#135200" }}>
-          <strong>Nexus (mesma base):</strong>&nbsp; MB% = <strong>{(d.real_mb_pct).toFixed(2)}%</strong> &nbsp;→&nbsp; MC% = <strong>{(d.real_mc_pct || 0).toFixed(2)}%</strong> &nbsp;(MC sempre ≤ MB)
-        </div>
-      )}
       <MetaRealPctRow
         label="Margem de Contribuição %"
         meta={d.budget_mc_pct || 0}
@@ -1005,17 +1000,14 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
           const rec    = d.real_rec_q4 ?? 0;
           const custos = (d.real_payroll ?? 0) + (d.real_third_party ?? 0) + (d.real_other_costs ?? 0);
           const desp   = (d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0);
-          const mb     = rec + custos;
-          const mc     = mb + desp;
+          const mc     = rec + custos + desp;
           const bgtRec  = d.bgt_gross_rev ?? d.budget_rec_q4 ?? 0;
           const bgtCust = (d.bgt_payroll ?? 0) + (d.bgt_third_party ?? 0) + (d.bgt_other_costs ?? 0);
           const bgtDesp = (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0);
-          const bgtMb   = bgtRec + bgtCust;
-          const bgtMc   = bgtMb + bgtDesp;
+          const bgtMc   = bgtRec + bgtCust + bgtDesp;
           return [
             { key: "rec",  linha: "Receita Bruta",              tipo: "receita", bgt: bgtRec,  real: rec,    pct: null },
             { key: "cst",  linha: "Custos",                     tipo: "custo",   bgt: bgtCust, real: custos, pct: null },
-            { key: "mb",   linha: "Margem Bruta (MB)",          tipo: "mb",      bgt: bgtMb,   real: mb,     pct: bgtRec ? `${(mb/rec*100).toFixed(1)}%` : null },
             { key: "desp", linha: "Despesas",                   tipo: "despesa", bgt: bgtDesp, real: desp,   pct: null },
             { key: "mc",   linha: "Margem de Contribuição (MC)", tipo: "mc",      bgt: bgtMc,   real: mc,     pct: rec ? `${(mc/rec*100).toFixed(1)}%` : null },
           ];
@@ -1023,24 +1015,21 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         columns={[
           { title: "Linha", dataIndex: "linha", width: "45%",
             render: (v: string, row: any) => {
-              const isSub = row.tipo === "mb" || row.tipo === "mc";
               const color = row.tipo === "receita" ? "#1a2e5a"
                 : row.tipo === "custo" ? "#c0392b"
                 : row.tipo === "despesa" ? "#e67e22"
-                : row.tipo === "mb" ? "#1a6e3c"
                 : "#0050b3";
-              return <span style={{ color, fontWeight: isSub ? 700 : 400 }}>{v}</span>;
+              return <span style={{ color, fontWeight: row.tipo === "mc" ? 700 : 400 }}>{v}</span>;
             }
           },
           { title: "Budget Q4", dataIndex: "bgt", align: "right" as const,
             render: (v: number) => <span style={{ color: "#888" }}>{v !== 0 ? fmt(v) : "—"}</span> },
           { title: "Realizado Q4", dataIndex: "real", align: "right" as const,
             render: (v: number, row: any) => {
-              if (v === 0 && row.tipo !== "mb" && row.tipo !== "mc") return <span style={{ color: "#ccc" }}>—</span>;
+              if (v === 0 && row.tipo !== "mc") return <span style={{ color: "#ccc" }}>—</span>;
               const color = row.tipo === "receita" ? "#1a2e5a"
                 : row.tipo === "custo" ? "#c0392b"
                 : row.tipo === "despesa" ? "#e67e22"
-                : row.tipo === "mb" ? "#1a6e3c"
                 : "#0050b3";
               return <span style={{ color, fontWeight: 600 }}>{fmt(v)}</span>;
             }
