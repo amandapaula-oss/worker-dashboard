@@ -349,7 +349,7 @@ export default function VistaMasterTab() {
     setLoadingDetalhe(true);
     getApuracaoCalcular(nome)
       .then(setDetalhe)
-      .catch(() => message.error("Erro ao carregar detalhe"))
+      .catch((e: Error) => message.error(`Erro: ${e.message}`, 10))
       .finally(() => setLoadingDetalhe(false));
     getApuracaoBonusAnual(nome)
       .then(setAnualDetalhe)

@@ -1171,7 +1171,8 @@ def get_apuracao_calcular(nome: str, user=Depends(get_current_user)):
         else:
             return calc_bonus_ae(nome)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")
 
 @app.get("/api/apuracao/visao-master")
 def get_apuracao_visao_master(user=Depends(get_current_user)):
