@@ -379,7 +379,9 @@ def calc_bonus_ae(nome: str) -> dict:
         cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
         cli_bgt  = float(cli_rows["q4"].sum())
         cli_display = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
-        cli_bonus_lb = 0.0
+        cli_bonus_lb  = 0.0
+        cli_lb_fin    = 0.0   # LB financeiro deste cliente (RAC × benchmark, consistente com real_rec)
+        cli_custo_fin = 0.0   # Custo financeiro deste cliente (derivado de cli_lb_fin)
 
         # Distribui realizado pela WS real dos projetos (categoria_bu do margem)
         # em vez de proporcional ao budget
@@ -408,20 +410,23 @@ def calc_bonus_ae(nome: str) -> dict:
                         "budget_rec": round(bv, 2),
                         "real_rec":   round(cli_real_ws, 2),
                     })
-                # LB: usa receita RAC (cli_real_ws) × benchmark — não actual_rec_ws diretamente
+                # LB (bônus e financeiro): RAC × benchmark para WS com benchmark; margem real para Apps
                 if ws_k in WS_MB_BENCHMARK_Q4:
-                    _ws_lb = cli_real_ws * WS_MB_BENCHMARK_Q4[ws_k]
-                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
+                    _ws_lb  = cli_real_ws * WS_MB_BENCHMARK_Q4[ws_k]
+                    _lb_fin = _ws_lb
+                    _cu_fin = _lb_fin - cli_real_ws  # negativo
                 else:
-                    _ws_lb = actual_marg_ws.get(ws_k, 0.0)
-                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
+                    _ws_lb  = actual_marg_ws.get(ws_k, 0.0)
+                    _lb_fin = _ws_lb
+                    _cu_fin = _ws_lb - actual_rec_ws.get(ws_k, 0.0)  # negativo
+                realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
-                # LB financeiro por WS: direto do margem_projetos (mesma fonte da aba margem por cliente)
-                realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
-                # Custo financeiro por WS: custo_rateado = margem - receita (ambos de margem_projetos, negativo)
-                realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + (
-                    actual_marg_ws.get(ws_k, 0.0) - actual_rec_ws.get(ws_k, 0.0)
-                )
+                # LB/Custo financeiros por WS: mesma base do bônus (RAC × benchmark)
+                # garante que rec - |custo| = lb em todos os totais exibidos
+                realized_lb_financeiro_ws[ws_k]    = realized_lb_financeiro_ws.get(ws_k, 0.0)    + _lb_fin
+                realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + _cu_fin
+                cli_lb_fin    += _lb_fin
+                cli_custo_fin += _cu_fin
         else:
             # Fallback: proporção do budget (comportamento anterior)
             cli_rec_total = float(cli_rec_ws.sum())
@@ -434,8 +439,12 @@ def calc_bonus_ae(nome: str) -> dict:
                 prop = float(bv) / cli_rec_total if cli_rec_total > 0 else 0.0
                 cli_real_ws = real_rec * prop
                 realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
-                realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + real_lb * prop
-                realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + real_custo * prop
+                _lb_f = real_lb * prop
+                _cu_f = real_custo * prop
+                realized_lb_financeiro_ws[ws_k]    = realized_lb_financeiro_ws.get(ws_k, 0.0)    + _lb_f
+                realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + _cu_f
+                cli_lb_fin    += _lb_f
+                cli_custo_fin += _cu_f
                 cli_contrib.setdefault(ws_k, []).append({
                     "cliente":    cli_display,
                     "budget_rec": round(float(bv), 2),
@@ -447,16 +456,16 @@ def calc_bonus_ae(nome: str) -> dict:
                 realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
 
-        real_lb_financeiro   += real_lb
-        real_custo_total_fin += real_custo
-        margem_pct_visual = real_lb / real_rec if real_rec > 0 else None
+        real_lb_financeiro   += cli_lb_fin
+        real_custo_total_fin += cli_custo_fin
+        margem_pct_visual = cli_lb_fin / real_rec if real_rec > 0 else None
 
         clientes_detalhe.append({
             "cliente":    cli_display,
             "budget_rec": round(cli_bgt, 2),
             "real_rec":   round(real_rec, 2),
-            "real_custo": round(real_custo, 2),
-            "real_lb":    round(real_lb, 2),
+            "real_custo": round(cli_custo_fin, 2),
+            "real_lb":    round(cli_lb_fin, 2),
             "margem_pct": round(margem_pct_visual * 100, 1) if margem_pct_visual is not None else None,
         })
 

@@ -862,6 +862,11 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
 
       {/* ── MC% ── */}
       <Divider>MC% — Gatilho Mestre (peso {fmtPct(d.peso_mc || 0)})</Divider>
+      {d.real_mb_pct != null && (
+        <div style={{ background: "#f6ffed", border: "1px solid #b7eb8f", borderRadius: 6, padding: "6px 12px", marginBottom: 8, fontSize: 12, color: "#135200" }}>
+          <strong>Nexus (mesma base):</strong>&nbsp; MB% = <strong>{(d.real_mb_pct).toFixed(2)}%</strong> &nbsp;→&nbsp; MC% = <strong>{(d.real_mc_pct || 0).toFixed(2)}%</strong> &nbsp;(MC sempre ≤ MB)
+        </div>
+      )}
       <MetaRealPctRow
         label="Margem de Contribuição %"
         meta={d.budget_mc_pct || 0}
