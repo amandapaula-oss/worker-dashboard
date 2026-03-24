@@ -26,24 +26,25 @@ def linhas_ae(res: dict) -> list[dict]:
     posicao = res["posicao"]
     rows    = []
     for w in res.get("detalhe_ws", []):
-        ws        = w["ws"].upper()
-        real_rec  = w["real_rec"]
-        real_mb   = w.get("real_lb_financeiro") if w.get("real_lb_financeiro") is not None else round(real_rec * w["real_mb_pct"] / 100, 2)
-        real_custo= round(real_rec - real_mb, 2)
-        for cat, val in [("Receita", real_rec), ("Custo", -real_custo), ("LB", real_mb)]:
+        ws       = w["ws"].upper()
+        real_rec = w["real_rec"]
+        real_lb  = w.get("real_lb_financeiro") if w.get("real_lb_financeiro") is not None else round(real_rec * w["real_mb_pct"] / 100, 2)
+        real_custo = w.get("real_custo_financeiro")  # custo_rateado real (negativo)
+        if real_custo is None:
+            real_custo = -(real_rec - real_lb)        # fallback derivado
+        for cat, val in [("Receita", real_rec), ("Custo", real_custo), ("LB", real_lb)]:
             rows.append({"Nome": nome, "Posicao": posicao, "WS": ws,
                          "Categoria": cat, "Valor_Q4": val})
     # totais
-    tot_rec = res.get("real_rec_total", 0)
-    tot_lb  = res.get("real_lb_total",  0)  # LB benchmark total
-    lb_real = res.get("real_lb_financeiro", tot_lb)  # LB SAP (gatilho)
-    mb_val  = tot_lb
-    custo_v = round(tot_rec - mb_val, 2)
+    tot_rec   = res.get("real_rec_total", 0)
+    tot_lb    = res.get("real_lb_total",  0)
+    tot_custo = res.get("real_custo_total")          # custo_rateado real total (negativo)
+    if tot_custo is None:
+        tot_custo = -(tot_rec - tot_lb)              # fallback derivado
     for cat, val in [
         ("Receita", tot_rec),
-        ("Custo",  -custo_v),
-        ("MB",      mb_val),
-        ("LB",      lb_real),
+        ("Custo",   tot_custo),
+        ("LB",      tot_lb),
     ]:
         rows.append({"Nome": nome, "Posicao": posicao, "WS": "TOTAL",
                      "Categoria": cat, "Valor_Q4": val})

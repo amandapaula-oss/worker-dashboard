@@ -316,8 +316,10 @@ def calc_bonus_ae(nome: str) -> dict:
     # Realizado por cliente, alocado por WS proporcionalmente ao budget
     realized_rec_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     realized_lb_ws:  dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
-    realized_lb_financeiro_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
-    real_lb_financeiro: float = 0.0  # LB real (marg_by_client) para o gatilho
+    realized_lb_financeiro_ws:    dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_custo_financeiro_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    real_lb_financeiro:    float = 0.0  # LB real (marg_by_client) para o gatilho
+    real_custo_total_fin:  float = 0.0  # Custo real (custo_rateado) total
 
     clientes_ae = rec_ae["cliente_norm"].dropna().unique()
     clientes_detalhe = []
@@ -369,6 +371,10 @@ def calc_bonus_ae(nome: str) -> dict:
                 cli_bonus_lb += _ws_lb
                 # LB financeiro por WS: direto do margem_projetos (mesma fonte da aba margem por cliente)
                 realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
+                # Custo financeiro por WS: custo_rateado = margem - receita (ambos de margem_projetos, negativo)
+                realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + (
+                    actual_marg_ws.get(ws_k, 0.0) - actual_rec_ws.get(ws_k, 0.0)
+                )
         else:
             # Fallback: proporção do budget (comportamento anterior)
             cli_rec_total = float(cli_rec_ws.sum())
@@ -382,6 +388,7 @@ def calc_bonus_ae(nome: str) -> dict:
                 cli_real_ws = real_rec * prop
                 realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
                 realized_lb_financeiro_ws[ws_k] = realized_lb_financeiro_ws.get(ws_k, 0.0) + real_lb * prop
+                realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + real_custo * prop
                 cli_contrib.setdefault(ws_k, []).append({
                     "cliente":    cli_display,
                     "budget_rec": round(float(bv), 2),
@@ -393,7 +400,8 @@ def calc_bonus_ae(nome: str) -> dict:
                 realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
 
-        real_lb_financeiro += real_lb
+        real_lb_financeiro   += real_lb
+        real_custo_total_fin += real_custo
         margem_pct_visual = real_lb / real_rec if real_rec > 0 else None
 
         clientes_detalhe.append({
@@ -407,7 +415,8 @@ def calc_bonus_ae(nome: str) -> dict:
 
     realized_rec_ws["total"] = sum(v for k, v in realized_rec_ws.items() if k != "total")
     realized_lb_ws["total"]  = sum(v for k, v in realized_lb_ws.items() if k != "total")
-    realized_lb_financeiro_ws["total"] = sum(v for k, v in realized_lb_financeiro_ws.items() if k != "total")
+    realized_lb_financeiro_ws["total"]    = sum(v for k, v in realized_lb_financeiro_ws.items()    if k != "total")
+    realized_custo_financeiro_ws["total"] = sum(v for k, v in realized_custo_financeiro_ws.items() if k != "total")
 
     # Calcular MB% realizado vs budget
     bgt_rec_total  = bgt_rec_ws.get("total", 1) or 1
@@ -487,8 +496,9 @@ def calc_bonus_ae(nome: str) -> dict:
             "bonus_rec":           round(bonus_rec, 2),
             "bonus_mb":            round(bonus_mb, 2),
             "bonus_ws":            round(bonus_rec + bonus_mb, 2),
-            # LB financeiro (mesmo da aba margem por cliente, distribuído por WS)
-            "real_lb_financeiro":  round(realized_lb_financeiro_ws.get(ws_k, 0.0), 2),
+            # LB e Custo financeiros (mesma fonte da aba margem por cliente, distribuídos por WS)
+            "real_lb_financeiro":    round(realized_lb_financeiro_ws.get(ws_k, 0.0), 2),
+            "real_custo_financeiro": round(realized_custo_financeiro_ws.get(ws_k, 0.0), 2),
             # Clientes nesta WS
             "clientes_ws":         cli_contrib.get(ws_k, []),
         })
@@ -524,7 +534,8 @@ def calc_bonus_ae(nome: str) -> dict:
         "lb_gate":       lb_gate,
         "meta_lb_q4":    round(meta_lb_q4, 2),
         "trigger_lb_q4": round(trigger_lb_q4, 2),
-        "real_lb_total": round(real_lb_financeiro, 2),
+        "real_lb_total":    round(real_lb_financeiro, 2),
+        "real_custo_total": round(real_custo_total_fin, 2),
         "budget_rec_total":  round(bgt_rec_total, 2),
         "real_rec_total":    round(real_rec_total, 2),
         "ating_rec_total":   round(ating_rec_total, 4),
