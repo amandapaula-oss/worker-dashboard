@@ -317,7 +317,7 @@ def calc_bonus_ae(nome: str) -> dict:
             # Usa proporção real da WS dos projetos
             for ws_k in WS_PESOS_Q4:
                 prop = actual_rec_ws[ws_k] / actual_rec_total
-                cli_real_ws = real_rec * prop
+                cli_real_ws = real_rec * prop  # receita RAC escalada pela proporção de WS
                 realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
                 bv = float(cli_rec_ws.get(ws_k, 0.0))
                 if cli_real_ws > 0 or bv > 0:
@@ -326,9 +326,9 @@ def calc_bonus_ae(nome: str) -> dict:
                         "budget_rec": round(bv, 2),
                         "real_rec":   round(cli_real_ws, 2),
                     })
-            for ws_k in WS_PESOS_Q4:
+                # LB: usa receita RAC (cli_real_ws) × benchmark — não actual_rec_ws diretamente
                 if ws_k in WS_MB_BENCHMARK_Q4:
-                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + actual_rec_ws[ws_k] * WS_MB_BENCHMARK_Q4[ws_k]
+                    realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + cli_real_ws * WS_MB_BENCHMARK_Q4[ws_k]
                 else:
                     realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
         else:
@@ -654,10 +654,11 @@ def calc_bonus_diretor(nome: str) -> dict:
         if actual_rec_total > 0:
             for ws_k in WS_PESOS_Q4:
                 prop = actual_rec_ws[ws_k] / actual_rec_total
-                realized_rec_ws_dir[ws_k] = realized_rec_ws_dir.get(ws_k, 0.0) + r_rec * prop
-            for ws_k in WS_PESOS_Q4:
+                cli_real_ws_dir = r_rec * prop  # receita RAC escalada pela proporção de WS
+                realized_rec_ws_dir[ws_k] = realized_rec_ws_dir.get(ws_k, 0.0) + cli_real_ws_dir
+                # LB: usa receita RAC × benchmark — não actual_rec_ws diretamente
                 if ws_k in WS_MB_BENCHMARK_Q4:
-                    realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + actual_rec_ws[ws_k] * WS_MB_BENCHMARK_Q4[ws_k]
+                    realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + cli_real_ws_dir * WS_MB_BENCHMARK_Q4[ws_k]
                 else:
                     realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
 
