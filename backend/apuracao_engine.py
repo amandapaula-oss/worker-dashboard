@@ -63,6 +63,20 @@ def _load_all():
     rac_q4   = rac[rac["periodo"].isin(Q4_PERIODOS)].copy()
     marg_q4  = margem[margem["periodo"].isin(Q4_PERIODOS)].copy()
 
+    # Aplica benchmark de MB% por WS — mesma lógica de main.py get_margem_proj().
+    # Para categorias com benchmark definido (Demais/Cloud/Dados/Hyper), substitui
+    # custo_rateado e margem pelo benchmark em vez de usar os dados brutos do SAP
+    # (que frequentemente chegam com custo_rateado=0, gerando MB%=100%).
+    if "categoria_bu" in marg_q4.columns:
+        _ws_k_col = marg_q4["categoria_bu"].apply(
+            lambda x: _norm_ws(str(x)) if pd.notna(x) and str(x).strip() else "demais"
+        )
+        for _ws_k, _bench in WS_MB_BENCHMARK_Q4.items():
+            _mask = (_ws_k_col == _ws_k) & marg_q4["receita"].notna() & (marg_q4["receita"] != 0)
+            marg_q4.loc[_mask, "margem"]        = marg_q4.loc[_mask, "receita"] * _bench
+            marg_q4.loc[_mask, "custo_rateado"] = marg_q4.loc[_mask, "receita"] * -( 1 - _bench)
+            marg_q4.loc[_mask, "margem_pct"]    = _bench
+
     # Override de margem para projetos OpenX: assume MB% = 45%
     if "no_hierarquia" in marg_q4.columns:
         openx_mask = marg_q4["no_hierarquia"].str.upper().str.strip() == "OPENX"
