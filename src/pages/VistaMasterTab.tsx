@@ -996,31 +996,52 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         size="small"
         pagination={false}
         style={{ marginBottom: 16 }}
-        dataSource={[
-          { key: "rec",  linha: "Receita Bruta", tipo: "receita",
-            bgt:  d.bgt_gross_rev ?? d.budget_rec_q4 ?? 0,
-            real: d.real_rec_q4 ?? 0 },
-          { key: "cst",  linha: "Custos", tipo: "custo",
-            bgt:  (d.bgt_payroll ?? 0) + (d.bgt_third_party ?? 0) + (d.bgt_other_costs ?? 0),
-            real: (d.real_payroll ?? 0) + (d.real_third_party ?? 0) + (d.real_other_costs ?? 0) },
-          { key: "desp", linha: "Despesas", tipo: "despesa",
-            bgt:  (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0),
-            real: (d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0) },
-        ]}
+        dataSource={(() => {
+          const rec    = d.real_rec_q4 ?? 0;
+          const custos = (d.real_payroll ?? 0) + (d.real_third_party ?? 0) + (d.real_other_costs ?? 0);
+          const desp   = (d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0);
+          const mb     = rec + custos;
+          const mc     = mb + desp;
+          const bgtRec  = d.bgt_gross_rev ?? d.budget_rec_q4 ?? 0;
+          const bgtCust = (d.bgt_payroll ?? 0) + (d.bgt_third_party ?? 0) + (d.bgt_other_costs ?? 0);
+          const bgtDesp = (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0);
+          const bgtMb   = bgtRec + bgtCust;
+          const bgtMc   = bgtMb + bgtDesp;
+          return [
+            { key: "rec",  linha: "Receita Bruta",              tipo: "receita", bgt: bgtRec,  real: rec,    pct: null },
+            { key: "cst",  linha: "Custos",                     tipo: "custo",   bgt: bgtCust, real: custos, pct: null },
+            { key: "mb",   linha: "Margem Bruta (MB)",          tipo: "mb",      bgt: bgtMb,   real: mb,     pct: bgtRec ? `${(mb/rec*100).toFixed(1)}%` : null },
+            { key: "desp", linha: "Despesas",                   tipo: "despesa", bgt: bgtDesp, real: desp,   pct: null },
+            { key: "mc",   linha: "Margem de Contribuição (MC)", tipo: "mc",      bgt: bgtMc,   real: mc,     pct: rec ? `${(mc/rec*100).toFixed(1)}%` : null },
+          ];
+        })()}
         columns={[
-          { title: "Linha", dataIndex: "linha", width: "50%",
-            render: (v: string, row: any) => (
-              <span style={{ color: row.tipo === "receita" ? "#1a2e5a" : row.tipo === "custo" ? "#c0392b" : "#e67e22", fontWeight: row.tipo === "receita" ? 700 : 400 }}>{v}</span>
-            )
+          { title: "Linha", dataIndex: "linha", width: "45%",
+            render: (v: string, row: any) => {
+              const isSub = row.tipo === "mb" || row.tipo === "mc";
+              const color = row.tipo === "receita" ? "#1a2e5a"
+                : row.tipo === "custo" ? "#c0392b"
+                : row.tipo === "despesa" ? "#e67e22"
+                : row.tipo === "mb" ? "#1a6e3c"
+                : "#0050b3";
+              return <span style={{ color, fontWeight: isSub ? 700 : 400 }}>{v}</span>;
+            }
           },
           { title: "Budget Q4", dataIndex: "bgt", align: "right" as const,
             render: (v: number) => <span style={{ color: "#888" }}>{v !== 0 ? fmt(v) : "—"}</span> },
           { title: "Realizado Q4", dataIndex: "real", align: "right" as const,
             render: (v: number, row: any) => {
-              if (v === 0) return <span style={{ color: "#ccc" }}>—</span>;
-              const color = row.tipo === "receita" ? "#1a2e5a" : row.tipo === "custo" ? "#c0392b" : "#e67e22";
+              if (v === 0 && row.tipo !== "mb" && row.tipo !== "mc") return <span style={{ color: "#ccc" }}>—</span>;
+              const color = row.tipo === "receita" ? "#1a2e5a"
+                : row.tipo === "custo" ? "#c0392b"
+                : row.tipo === "despesa" ? "#e67e22"
+                : row.tipo === "mb" ? "#1a6e3c"
+                : "#0050b3";
               return <span style={{ color, fontWeight: 600 }}>{fmt(v)}</span>;
             }
+          },
+          { title: "% s/ Receita", dataIndex: "pct", align: "right" as const,
+            render: (v: string | null) => v ? <span style={{ fontWeight: 700 }}>{v}</span> : <span style={{ color: "#ccc" }}>—</span>
           },
         ]}
       />

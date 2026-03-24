@@ -923,6 +923,7 @@ def calc_bonus_diretor(nome: str) -> dict:
         "budget_mc_pct":     round(bgt_mc_pct * 100, 2),
         "trigger_mc_pct":    round(trigger_mc_pct_val * 100, 2),
         "real_mc_pct":       round(real_mc_pct * 100, 2),
+        "real_mb_pct":       round((gross_rev + direct_costs) / gross_rev * 100, 2) if gross_rev else 0.0,
         "ating_mc":          round(ating_mc, 4),
         # Breakdown custos/despesas para auditoria do MC%
         "real_gross_rev":       round(gross_rev, 2),
