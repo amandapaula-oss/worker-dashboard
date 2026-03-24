@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Table, Spin, message, Tag, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
 import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { useReactToPrint } from "react-to-print";
-import { getApuracaoVisaoMaster, getApuracaoCalcular, getApuracaoBonusAnual } from "../api";
+import { getApuracaoVisaoMaster, getApuracaoCalcular } from "../api";
 import { toTitleCase } from "../utils/format";
 
 const { Option } = Select;
@@ -31,42 +31,7 @@ type MasterRow = {
   mc_gate: number | null;
   gate_ok: boolean;
   tipo_calc: string;
-  bonus_anual?: number | null;
-  ating_anual?: number | null;
-  anual_ok?: boolean;
   erro?: string;
-};
-
-type TrimestralAnual = {
-  periodo: string;
-  rec_meta: number;
-  rec_real: number;
-  lb_meta: number;
-  lb_real: number;
-  mb_meta: number | null;
-  mb_real: number | null;
-  salario: number;
-};
-
-type BonusAnualDetalhe = {
-  disponivel: boolean;
-  label_lb?: string;
-  lb_gate?: number;
-  lb_trigger_anual?: number;
-  trimestres?: TrimestralAnual[];
-  total_rec_meta?: number;
-  total_rec_real?: number;
-  total_lb_meta?: number;
-  total_lb_real?: number;
-  total_mb_meta?: number;
-  total_mb_real?: number;
-  ating_rec?: number;
-  ating_lb?: number;
-  peso_rec?: number;
-  peso_lb?: number;
-  ating_anual?: number;
-  bonus_anual?: number;
-  salario?: number;
 };
 
 type DetalheWS = {
@@ -328,7 +293,6 @@ export default function VistaMasterTab() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detalhe, setDetalhe] = useState<DetalheCalculo | null>(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
-  const [anualDetalhe, setAnualDetalhe] = useState<BonusAnualDetalhe | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: detalhe ? `Memória de Cálculo — ${detalhe.nome}` : "Memória de Cálculo" });
 
@@ -345,15 +309,11 @@ export default function VistaMasterTab() {
   const abrirDetalhe = (nome: string) => {
     setDrawerOpen(true);
     setDetalhe(null);
-    setAnualDetalhe(null);
     setLoadingDetalhe(true);
     getApuracaoCalcular(nome)
       .then(setDetalhe)
       .catch((e: Error) => message.error(`Erro: ${e.message}`, 10))
       .finally(() => setLoadingDetalhe(false));
-    getApuracaoBonusAnual(nome)
-      .then(setAnualDetalhe)
-      .catch(() => {});
   };
 
   const filtered = data.filter(r => {
@@ -364,7 +324,6 @@ export default function VistaMasterTab() {
 
   const posicoes = ["Todos", ...Array.from(new Set(data.map(r => r.posicao)))];
   const totalBonus = filtered.reduce((s, r) => s + r.bonus, 0);
-  const totalBonusAnual = filtered.reduce((s, r) => s + (r.bonus_anual ?? 0), 0);
 
   const atCol = (v: number | null) => {
     if (v == null) return <span style={{ color: "#ccc" }}>—</span>;
@@ -446,23 +405,6 @@ export default function VistaMasterTab() {
         </span>
       ),
     },
-    {
-      title: "Bônus Anual",
-      key: "bonus_anual",
-      align: "right" as const,
-      sorter: (a: MasterRow, b: MasterRow) => (a.bonus_anual ?? 0) - (b.bonus_anual ?? 0),
-      render: (_: any, row: MasterRow) => {
-        if (!row.anual_ok) return <span style={{ color: "#ccc" }}>—</span>;
-        const v = row.bonus_anual ?? 0;
-        const at = row.ating_anual ?? 0;
-        return (
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 600, color: at >= 1 ? "#52c41a" : at > 0 ? "#faad14" : "#ff4d4f" }}>{fmt(v)}</div>
-            <div style={{ fontSize: 10, color: "#888" }}>{fmtPct(at)}</div>
-          </div>
-        );
-      },
-    },
   ];
 
   return (
@@ -501,9 +443,6 @@ export default function VistaMasterTab() {
               <Table.Summary.Cell index={8} align="right">
                 <span style={{ color: "#52c41a" }}>{fmt(totalBonus)}</span>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={9} align="right">
-                <span style={{ color: "#52c41a" }}>{fmt(totalBonusAnual)}</span>
-              </Table.Summary.Cell>
             </Table.Summary.Row>
           )}
         />
@@ -538,7 +477,7 @@ export default function VistaMasterTab() {
             <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a2e5a" }}>
               Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q4 2025</span>
             </h2>
-            <DetalheDrawer d={detalhe} anual={anualDetalhe} />
+            <DetalheDrawer d={detalhe} />
           </div>
         )}
       </Drawer>
@@ -548,7 +487,7 @@ export default function VistaMasterTab() {
 
 // ─── Drawer container ─────────────────────────────────────────────────────────
 
-function DetalheDrawer({ d, anual }: { d: DetalheCalculo; anual: BonusAnualDetalhe | null }) {
+function DetalheDrawer({ d }: { d: DetalheCalculo }) {
   const isDir = d.posicao === "DIRETOR";
 
   return (
@@ -570,119 +509,6 @@ function DetalheDrawer({ d, anual }: { d: DetalheCalculo; anual: BonusAnualDetal
         Bônus Total Q4: {fmt(d.bonus_total)}
       </div>
 
-      {anual?.disponivel && (
-        <>
-          <Divider>Apuração Bônus Anual 2025</Divider>
-          <Table
-            dataSource={anual.trimestres}
-            rowKey="periodo"
-            size="small"
-            pagination={false}
-            style={{ marginBottom: 16 }}
-            columns={[
-              { title: "Trimestre", dataIndex: "periodo", key: "periodo", width: 80 },
-              {
-                title: "Receita",
-                children: [
-                  { title: "Meta", dataIndex: "rec_meta", key: "rec_meta", align: "right" as const, render: (v: number) => fmt(v) },
-                  { title: "Realizado", dataIndex: "rec_real", key: "rec_real", align: "right" as const,
-                    render: (v: number, row: TrimestralAnual) => (
-                      <span style={{ color: v >= row.rec_meta ? "#52c41a" : v >= row.rec_meta * 0.85 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>
-                        {fmt(v)}
-                      </span>
-                    )},
-                ],
-              },
-              {
-                title: anual.label_lb ?? "LB",
-                children: [
-                  { title: "Meta", dataIndex: "lb_meta", key: "lb_meta", align: "right" as const, render: (v: number) => v ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
-                  { title: "Realizado", dataIndex: "lb_real", key: "lb_real", align: "right" as const,
-                    render: (v: number, row: TrimestralAnual) => v
-                      ? <span style={{ color: v >= row.lb_meta ? "#52c41a" : "#faad14", fontWeight: 600 }}>{fmt(v)}</span>
-                      : <span style={{ color: "#ccc" }}>—</span> },
-                ],
-              },
-              {
-                title: `${anual.label_lb === "LB" ? "MB" : anual.label_lb ?? "LB"}%`,
-                children: [
-                  { title: "Meta", dataIndex: "mb_meta", key: "mb_meta", align: "right" as const, render: (v: number | null) => v != null ? `${v.toFixed(1)}%` : <span style={{ color: "#ccc" }}>—</span> },
-                  { title: "Realizado", dataIndex: "mb_real", key: "mb_real", align: "right" as const,
-                    render: (v: number | null, row: TrimestralAnual) => v != null
-                      ? <span style={{ color: v >= (row.mb_meta ?? 0) ? "#52c41a" : "#faad14", fontWeight: 600 }}>{v.toFixed(1)}%</span>
-                      : <span style={{ color: "#ccc" }}>—</span> },
-                ],
-              },
-            ]}
-            summary={() => (
-              <Table.Summary.Row style={{ fontWeight: 700, background: "#f6ffed" }}>
-                <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} align="right">{fmt(anual.total_rec_meta ?? 0)}</Table.Summary.Cell>
-                <Table.Summary.Cell index={2} align="right">
-                  <span style={{ color: (anual.total_rec_real ?? 0) >= (anual.total_rec_meta ?? 1) ? "#52c41a" : "#ff4d4f" }}>
-                    {fmt(anual.total_rec_real ?? 0)}
-                  </span>
-                </Table.Summary.Cell>
-                <Table.Summary.Cell index={3} align="right">{fmt(anual.total_lb_meta ?? 0)}</Table.Summary.Cell>
-                <Table.Summary.Cell index={4} align="right">
-                  <span style={{ color: (anual.total_lb_real ?? 0) >= (anual.total_lb_meta ?? 1) ? "#52c41a" : "#ff4d4f" }}>
-                    {fmt(anual.total_lb_real ?? 0)}
-                  </span>
-                </Table.Summary.Cell>
-                <Table.Summary.Cell index={5} align="right">{anual.total_mb_meta != null ? `${anual.total_mb_meta.toFixed(1)}%` : "—"}</Table.Summary.Cell>
-                <Table.Summary.Cell index={6} align="right">
-                  <span style={{ color: (anual.total_mb_real ?? 0) >= (anual.total_mb_meta ?? 0) ? "#52c41a" : "#ff4d4f" }}>
-                    {anual.total_mb_real != null ? `${anual.total_mb_real.toFixed(1)}%` : "—"}
-                  </span>
-                </Table.Summary.Cell>
-              </Table.Summary.Row>
-            )}
-          />
-          <div style={{ display: "flex", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
-            <div style={{ flex: 1, background: "#f5f5f5", borderRadius: 6, padding: "8px 12px" }}>
-              <div style={{ fontSize: 11, color: "#888" }}>Receita ({((anual.peso_rec ?? 0) * 100).toFixed(0)}%)</div>
-              <div style={{ fontWeight: 700, color: (anual.ating_rec ?? 0) >= 1 ? "#52c41a" : (anual.ating_rec ?? 0) > 0 ? "#faad14" : "#ff4d4f" }}>
-                {fmtPct(anual.ating_rec ?? 0)}
-              </div>
-            </div>
-            <div style={{ flex: 1, background: "#f5f5f5", borderRadius: 6, padding: "8px 12px" }}>
-              <div style={{ fontSize: 11, color: "#888" }}>{anual.label_lb === "LB" ? "MB" : anual.label_lb ?? "LB"}% ({((anual.peso_lb ?? 0) * 100).toFixed(0)}%)</div>
-              <div style={{ fontWeight: 700, color: (anual.ating_lb ?? 0) >= 1 ? "#52c41a" : (anual.ating_lb ?? 0) > 0 ? "#faad14" : "#ff4d4f" }}>
-                {fmtPct(anual.ating_lb ?? 0)}
-              </div>
-            </div>
-          </div>
-          {anual.lb_gate === 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8,
-              background: "#fff2f0", border: "1px solid #ffccc7",
-              borderRadius: 6, padding: "8px 12px", marginBottom: 8 }}>
-              <CloseCircleFilled style={{ color: "#ff4d4f" }} />
-              <span style={{ fontWeight: 600, color: "#cf1322" }}>
-                Gatilho Mestre bloqueado — {anual.label_lb ?? "LB"} anual abaixo do mínimo
-              </span>
-              <span style={{ color: "#888", fontSize: 12 }}>
-                (realizado {fmt(anual.total_lb_real ?? 0)} / mínimo {fmt(anual.lb_trigger_anual ?? 0)})
-              </span>
-            </div>
-          )}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-            background: anual.lb_gate === 0 ? "#f5f5f5" : (anual.ating_anual ?? 0) > 0 ? "#f6ffed" : "#fff2f0",
-            border: `1px solid ${anual.lb_gate === 0 ? "#d9d9d9" : (anual.ating_anual ?? 0) > 0 ? "#b7eb8f" : "#ffccc7"}`,
-            borderRadius: 8, padding: "12px 16px", marginBottom: 8 }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>Atingimento Anual</div>
-              <div style={{ fontSize: 12, color: "#555" }}>3 × salário × atingimento{anual.lb_gate === 0 ? " × 0 (bloqueado)" : ""}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 20, fontWeight: 700,
-                color: anual.lb_gate === 0 ? "#8c8c8c" : (anual.ating_anual ?? 0) >= 1 ? "#52c41a" : (anual.ating_anual ?? 0) > 0 ? "#faad14" : "#ff4d4f" }}>
-                {fmt(anual.bonus_anual ?? 0)}
-              </div>
-              <div style={{ fontSize: 12, color: "#888" }}>{fmtPct(anual.ating_anual ?? 0)}</div>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }
