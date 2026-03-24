@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -7,6 +8,19 @@ import bcrypt
 import pandas as pd
 import gdown
 import os
+import math
+
+def _sanitize(obj):
+    """Recursively replace NaN/Inf with None so JSON serialization never fails."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
 
 app = FastAPI()
 
@@ -1156,22 +1170,25 @@ def get_apuracao_pessoas(user=Depends(get_current_user)):
 @app.get("/api/apuracao/calcular")
 def get_apuracao_calcular(nome: str, user=Depends(get_current_user)):
     """Calcula bônus Q4 para uma pessoa específica."""
-    d = _load_all()
-    pessoas = d["pessoas"]
-    nome_n = eng_norm(nome)
-    pessoa = pessoas[pessoas["nome_norm"] == nome_n]
-    if pessoa.empty:
-        pessoa = pessoas[pessoas["nome_norm"].str.contains(nome_n.split()[0])]
-    if pessoa.empty:
-        raise HTTPException(status_code=404, detail=f"Pessoa não encontrada: {nome}")
-    pos = str(pessoa.iloc[0]["Posicao"]).upper().strip()
+    import traceback
     try:
+        d = _load_all()
+        pessoas = d["pessoas"]
+        nome_n = eng_norm(nome)
+        pessoa = pessoas[pessoas["nome_norm"] == nome_n]
+        if pessoa.empty:
+            pessoa = pessoas[pessoas["nome_norm"].str.contains(nome_n.split()[0])]
+        if pessoa.empty:
+            raise HTTPException(status_code=404, detail=f"Pessoa não encontrada: {nome}")
+        pos = str(pessoa.iloc[0]["Posicao"]).upper().strip()
         if pos == "DIRETOR":
-            return calc_bonus_diretor(nome)
+            result = calc_bonus_diretor(nome)
         else:
-            return calc_bonus_ae(nome)
+            result = calc_bonus_ae(nome)
+        return JSONResponse(content=_sanitize(result))
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
         raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")
 
 @app.get("/api/apuracao/visao-master")
@@ -1208,11 +1225,12 @@ def get_bonus_anual(nome: str, user=Depends(get_current_user)):
             q4_meta = res["budget_rec_total"]
             q4_lb_real = res.get("real_lb_total", 0)
             q4_lb_meta = res.get("budget_mb_pct", 0) / 100 * q4_meta if res.get("budget_mb_pct") else 0
-        return _calc_anual(nome, pos, sal, q4_real, q4_meta, q4_lb_real, q4_lb_meta)
+        return JSONResponse(content=_sanitize(_calc_anual(nome, pos, sal, q4_real, q4_meta, q4_lb_real, q4_lb_meta)))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")
 
 @app.get("/api/apuracao/pdf")
 def get_apuracao_pdf(nome: str, user=Depends(get_current_user)):
