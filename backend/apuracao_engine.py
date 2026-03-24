@@ -75,6 +75,28 @@ def _load_all():
     rac_q4["nome_norm"]  = rac_q4["nome_cliente"].apply(norm)
     marg_q4["nome_norm"] = marg_q4["nome_cliente"].apply(norm)
 
+    # Pre-normalize SAP variant names → canonical budget names using clientes.csv aliases.
+    # Rows with nome_base set define: canonical=nome_cliente, SAP-variant=nome_base.
+    # Renaming SAP-variant → canonical BEFORE groupby merges all entries for that client.
+    _cli_path = os.path.join(DIR, "clientes.csv")
+    if os.path.exists(_cli_path):
+        try:
+            _cli_df = pd.read_csv(_cli_path, encoding="utf-8-sig")
+            if "nome_base" in _cli_df.columns:
+                _alias_pre: dict[str, str] = {}
+                for _, _row in _cli_df.iterrows():
+                    _nc = str(_row.get("nome_cliente", "") or "").strip()
+                    _nb = str(_row.get("nome_base", "") or "").strip()
+                    if _nc and _nb:
+                        _alias_pre[norm(_nb)] = norm(_nc)  # SAP → canonical
+                if _alias_pre:
+                    rac_q4["nome_norm"]  = rac_q4["nome_norm"].map(
+                        lambda x: _alias_pre.get(x, x))
+                    marg_q4["nome_norm"] = marg_q4["nome_norm"].map(
+                        lambda x: _alias_pre.get(x, x))
+        except Exception:
+            pass
+
     # Lookup: cliente_norm → realizado receita, margem e custo (Q4)
     rac_by_client   = rac_q4.groupby("nome_norm")["valor_liquido"].sum().to_dict()
     marg_by_client  = marg_q4.groupby("nome_norm")["margem"].sum().to_dict()
@@ -409,16 +431,19 @@ def calc_bonus_ae(nome: str) -> dict:
 
         ating_rec = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4)
 
-        # MB% por WS — benchmark fixo para as verticais definidas, sempre que há receita
+        # MB% por WS — benchmark fixo para CÁLCULO de atingimento; financeiro para DISPLAY
         bgt_mb_pct_ws  = bgt_lb_ / bgt_r if bgt_r > 0 else 0.0
+        real_lb_fin_ws = realized_lb_financeiro_ws.get(ws_k, 0.0)
         if real_r > 0:
             if ws_k in WS_MB_BENCHMARK_Q4:
-                real_mb_pct_ws = WS_MB_BENCHMARK_Q4[ws_k]
-                real_lb_       = real_r * real_mb_pct_ws
+                real_mb_pct_ws      = WS_MB_BENCHMARK_Q4[ws_k]   # benchmark → ating_mb
+                real_lb_            = real_r * real_mb_pct_ws
             else:
-                real_mb_pct_ws = real_lb_ / real_r
+                real_mb_pct_ws      = real_lb_ / real_r
+            real_mb_pct_display = real_lb_fin_ws / real_r         # financeiro → display
         else:
-            real_mb_pct_ws = 0.0
+            real_mb_pct_ws      = 0.0
+            real_mb_pct_display = 0.0
 
         # Trigger MB: meta - 1.5pp (absoluto)
         trigger_mb_value = round(max(0.0, bgt_mb_pct_ws * 100 - 1.5), 2)
@@ -453,8 +478,8 @@ def calc_bonus_ae(nome: str) -> dict:
             # MB%
             "budget_mb_pct":       round(bgt_mb_pct_ws * 100, 2),
             "trigger_mb_pct":      trigger_mb_value,
-            "real_mb_pct":         round(real_mb_pct_ws * 100, 2),
-            "mb_faltante":         round(max(0.0, trigger_mb_value - real_mb_pct_ws * 100), 2),
+            "real_mb_pct":         round(real_mb_pct_display * 100, 2),
+            "mb_faltante":         round(max(0.0, trigger_mb_value - real_mb_pct_display * 100), 2),
             "ating_mb":            round(ating_mb, 4),
             "mb_gate":             mb_gate,
             "aplica_gate_mb":      ws_k == "apps",
