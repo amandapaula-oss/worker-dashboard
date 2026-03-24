@@ -367,15 +367,17 @@ def calc_bonus_ae(nome: str) -> dict:
                 realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
 
-        # (Added) Margem consolidada
-        margem_pct = cli_bonus_lb / real_rec if real_rec > 0 else None
+                # Margem financeira para visualizacao (Receita - Custo abs)
+        lb_visual = real_rec - abs(real_custo)
+        margem_pct_visual = lb_visual / real_rec if real_rec > 0 else None
+        
         clientes_detalhe.append({
             "cliente":    cli_display,
             "budget_rec": round(cli_bgt, 2),
             "real_rec":   round(real_rec, 2),
             "real_custo": round(real_custo, 2),
-            "real_lb":    round(cli_bonus_lb, 2),
-            "margem_pct": round(margem_pct * 100, 1) if margem_pct is not None else None,
+            "real_lb":    round(lb_visual, 2),
+            "margem_pct": round(margem_pct_visual * 100, 1) if margem_pct_visual is not None else None,
         })
 
     realized_rec_ws["total"] = sum(v for k, v in realized_rec_ws.items() if k != "total")
