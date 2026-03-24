@@ -694,6 +694,17 @@ def get_margem_proj() -> pd.DataFrame:
                   right_on=["periodo", "pep", "nome_cliente"], how="left", suffixes=("", "_rac_key"))
     df["receita"] = df["receita_rac"].where(df["receita_rac"].notna(), df["receita"])
 
+    # Custos reais de pessoas para Apps com custo_rateado=0 no SAP
+    try:
+        _mp = read_csv_cached("margem_pessoas.csv", dtype={"pep": str, "cpf": str})
+        _cl = read_csv_cached("classificacao_pessoas.csv", dtype={"cpf_brcpf": str})
+        _cpf_custo = set(_cl[_cl["classificacao"] == "custo"]["cpf_brcpf"].str.strip())
+        _mp_custo  = _mp[_mp["cpf"].str.strip().isin(_cpf_custo)].copy()
+        _mp_custo["pep_base"] = _mp_custo["pep"].str.split(".").str[0]
+        _pep_period_custo = _mp_custo.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
+    except Exception:
+        _pep_period_custo = {}
+
     # Simula custo/margem usando benchmark para WS com margem definida
     def _apply_benchmark(row, field):
         cat = row.get("categoria_bu", "")
@@ -703,8 +714,20 @@ def get_margem_proj() -> pd.DataFrame:
                 return rec * WS_MB_BENCHMARK[cat]
             else:  # custo_rateado
                 return -rec * (1 - WS_MB_BENCHMARK[cat])
+        # Apps com custo=0: usa custo real de pessoas; fallback benchmark 35%
+        existing_custo = row["custo_rateado"] if pd.notna(row.get("custo_rateado")) else 0.0
+        if cat == "Apps" and rec != 0 and existing_custo == 0:
+            _pep_b = str(row.get("pep_base", row.get("pep", ""))).split(".")[0]
+            _per   = str(row.get("periodo", ""))
+            _custo = _pep_period_custo.get((_pep_b, _per), None)
+            if _custo is not None and _custo != 0:
+                if field == "margem":      return rec + _custo
+                else:                      return _custo
+            else:
+                if field == "margem":      return rec * 0.35
+                else:                      return -rec * 0.65
         if field == "margem":
-            return rec + (row["custo_rateado"] if pd.notna(row["custo_rateado"]) else 0)
+            return rec + existing_custo
         return row["custo_rateado"]
 
     df["margem"]       = df.apply(_apply_benchmark, field="margem", axis=1)

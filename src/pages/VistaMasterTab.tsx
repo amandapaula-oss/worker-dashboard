@@ -123,6 +123,7 @@ type DetalheCalculo = {
   bgt_other_costs?: number;
   bgt_payroll_exp?: number;
   bgt_deductions?: number;
+  real_despesa_pessoas?: number;
 };
 
 const posicaoColor: Record<string, string> = {
@@ -1002,7 +1003,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         dataSource={(() => {
           const rec  = d.real_rec_sap ?? d.real_rec_q4 ?? 0;
           const lb   = d.real_lb_q4 ?? 0;
-          const desp = (d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0);
+          const desp = d.real_despesa_pessoas ?? ((d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0));
           const mc   = lb + desp;
           const bgtRec  = d.budget_rec_q4 ?? 0;
           const bgtLb   = d.budget_lb_q4 ?? 0;

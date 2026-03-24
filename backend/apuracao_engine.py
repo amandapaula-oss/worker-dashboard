@@ -48,6 +48,11 @@ def _load_all():
     rac       = pd.read_csv(os.path.join(DIR, "rac_projetos.csv"),        encoding="utf-8-sig")
     margem    = pd.read_csv(os.path.join(DIR, "margem_projetos.csv"),     encoding="utf-8-sig")
     nexus     = pd.read_csv(os.path.join(DIR, "nexus_agg.csv"),           encoding="utf-8-sig")
+    # Pessoas — para custos reais de projetos Apps e para despesas (Opção C)
+    _mp_path = os.path.join(DIR, "margem_pessoas.csv")
+    _cl_path = os.path.join(DIR, "classificacao_pessoas.csv")
+    margem_pess = pd.read_csv(_mp_path, encoding="utf-8-sig", dtype={"cpf": str}) if os.path.exists(_mp_path) else pd.DataFrame()
+    class_pess  = pd.read_csv(_cl_path, encoding="utf-8-sig", dtype={"cpf_brcpf": str}) if os.path.exists(_cl_path) else pd.DataFrame()
     lb_trigger_df = pd.read_csv(os.path.join(DIR, "premissas_lb_trigger.csv"), encoding="utf-8-sig")
     lb_trigger_df["nome_norm"] = lb_trigger_df["nome"].apply(norm)
     # dict: nome_norm → {meta_lb, trigger_lb}
@@ -76,6 +81,38 @@ def _load_all():
             marg_q4.loc[_mask, "margem"]        = marg_q4.loc[_mask, "receita"] * _bench
             marg_q4.loc[_mask, "custo_rateado"] = marg_q4.loc[_mask, "receita"] * -( 1 - _bench)
             marg_q4.loc[_mask, "margem_pct"]    = _bench
+        # Apps: quando custo_rateado=0, usa custo real de margem_pessoas (por PEP+período)
+        # Fallback: benchmark 35% para PEPs sem dados de pessoas
+        if not margem_pess.empty and not class_pess.empty:
+            _cpf_custo = set(class_pess[class_pess["classificacao"] == "custo"]["cpf_brcpf"].str.strip())
+            _mp_custo = margem_pess[margem_pess["cpf"].str.strip().isin(_cpf_custo)].copy()
+            _mp_custo["pep_base"] = _mp_custo["pep"].astype(str).str.split(".").str[0]
+            _pep_period_custo = (
+                _mp_custo.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
+            )
+        else:
+            _pep_period_custo = {}
+        _apps_zero_mask = (
+            (_ws_k_col == "apps") &
+            marg_q4["receita"].notna() & (marg_q4["receita"] != 0) &
+            (marg_q4["custo_rateado"].fillna(0) == 0)
+        )
+        if _apps_zero_mask.any():
+            _apps_zero_idx = marg_q4[_apps_zero_mask].index
+            for _idx in _apps_zero_idx:
+                _pep_b = str(marg_q4.at[_idx, "pep"]).split(".")[0]
+                _per   = str(marg_q4.at[_idx, "periodo"])
+                _rec   = float(marg_q4.at[_idx, "receita"])
+                _custo = _pep_period_custo.get((_pep_b, _per), None)
+                if _custo is not None and _custo != 0:
+                    marg_q4.at[_idx, "custo_rateado"] = _custo
+                    marg_q4.at[_idx, "margem"]         = _rec + _custo
+                    marg_q4.at[_idx, "margem_pct"]     = (_rec + _custo) / _rec if _rec else 0.0
+                else:
+                    # Fallback: benchmark 35% para PEPs sem dados de pessoas
+                    marg_q4.at[_idx, "custo_rateado"] = _rec * -0.65
+                    marg_q4.at[_idx, "margem"]         = _rec * 0.35
+                    marg_q4.at[_idx, "margem_pct"]     = 0.35
 
     # Override de margem para projetos OpenX: assume MB% = 45%
     if "no_hierarquia" in marg_q4.columns:
@@ -179,6 +216,39 @@ def _load_all():
         except Exception:
             pass
 
+    # ── Despesas pessoas Q4 (Opção C: proporcional por receita SAP) ─────────────
+    total_despesa_pessoas_q4 = 0.0
+    if not margem_pess.empty and not class_pess.empty:
+        try:
+            _mp_q4    = margem_pess[margem_pess["periodo"].isin(Q4_PERIODOS)]
+            _cpf_desp = set(class_pess[class_pess["classificacao"] == "despesa"]["cpf_brcpf"].str.strip())
+            _mp_desp  = _mp_q4[_mp_q4["cpf"].str.strip().isin(_cpf_desp)]
+            total_despesa_pessoas_q4 = float(_mp_desp["custo_rateado"].sum())
+        except Exception:
+            pass
+
+    # Total RAC de todos os diretores (denominador para proporcionalidade)
+    total_dir_rac_q4 = 0.0
+    for _dir_norm, _vertical in DIRETOR_VERTICAL.items():
+        _bs = VERTICAL_BS_MAP.get(_vertical, _vertical)
+        _dir_bgt = bgt_rec[bgt_rec["bs"].str.lower() == _bs.lower()]
+        _seen_dir: set = set()
+        for _cn in _dir_bgt["cliente_norm"].dropna():
+            _cn = str(_cn).strip()
+            if _cn and _cn not in _seen_dir:
+                _seen_dir.add(_cn)
+                total_dir_rac_q4 += _match_cliente(_cn, rac_by_client)
+        if os.path.exists(clientes_path):
+            try:
+                _cdf = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
+                for _nc in _cdf[_cdf["bu"].str.lower() == _bs.lower()]["nome_cliente"].dropna():
+                    _nck = norm(str(_nc).strip())
+                    if _nck and _nck not in _seen_dir:
+                        _seen_dir.add(_nck)
+                        total_dir_rac_q4 += _match_cliente(_nck, rac_by_client)
+            except Exception:
+                pass
+
     return {
         "pessoas":  pessoas,
         "pesos_m":  pesos_m,
@@ -203,6 +273,8 @@ def _load_all():
         "lb_trigger":    lb_trigger_map,
         "tcv_real":      tcv_real_map,
         "pesos_ws_pessoa": pesos_ws_pessoa,
+        "total_despesa_pessoas_q4": total_despesa_pessoas_q4,
+        "total_dir_rac_q4":        total_dir_rac_q4,
     }
 
 
@@ -821,8 +893,11 @@ def calc_bonus_diretor(nome: str) -> dict:
         real_payroll_exp = float(nq4_actual[nq4_actual["Agrupador"] == "Payroll expenses"]["[Valor]"].sum())
         real_deductions  = float(nq4_actual[nq4_actual["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
         direct_costs = real_payroll + real_third_party + real_other_costs
-        despesas = real_payroll_exp + real_deductions
-        # MC% = (LB SAP + Despesas Nexus) / Receita SAP
+        # Opção C: despesas pessoas proporcionais por receita SAP
+        _total_desp_p  = d.get("total_despesa_pessoas_q4", 0.0)
+        _total_dir_rac = d.get("total_dir_rac_q4", 0.0)
+        despesas = _total_desp_p * (_real_rec_sap / _total_dir_rac) if _total_dir_rac else 0.0
+        # MC% = (LB SAP + Despesas pessoas) / Receita SAP
         real_mc_pct = (_real_lb_sap + despesas) / _real_rec_sap if _real_rec_sap else 0.0
         # Diretor é responsável pela vertical inteira → usar nexus gross_rev como realizado
         if gross_rev > 0:
@@ -831,7 +906,10 @@ def calc_bonus_diretor(nome: str) -> dict:
     else:
         gross_rev = real_payroll = real_third_party = real_other_costs = 0.0
         real_payroll_exp = real_deductions = 0.0
-        real_mc_pct = 0.0
+        _total_desp_p  = d.get("total_despesa_pessoas_q4", 0.0)
+        _total_dir_rac = d.get("total_dir_rac_q4", 0.0)
+        despesas = _total_desp_p * (_real_rec_sap / _total_dir_rac) if _total_dir_rac else 0.0
+        real_mc_pct = (_real_lb_sap + despesas) / _real_rec_sap if _real_rec_sap else 0.0
 
     # Budget MC%: bgt_lb / bgt_rec para a vertical
     # Para verticais sem linhas no budget_receita.csv, usa nexus Budget
@@ -963,6 +1041,7 @@ def calc_bonus_diretor(nome: str) -> dict:
         "real_other_costs":     round(real_other_costs, 2),
         "real_payroll_exp":     round(real_payroll_exp, 2),
         "real_deductions":      round(real_deductions, 2),
+        "real_despesa_pessoas": round(despesas, 2),
         "bgt_gross_rev":        round(bgt_gross, 2),
         "bgt_payroll":          round(bgt_payroll, 2),
         "bgt_third_party":      round(bgt_third_party, 2),
