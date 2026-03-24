@@ -278,6 +278,7 @@ def calc_bonus_ae(nome: str) -> dict:
     # Realizado por cliente, alocado por WS proporcionalmente ao budget
     realized_rec_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     realized_lb_ws:  dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    real_lb_financeiro: float = 0.0  # LB real (marg_by_client) para o gatilho
 
     clientes_ae = rec_ae["cliente_norm"].dropna().unique()
     clientes_detalhe = []
@@ -287,6 +288,7 @@ def calc_bonus_ae(nome: str) -> dict:
         real_rec  = _match_cliente(cli_n, d["rac_by_client"])
         real_lb   = _match_cliente(cli_n, d["marg_by_client"])
         real_custo = _match_cliente(cli_n, d["custo_by_client"])
+        real_lb_financeiro += real_lb
         cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
         cli_bgt  = float(cli_rows["q4"].sum())
         cli_display = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
@@ -443,7 +445,7 @@ def calc_bonus_ae(nome: str) -> dict:
         )
     meta_lb_q4    = lb_trigger_info.get("meta_lb", 0.0)
     trigger_lb_q4 = lb_trigger_info.get("trigger_lb", 0.0)
-    lb_gate = 1 if (trigger_lb_q4 <= 0 or real_lb_total >= trigger_lb_q4) else 0
+    lb_gate = 1 if (trigger_lb_q4 <= 0 or real_lb_financeiro >= trigger_lb_q4) else 0
 
     trigger_mb_pct_total = round(max(0.0, bgt_mb_pct * 100 - 1.5), 2)
 
@@ -461,7 +463,7 @@ def calc_bonus_ae(nome: str) -> dict:
         "lb_gate":       lb_gate,
         "meta_lb_q4":    round(meta_lb_q4, 2),
         "trigger_lb_q4": round(trigger_lb_q4, 2),
-        "real_lb_total": round(real_lb_total, 2),
+        "real_lb_total": round(real_lb_financeiro, 2),
         "budget_rec_total":  round(bgt_rec_total, 2),
         "real_rec_total":    round(real_rec_total, 2),
         "ating_rec_total":   round(ating_rec_total, 4),
