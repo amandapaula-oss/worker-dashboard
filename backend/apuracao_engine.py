@@ -941,11 +941,16 @@ def calc_bonus_diretor(nome: str) -> dict:
     # Para diretores sem budget SAP (bgt_rec_q4 = Nexus gross), usa fórmula Nexus completa
     bgt_mc_pct = (bgt_lb_q4 + bgt_payroll_exp + bgt_deductions) / bgt_rec_q4 if bgt_rec_q4 else 0.0
 
-    # Trigger MC%: -1.5pp para Q4
+    # MC absoluto (R$) — meta e realizado
+    _bgt_mc_abs  = bgt_lb_q4 + bgt_payroll_exp + bgt_deductions
+    _real_mc_abs = _real_lb_sap + despesas
+
+    # Gate: mantém critério em % (MC% real >= budget MC% - 1.5pp)
     trigger_mc_pct_val = max(0, bgt_mc_pct - 0.015)
     mc_gate = 1.0 if real_mc_pct >= trigger_mc_pct_val else 0.0
 
-    ating_mc = calc_atingimento(real_mc_pct, bgt_mc_pct, 0.0) if bgt_mc_pct > 0 else 0.0
+    # Atingimento: compara valor absoluto (R$), sem patamar mínimo (trigger=0)
+    ating_mc = calc_atingimento(_real_mc_abs, _bgt_mc_abs, 0.0) if _bgt_mc_abs > 0 else 0.0
 
     # ─ WS breakdown — Parte 2: detalhe_ws_dir (bgt_lb_q4 já disponível) ─
     dir_ws_weights = d["pesos_ws_pessoa"].get(norm(str(pessoa["Nome"])), dict(WS_PESOS_Q4))
@@ -1032,6 +1037,8 @@ def calc_bonus_diretor(nome: str) -> dict:
         "budget_mc_pct":     round(bgt_mc_pct * 100, 2),
         "trigger_mc_pct":    round(trigger_mc_pct_val * 100, 2),
         "real_mc_pct":       round(real_mc_pct * 100, 2),
+        "budget_mc_abs":     round(_bgt_mc_abs, 2),
+        "real_mc_abs":       round(_real_mc_abs, 2),
         "real_mb_pct":       round(_real_lb_sap / _real_rec_sap * 100, 2) if _real_rec_sap else 0.0,
         "ating_mc":          round(ating_mc, 4),
         # Breakdown custos/despesas para auditoria do MC%
@@ -1292,8 +1299,8 @@ def get_visao_master() -> list[dict]:
                 bgt_r = res["budget_rec_q4"] or 1
                 bgt_t = res["budget_tcv_q4"] or 1
                 bgt_m = res["budget_mc_pct"] or 1
-                q4_mc_real = res["real_mc_pct"] / 100 * res["real_rec_q4"] if res.get("real_mc_pct") else 0
-                q4_mc_meta = res["budget_mc_pct"] / 100 * res["budget_rec_q4"] if res.get("budget_mc_pct") else 0
+                q4_mc_real = res.get("real_mc_abs") or (res["real_mc_pct"] / 100 * res["real_rec_q4"] if res.get("real_mc_pct") else 0)
+                q4_mc_meta = res.get("budget_mc_abs") or (res["budget_mc_pct"] / 100 * res["budget_rec_q4"] if res.get("budget_mc_pct") else 0)
                 anual = calc_bonus_anual(nome, pos, res["salario_q4"],
                                          res["real_rec_q4"], res["budget_rec_q4"],
                                          q4_mc_real, q4_mc_meta)
@@ -1312,7 +1319,7 @@ def get_visao_master() -> list[dict]:
                     "pct_rec":  round(res["real_rec_q4"] / bgt_r, 4),
                     "pct_mb":   None,
                     "pct_tcv":  round(res["real_tcv_q4"] / bgt_t, 4) if bgt_t else 0,
-                    "pct_mc":   round(res["real_mc_pct"] / bgt_m, 4) if bgt_m else 0,
+                    "pct_mc":   round(res["real_mc_abs"] / res["budget_mc_abs"], 4) if res.get("budget_mc_abs") else 0,
                     "mc_gate":   res["mc_gate"],
                     "gate_ok":   res["mc_gate"] == 1.0,
                     "tipo_calc": "Diretor",
