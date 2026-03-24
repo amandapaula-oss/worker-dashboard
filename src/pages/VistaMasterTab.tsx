@@ -242,8 +242,8 @@ function AchievementBar({ meta, trigger, realizado, bonusAtMaxAting }: {
 
 // ─── MetaRealRow (currency) ───────────────────────────────────────────────────
 
-function MetaRealRow({ label, meta, triggerAmt, real, ating, bonusAtMaxAting }: {
-  label: string; meta: number; triggerAmt: number; real: number; ating: number; bonusAtMaxAting?: number;
+function MetaRealRow({ label, meta, triggerAmt, real, ating, bonusAtMaxAting, showBar = false }: {
+  label: string; meta: number; triggerAmt: number; real: number; ating: number; bonusAtMaxAting?: number; showBar?: boolean;
 }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -256,15 +256,15 @@ function MetaRealRow({ label, meta, triggerAmt, real, ating, bonusAtMaxAting }: 
           {fmtPct(ating)}
         </span>
       </div>
-      <AchievementBar meta={meta} trigger={triggerAmt} realizado={real} bonusAtMaxAting={bonusAtMaxAting} />
+      {showBar && <AchievementBar meta={meta} trigger={triggerAmt} realizado={real} bonusAtMaxAting={bonusAtMaxAting} />}
     </div>
   );
 }
 
 // ─── MetaRealPctRow (percentage) ─────────────────────────────────────────────
 
-function MetaRealPctRow({ label, meta, trigger, real, ating, gate, bonusAtMaxAting }: {
-  label: string; meta: number; trigger: number; real: number; ating: number; gate?: boolean; bonusAtMaxAting?: number;
+function MetaRealPctRow({ label, meta, trigger, real, ating, gate, bonusAtMaxAting, showBar = false }: {
+  label: string; meta: number; trigger: number; real: number; ating: number; gate?: boolean; bonusAtMaxAting?: number; showBar?: boolean;
 }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -278,7 +278,7 @@ function MetaRealPctRow({ label, meta, trigger, real, ating, gate, bonusAtMaxAti
           <Tag color={gate ? "green" : "red"}>{gate ? "✓ Gate OK" : "✗ Bloqueado"}</Tag>
         )}
       </div>
-      <AchievementBar meta={meta} trigger={trigger} realizado={real} bonusAtMaxAting={bonusAtMaxAting} />
+      {showBar && <AchievementBar meta={meta} trigger={trigger} realizado={real} bonusAtMaxAting={bonusAtMaxAting} />}
     </div>
   );
 }
@@ -551,6 +551,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
             meta={d.meta_lb_q4 || 0}
             triggerAmt={d.trigger_lb_q4 || 0}
             real={d.real_lb_total || 0}
+            showBar={true}
             ating={d.real_lb_total != null && d.trigger_lb_q4 != null && d.meta_lb_q4 != null
               ? (d.real_lb_total >= d.meta_lb_q4 ? 1
                 : d.real_lb_total < d.trigger_lb_q4 ? 0
@@ -868,6 +869,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         ating={d.ating_mc || 0}
         gate={gate}
         bonusAtMaxAting={d.salario_q4 * (d.peso_mc || 0)}
+        showBar={true}
       />
 
       {/* ── TCV ── */}
