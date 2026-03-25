@@ -21,10 +21,33 @@ POSICOES_AE   = {"AE", "AE2", "HUNTER", "ESTRATEGISTAS", "CS"}
 POSICOES_DIR  = {"DIRETOR"}
 
 
+def resumo_rows(res: dict, metricas: list[tuple]) -> list[dict]:
+    """Linhas de resumo que aparecem no topo do bloco de cada pessoa."""
+    nome, posicao = res["nome"], res["posicao"]
+    rows = [{"Nome": nome, "Posicao": posicao, "WS": "RESUMO",
+             "Categoria": cat, "Valor_Q4": round(float(val or 0), 4)}
+            for cat, val in metricas]
+    return rows
+
+
 def linhas_ae(res: dict) -> list[dict]:
     nome    = res["nome"]
     posicao = res["posicao"]
-    rows    = []
+
+    sal        = res.get("salario_q4", 0) or 0
+    bonus_tot  = res.get("bonus_total", 0) or 0
+    ating_geral = round(bonus_tot / sal, 4) if sal else 0.0
+    rows = resumo_rows(res, [
+        ("Bonus_Total",   bonus_tot),
+        ("Atingimento",   ating_geral),
+        ("Budget_Rec",    res.get("budget_rec_total", 0)),
+        ("Real_Rec",      res.get("real_rec_total", 0)),
+        ("Ating_Rec",     res.get("ating_rec", 0)),
+        ("Budget_LB_pct", res.get("budget_mb_pct", 0)),
+        ("Real_LB_pct",   res.get("real_mb_pct", 0)),
+        ("Ating_MB",      res.get("ating_mb_total", 0)),
+    ])
+
     for w in res.get("detalhe_ws", []):
         ws       = w["ws"].upper()
         real_rec = w["real_rec"]
@@ -54,7 +77,22 @@ def linhas_ae(res: dict) -> list[dict]:
 def linhas_diretor(res: dict) -> list[dict]:
     nome    = res["nome"]
     posicao = res["posicao"]
-    rows    = []
+
+    sal        = res.get("salario_q4", 0) or 0
+    bonus_tot  = res.get("bonus_total", 0) or 0
+    ating_geral = round(bonus_tot / sal, 4) if sal else 0.0
+    rows = resumo_rows(res, [
+        ("Bonus_Total",   bonus_tot),
+        ("Atingimento",   ating_geral),
+        ("MC_Gate",       res.get("mc_gate", 0)),
+        ("Budget_Rec",    res.get("budget_rec_q4", 0)),
+        ("Real_Rec",      res.get("real_rec_q4", 0)),
+        ("Ating_Rec",     res.get("ating_rec", 0)),
+        ("Budget_MC_abs", res.get("budget_mc_abs", 0)),
+        ("Real_MC_abs",   res.get("real_mc_abs", 0)),
+        ("Ating_MC",      res.get("ating_mc", 0)),
+        ("Real_LB_pct",   res.get("real_mb_pct", 0)),
+    ])
 
     # ── por WS (SAP/RAC-based) ──────────────────────────────────────────────
     for w in res.get("detalhe_ws", []):
@@ -126,7 +164,7 @@ def main():
     df = pd.DataFrame(todas, columns=["Nome", "Posicao", "WS", "Categoria", "Valor_Q4"])
 
     # ordena
-    ws_order  = {ws.upper(): i for i, ws in enumerate(list(WS_PESOS_Q4.keys()) + ["TOTAL", "NEXUS"])}
+    ws_order  = {"RESUMO": -1, **{ws.upper(): i for i, ws in enumerate(list(WS_PESOS_Q4.keys()) + ["TOTAL", "NEXUS"])}}
     cat_order = {"Receita": 0, "Custo": 1, "LB": 2, "MB": 3, "Despesas": 4, "MC": 5}
     df["_ws_ord"]  = df["WS"].map(lambda x: ws_order.get(x, 99))
     df["_cat_ord"] = df["Categoria"].map(lambda x: cat_order.get(x, 99))
