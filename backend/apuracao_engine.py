@@ -895,11 +895,10 @@ def calc_bonus_diretor(nome: str) -> dict:
         real_rec_q4  += pep_rac
         _sap_rec_total += pep_rec_total
 
-        # LB por WS: usa SAP margem (benchmark já aplicado em _load_all)
-        # Receita por WS: RAC escalado pela proporção SAP (para breakdown de receita)
+        # LB e receita por WS: usa SAP diretamente (benchmark já aplicado em _load_all)
+        # Assim o MB% do breakdown WS bate com o MB% da Carteira de Clientes
         for ws_k in WS_PESOS_Q4:
-            prop   = pep_rec_ws[ws_k] / pep_rec_total if pep_rec_total > 0 else (1.0 if ws_k == "demais" else 0.0)
-            realized_rec_ws_dir[ws_k] += pep_rac * prop
+            realized_rec_ws_dir[ws_k] += pep_rec_ws[ws_k]
             realized_lb_ws_dir[ws_k]  += pep_lb_ws[ws_k]
 
         pep_lb_total = sum(pep_lb_ws.values())
@@ -1038,11 +1037,7 @@ def calc_bonus_diretor(nome: str) -> dict:
         real_lb_ws = realized_lb_ws_dir.get(ws_k, 0.0)
         bgt_mb_pct_ws  = round(bgt_lb_ws  / bgt_r  * 100, 2) if bgt_r  > 0 else 0.0
         if real_r > 0:
-            if ws_k in WS_MB_BENCHMARK_Q4:
-                real_mb_pct_ws = round(WS_MB_BENCHMARK_Q4[ws_k] * 100, 2)
-                real_lb_ws     = real_r * WS_MB_BENCHMARK_Q4[ws_k]
-            else:
-                real_mb_pct_ws = round(real_lb_ws / real_r * 100, 2)
+            real_mb_pct_ws = round(real_lb_ws / real_r * 100, 2)
         else:
             real_mb_pct_ws = 0.0
         ating_r   = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4) if bgt_r > 0 else 0.0
