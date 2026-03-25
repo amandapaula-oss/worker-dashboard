@@ -533,6 +533,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
 
   return (
     <div>
+      <ResultadoBox bonusTotal={d.bonus_total ?? 0} salario={d.salario_q4 ?? 0} />
       {/* ── Gatilho Mestre ── */}
       <Divider>Gatilho Mestre — Lucro Bruto (R$)</Divider>
       <div style={{
@@ -823,6 +824,32 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
 
 // ─── Detalhe Diretor ──────────────────────────────────────────────────────────
 
+function ResultadoBox({ bonusTotal, salario }: { bonusTotal: number; salario: number }) {
+  const ating = salario > 0 ? bonusTotal / salario : 0;
+  const ok = bonusTotal > 0;
+  return (
+    <div style={{
+      background: ok ? "#f6ffed" : "#fff2f0",
+      border: `2px solid ${ok ? "#52c41a" : "#ff4d4f"}`,
+      borderRadius: 10, padding: "14px 20px", marginBottom: 16,
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+    }}>
+      <div>
+        <div style={{ fontSize: 11, color: "#888", marginBottom: 2 }}>Bônus Total Q4 2025</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: ok ? "#52c41a" : "#ff4d4f" }}>
+          {fmt(bonusTotal)}
+        </div>
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <div style={{ fontSize: 11, color: "#888", marginBottom: 2 }}>Atingimento</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: ok ? "#52c41a" : "#ff4d4f" }}>
+          {(ating * 100).toFixed(1)}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DetalheDir({ d }: { d: DetalheCalculo }) {
   const gate = d.mc_gate === 1;
   const triggerMcAbs = d.trigger_mc_abs ?? ((d.budget_mc_abs ?? 0) * 0.85);
@@ -830,6 +857,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
 
   return (
     <div>
+      <ResultadoBox bonusTotal={d.bonus_total ?? 0} salario={d.salario_q4 ?? 0} />
       {/* ── Gatilho Mestre ── */}
       <Divider>Gatilho Mestre — MC% (Margem de Contribuição)</Divider>
       <div style={{
