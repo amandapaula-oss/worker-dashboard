@@ -60,6 +60,12 @@ def _load_all():
         row["nome_norm"]: {"meta_lb": float(row["meta_lb"] or 0), "trigger_lb": float(row["trigger_lb"] or 0)}
         for _, row in lb_trigger_df.iterrows()
     }
+    _mc_metas_path = os.path.join(DIR, "metas_mc_dir.csv")
+    mc_metas_dir: dict = {}
+    if os.path.exists(_mc_metas_path):
+        _mc_df = pd.read_csv(_mc_metas_path, encoding="utf-8-sig")
+        for _, _row in _mc_df.iterrows():
+            mc_metas_dir[norm(str(_row["nome"]))] = float(_row["meta_mc_abs"])
 
     pessoas["nome_norm"] = pessoas["Nome"].apply(norm)
     bgt_rec["cliente_norm"] = bgt_rec["cliente"].apply(norm)
@@ -275,6 +281,7 @@ def _load_all():
         "pesos_ws_pessoa": pesos_ws_pessoa,
         "total_despesa_pessoas_q4": total_despesa_pessoas_q4,
         "total_dir_rac_q4":        total_dir_rac_q4,
+        "mc_metas_dir":            mc_metas_dir,
     }
 
 
@@ -939,15 +946,21 @@ def calc_bonus_diretor(nome: str) -> dict:
     _bgt_direct = bgt_payroll + bgt_third_party + bgt_other_costs
     # Budget MC% = (LB SAP budget + Despesas Nexus budget) / Receita SAP budget
     # Para diretores sem budget SAP (bgt_rec_q4 = Nexus gross), usa fórmula Nexus completa
-    bgt_mc_pct = (bgt_lb_q4 + bgt_payroll_exp + bgt_deductions) / bgt_rec_q4 if bgt_rec_q4 else 0.0
-
     # MC absoluto (R$) — meta e realizado
     _bgt_mc_abs  = bgt_lb_q4 + bgt_payroll_exp + bgt_deductions
     _real_mc_abs = _real_lb_sap + despesas
 
-    # Gate: mantém critério em % (MC% real >= budget MC% - 1.5pp)
-    trigger_mc_pct_val = max(0, bgt_mc_pct - 0.015)
-    mc_gate = 1.0 if real_mc_pct >= trigger_mc_pct_val else 0.0
+    # Override: meta MC fixa por diretor (metas_mc_dir.csv)
+    _mc_metas = d.get("mc_metas_dir", {})
+    if nome_n in _mc_metas:
+        _bgt_mc_abs = _mc_metas[nome_n]
+
+    bgt_mc_pct = _bgt_mc_abs / bgt_rec_q4 if bgt_rec_q4 else 0.0
+
+    # Gate: critério por valor absoluto (MC realizado >= 85% da meta)
+    _trigger_mc_abs = _bgt_mc_abs * TRIGGER_REC_Q4
+    mc_gate = 1.0 if _real_mc_abs >= _trigger_mc_abs else 0.0
+    trigger_mc_pct_val = _trigger_mc_abs / bgt_rec_q4 if bgt_rec_q4 else 0.0
 
     # Atingimento: compara valor absoluto (R$), sem patamar mínimo (trigger=0)
     ating_mc = calc_atingimento(_real_mc_abs, _bgt_mc_abs, 0.0) if _bgt_mc_abs > 0 else 0.0
@@ -1038,6 +1051,7 @@ def calc_bonus_diretor(nome: str) -> dict:
         "trigger_mc_pct":    round(trigger_mc_pct_val * 100, 2),
         "real_mc_pct":       round(real_mc_pct * 100, 2),
         "budget_mc_abs":     round(_bgt_mc_abs, 2),
+        "trigger_mc_abs":    round(_trigger_mc_abs, 2),
         "real_mc_abs":       round(_real_mc_abs, 2),
         "real_mb_pct":       round(_real_lb_sap / _real_rec_sap * 100, 2) if _real_rec_sap else 0.0,
         "ating_mc":          round(ating_mc, 4),

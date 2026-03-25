@@ -106,6 +106,9 @@ type DetalheCalculo = {
   budget_mc_pct?: number;
   trigger_mc_pct?: number;
   real_mc_pct?: number;
+  budget_mc_abs?: number;
+  trigger_mc_abs?: number;
+  real_mc_abs?: number;
   ating_mc?: number;
   bonus_tcv?: number;
   bonus_rec?: number;
@@ -247,8 +250,8 @@ function AchievementBar({ meta, trigger, realizado, bonusAtMaxAting }: {
 
 // ─── MetaRealRow (currency) ───────────────────────────────────────────────────
 
-function MetaRealRow({ label, meta, triggerAmt, real, ating, bonusAtMaxAting, showBar = false }: {
-  label: string; meta: number; triggerAmt: number; real: number; ating: number; bonusAtMaxAting?: number; showBar?: boolean;
+function MetaRealRow({ label, meta, triggerAmt, real, ating, gate, bonusAtMaxAting, showBar = false }: {
+  label: string; meta: number; triggerAmt: number; real: number; ating: number; gate?: boolean; bonusAtMaxAting?: number; showBar?: boolean;
 }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -260,6 +263,9 @@ function MetaRealRow({ label, meta, triggerAmt, real, ating, bonusAtMaxAting, sh
         <span style={{ fontWeight: 700, color: ating >= 1 ? "#52c41a" : ating > 0 ? "#faad14" : "#ff4d4f" }}>
           {fmtPct(ating)}
         </span>
+        {gate !== undefined && (
+          <Tag color={gate ? "green" : "red"}>{gate ? "✓ Gate OK" : "✗ Bloqueado"}</Tag>
+        )}
       </div>
       {showBar && <AchievementBar meta={meta} trigger={triggerAmt} realizado={real} bonusAtMaxAting={bonusAtMaxAting} />}
     </div>
@@ -819,6 +825,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
 
 function DetalheDir({ d }: { d: DetalheCalculo }) {
   const gate = d.mc_gate === 1;
+  const triggerMcAbs = d.trigger_mc_abs ?? ((d.budget_mc_abs ?? 0) * 0.85);
   const triggerMcPct = d.trigger_mc_pct ?? ((d.budget_mc_pct ?? 0) - 1.5);
 
   return (
@@ -839,7 +846,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
             {gate ? "Gatilho atingido" : "Gatilho NÃO atingido — sem apuração de Receita e TCV"}
           </div>
           <div style={{ fontSize: 12, color: "#666" }}>
-            MC% {gate ? "≥" : "<"} mínimo de {triggerMcPct.toFixed(2)}% (meta {(d.budget_mc_pct ?? 0).toFixed(2)}% − 1,5pp)
+            MC {gate ? "≥" : "<"} mínimo de {fmt(triggerMcAbs)} (85% da meta de {fmt(d.budget_mc_abs ?? 0)})
           </div>
         </div>
       </div>
@@ -853,7 +860,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         <div style={{ marginBottom: 6 }}>
           🎯 <strong>Trigger Receita/TCV:</strong> 85% da meta — abaixo disso = 0
           &nbsp;&nbsp;|&nbsp;&nbsp;
-          🎯 <strong>Trigger MC%:</strong> meta − 1,5pp — abaixo disso = 0 (Gatilho Mestre)
+          🎯 <strong>Trigger MC:</strong> 85% da meta absoluta — abaixo disso = 0 (Gatilho Mestre)
         </div>
         <div>
           <strong>Pesos:</strong>&nbsp;
@@ -864,18 +871,23 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         </div>
       </div>
 
-      {/* ── MC% ── */}
-      <Divider>MC% — Gatilho Mestre (peso {fmtPct(d.peso_mc || 0)})</Divider>
-      <MetaRealPctRow
-        label="Margem de Contribuição %"
-        meta={d.budget_mc_pct || 0}
-        trigger={triggerMcPct}
-        real={d.real_mc_pct || 0}
+      {/* ── MC ── */}
+      <Divider>Margem de Contribuição — Gatilho Mestre (peso {fmtPct(d.peso_mc || 0)})</Divider>
+      <MetaRealRow
+        label="Margem de Contribuição (R$)"
+        meta={d.budget_mc_abs || 0}
+        triggerAmt={triggerMcAbs}
+        real={d.real_mc_abs || 0}
         ating={d.ating_mc || 0}
         gate={gate}
         bonusAtMaxAting={d.salario_q4 * (d.peso_mc || 0)}
         showBar={true}
       />
+      {(d.budget_mc_pct || d.real_mc_pct) ? (
+        <div style={{ fontSize: 12, color: "#888", marginTop: -10, marginBottom: 16 }}>
+          Em %: Meta {(d.budget_mc_pct || 0).toFixed(2)}% · Mín. {triggerMcPct.toFixed(2)}% · Realizado {(d.real_mc_pct || 0).toFixed(2)}%
+        </div>
+      ) : null}
 
       {/* ── TCV ── */}
       <Divider>TCV (peso {fmtPct(d.peso_tcv || 0)})</Divider>
