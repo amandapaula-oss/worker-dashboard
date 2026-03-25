@@ -702,9 +702,10 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
               const sal = d.salario_q4;
               const pRec = d.peso_receita || 0;
               const pMb  = (d as any).peso_mb || 0;
-              const bRec = sal * pRec * w.peso_ws * (w.ating_rec ?? 0);
+              const lbGate = (w as any).lb_gate_ws ?? 1;
+              const bRec = sal * pRec * w.peso_ws * (w.ating_rec ?? 0) * lbGate;
               const gate = w.aplica_gate_mb ? (w.mb_gate ?? 1) : 1;
-              const bMb  = sal * pMb  * w.peso_ws * (w.ating_mb ?? 0) * gate;
+              const bMb  = sal * pMb  * w.peso_ws * (w.ating_mb ?? 0) * gate * lbGate;
               return (
                 <div key={w.ws} style={{ borderTop: "1px solid #e8eaf0", paddingTop: 8, marginTop: 8 }}>
                   <div style={{ fontWeight: 700, color: "#1a3c6e", marginBottom: 4 }}>
