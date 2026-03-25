@@ -736,7 +736,15 @@ def get_margem_proj() -> pd.DataFrame:
     df = df.drop(columns=["pep_base", "receita_rac", "pep_rac_key"], errors="ignore")
 
     vlookup, ae_lookup = _clientes_lookup()
-    key = df["nome_cliente"].str.upper().str.strip()
+    # Limpa nomes do tipo "Recorrência Cliente (BR03CLP00043)" antes do vlookup
+    import re as _re
+    _recorr_pat = _re.compile(r'\([A-Z0-9]+\)\s*$', _re.IGNORECASE)
+    def _clean_cli(n: str) -> str:
+        n = _recorr_pat.sub('', str(n)).strip()
+        n = _re.sub(r'(?i)^Recorr[êe]ncia\s+', '', n).strip()
+        n = _re.sub(r'(?i)\s+Recorr[êe]ncia\s*$', '', n).strip()
+        return n.upper().strip()
+    key = df["nome_cliente"].apply(_clean_cli)
     df["vertical"] = key.map(vlookup).fillna("")
     df["ae"]       = key.map(ae_lookup).fillna("")
 

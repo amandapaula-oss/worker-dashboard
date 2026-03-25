@@ -152,6 +152,16 @@ def _load_all():
     rac_q4["nome_norm"]  = rac_q4["nome_cliente"].apply(norm)
     marg_q4["nome_norm"] = marg_q4["nome_cliente"].apply(norm)
 
+    # Limpa nomes do tipo "Recorrência Cliente (BR03CLP00043)" → "CLIENTE"
+    # Ocorre quando o SAP embute o código do PEP no nome do cliente para itens de recorrência.
+    _recorr_pat = re.compile(r'\([A-Z0-9]+\)\s*$')
+    def _clean_nome_norm(n: str) -> str:
+        n = _recorr_pat.sub('', n).strip()
+        n = re.sub(r'^RECORRENCIA\s+', '', n).strip()
+        n = re.sub(r'\s+RECORRENCIA\s*$', '', n).strip()
+        return n
+    marg_q4["nome_norm"] = marg_q4["nome_norm"].apply(_clean_nome_norm)
+
     # Pre-normalize SAP variant names → canonical budget names using clientes.csv aliases.
     # Rows with nome_base set define: canonical=nome_cliente, SAP-variant=nome_base.
     # Renaming SAP-variant → canonical BEFORE groupby merges all entries for that client.
