@@ -74,6 +74,26 @@ def _load_all():
     rac_q4   = rac[rac["periodo"].isin(Q4_PERIODOS)].copy()
     marg_q4  = margem[margem["periodo"].isin(Q4_PERIODOS)].copy()
 
+    # Substitui receita SAP por RAC onde há match (periodo+pep_base+nome_cliente)
+    # Espelha exatamente a lógica de get_margem_proj() em main.py
+    if "pep" in rac_q4.columns:
+        _rac_receita = (
+            rac_q4.assign(pep_base=rac_q4["pep"].astype(str).str.split(".").str[0].str.strip())
+            .groupby(["periodo", "pep_base", "nome_cliente"])["valor_liquido"].sum()
+            .reset_index().rename(columns={"valor_liquido": "receita_rac", "pep_base": "_pep_rac"})
+        )
+        marg_q4["_pep_base_tmp"] = marg_q4["pep"].astype(str).str.split(".").str[0].str.strip()
+        marg_q4 = marg_q4.merge(
+            _rac_receita,
+            left_on=["periodo", "_pep_base_tmp", "nome_cliente"],
+            right_on=["periodo", "_pep_rac", "nome_cliente"],
+            how="left"
+        )
+        marg_q4["receita"] = marg_q4["receita_rac"].where(
+            marg_q4["receita_rac"].notna(), marg_q4["receita"]
+        )
+        marg_q4 = marg_q4.drop(columns=["receita_rac", "_pep_rac", "_pep_base_tmp"], errors="ignore")
+
     # Aplica benchmark de MB% por WS — mesma lógica de main.py get_margem_proj().
     # Para categorias com benchmark definido (Demais/Cloud/Dados/Hyper), substitui
     # custo_rateado e margem pelo benchmark em vez de usar os dados brutos do SAP
