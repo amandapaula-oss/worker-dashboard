@@ -302,7 +302,7 @@ def _load_all():
         pb: _resolve_pep_vert(pb, row["nome_norm"])
         for pb, row in _pep_info.iterrows()
     }
-    pep_to_nome_cli = _pep_info["nome_cliente"].to_dict()
+    pep_to_nome_cli = _pep_info["nome_norm"].to_dict()  # usa nome canônico (já aliasado) p/ bater com budget
 
     rac_by_pep: dict = {}
     if "pep" in rac_q4.columns:
@@ -920,6 +920,18 @@ def calc_bonus_diretor(nome: str) -> dict:
         }
         for cli_disp, agg in _cli_agg.items()
     ]
+    # Adiciona clientes com budget mas sem PEPs realizados no SAP
+    _cli_agg_keys = {norm(k) for k in _cli_agg}
+    for cli_n, cli_disp, bgt in cli_source:
+        if cli_n not in _cli_agg_keys and bgt > 0:
+            clientes_detalhe_dir.append({
+                "cliente":    cli_disp,
+                "budget_rec": round(bgt, 2),
+                "real_rec":   0.0,
+                "real_custo": 0.0,
+                "real_lb":    0.0,
+                "margem_pct": None,
+            })
     clientes_detalhe_dir.sort(key=lambda x: x["budget_rec"], reverse=True)
 
     ating_rec = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
