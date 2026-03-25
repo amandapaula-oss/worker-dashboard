@@ -311,12 +311,13 @@ def _load_all():
 
     def _resolve_pep_vert(pep_b: str, nome_n: str) -> str:
         pv = _pep_vert_e.get(pep_b, "")
-        cv = _cli_bu.get(nome_n, "")
-        if pv and pv != "Others":
+        # pep_vertical.csv sempre prevalece — inclusive "Others":
+        # se o pep está explicitamente mapeado (qualquer valor), usa esse valor.
+        # Só cai no vlookup de cliente quando o pep não está no arquivo.
+        if pv:
             return pv
-        if cv:
-            return cv
-        return "Others"
+        cv = _cli_bu.get(nome_n, "")
+        return cv if cv else "Others"
 
     vert_by_pep = {
         pb: _resolve_pep_vert(pb, row["nome_norm"])
