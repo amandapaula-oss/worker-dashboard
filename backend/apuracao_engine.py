@@ -710,6 +710,9 @@ def calc_bonus_ae(nome: str) -> dict:
             # WS sem orçamento E sem receita não geram bônus MB (evita ating=1.0 com inatividade)
             if bgt_r == 0 and real_r == 0:
                 ating_mb = 0.0
+            elif bgt_lb_ == 0:
+                # Sem budget de LB → sem meta de MB → sem bônus MB
+                ating_mb = 0.0
             else:
                 ating_mb = calc_atingimento_mb(real_mb_pct_ws, bgt_mb_pct_ws) if bgt_mb_pct_ws > 0 else 1.0
             mb_gate  = 1.0
