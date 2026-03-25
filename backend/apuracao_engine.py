@@ -263,27 +263,8 @@ def _load_all():
         except Exception:
             pass
 
-    # Total RAC de todos os diretores (denominador para proporcionalidade)
+    # total_dir_rac_q4 será calculado após vert_by_pep e rac_by_pep estarem disponíveis
     total_dir_rac_q4 = 0.0
-    for _dir_norm, _vertical in DIRETOR_VERTICAL.items():
-        _bs = VERTICAL_BS_MAP.get(_vertical, _vertical)
-        _dir_bgt = bgt_rec[bgt_rec["bs"].str.lower() == _bs.lower()]
-        _seen_dir: set = set()
-        for _cn in _dir_bgt["cliente_norm"].dropna():
-            _cn = str(_cn).strip()
-            if _cn and _cn not in _seen_dir:
-                _seen_dir.add(_cn)
-                total_dir_rac_q4 += _match_cliente(_cn, rac_by_client)
-        if os.path.exists(clientes_path):
-            try:
-                _cdf = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
-                for _nc in _cdf[_cdf["bu"].str.lower() == _bs.lower()]["nome_cliente"].dropna():
-                    _nck = norm(str(_nc).strip())
-                    if _nck and _nck not in _seen_dir:
-                        _seen_dir.add(_nck)
-                        total_dir_rac_q4 += _match_cliente(_nck, rac_by_client)
-            except Exception:
-                pass
 
     # ─ Pep-level lookups for director vertical scope ─────────────────────────────
     _pv_path_e = os.path.join(DIR, "pep_vertical.csv")
@@ -344,6 +325,15 @@ def _load_all():
     rec_by_pep_ws = marg_q4.groupby(["pep_base", "ws_key"])["receita"].sum().to_dict()
     lb_by_pep_ws  = marg_q4.groupby(["pep_base", "ws_key"])["margem"].sum().to_dict()
     custo_by_pep  = marg_q4.groupby("pep_base")["custo_rateado"].sum().to_dict()
+
+    # Total SAP receita dos diretores — denominador para alocação proporcional de despesas.
+    # Usa rec_by_pep_ws (mesma fonte de _sap_rec_total em calc_bonus_diretor) para garantir
+    # que as proporções somem exatamente total_despesa_pessoas_q4.
+    _dir_verticals = set(DIRETOR_VERTICAL.values())
+    total_dir_rac_q4 = sum(
+        v for (pep, ws), v in rec_by_pep_ws.items()
+        if vert_by_pep.get(pep) in _dir_verticals
+    )
 
     return {
         "pessoas":  pessoas,
