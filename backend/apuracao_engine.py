@@ -528,6 +528,7 @@ def calc_bonus_ae(nome: str) -> dict:
     realized_rec_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     realized_lb_ws:  dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     realized_lb_financeiro_ws:    dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_lb_gate_ws:          dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}  # apenas clientes com budget LB > 0
     realized_custo_financeiro_ws: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     real_lb_financeiro:    float = 0.0  # LB real (marg_by_client) para o gatilho
     real_custo_total_fin:  float = 0.0  # Custo real (custo_rateado) total
@@ -561,6 +562,10 @@ def calc_bonus_ae(nome: str) -> dict:
 
         # Budget por WS deste cliente (para comparação de meta)
         cli_rec_ws    = cli_rows.groupby("ws_key")["q4"].sum()
+        cli_lb_bgt_ws = (
+            lb_ae[lb_ae["cliente_norm"] == cli_n].groupby("ws_key")["q4"].sum()
+            if not lb_ae.empty else pd.Series(dtype=float)
+        )
 
         if actual_rec_total > 0:
             # Usa proporção real da WS dos projetos
@@ -590,6 +595,9 @@ def calc_bonus_ae(nome: str) -> dict:
                 # garante que rec - |custo| = lb em todos os totais exibidos
                 realized_lb_financeiro_ws[ws_k]    = realized_lb_financeiro_ws.get(ws_k, 0.0)    + _lb_fin
                 realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + _cu_fin
+                # Gate LB: só conta clientes com budget LB > 0 nesta WS
+                if float(cli_lb_bgt_ws.get(ws_k, 0.0)) > 0:
+                    realized_lb_gate_ws[ws_k] = realized_lb_gate_ws.get(ws_k, 0.0) + _lb_fin
                 cli_lb_fin    += _lb_fin
                 cli_custo_fin += _cu_fin
         else:
@@ -608,6 +616,9 @@ def calc_bonus_ae(nome: str) -> dict:
                 _cu_f = real_custo * prop
                 realized_lb_financeiro_ws[ws_k]    = realized_lb_financeiro_ws.get(ws_k, 0.0)    + _lb_f
                 realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + _cu_f
+                # Gate LB: só conta clientes com budget LB > 0 nesta WS
+                if float(cli_lb_ws.get(ws_k, 0.0)) > 0:
+                    realized_lb_gate_ws[ws_k] = realized_lb_gate_ws.get(ws_k, 0.0) + _lb_f
                 cli_lb_fin    += _lb_f
                 cli_custo_fin += _cu_f
                 cli_contrib.setdefault(ws_k, []).append({
@@ -637,6 +648,7 @@ def calc_bonus_ae(nome: str) -> dict:
     realized_rec_ws["total"] = sum(v for k, v in realized_rec_ws.items() if k != "total")
     realized_lb_ws["total"]  = sum(v for k, v in realized_lb_ws.items() if k != "total")
     realized_lb_financeiro_ws["total"]    = sum(v for k, v in realized_lb_financeiro_ws.items()    if k != "total")
+    realized_lb_gate_ws["total"]          = sum(v for k, v in realized_lb_gate_ws.items()          if k != "total")
     realized_custo_financeiro_ws["total"] = sum(v for k, v in realized_custo_financeiro_ws.items() if k != "total")
 
     # Calcular MB% realizado vs budget
@@ -705,7 +717,7 @@ def calc_bonus_ae(nome: str) -> dict:
         # ─ Gate LB por WS: trigger proporcional ao budget LB desta WS ─
         bgt_lb_ws_k = bgt_lb_ws.get(ws_k, 0.0)
         trigger_lb_ws_k = round(bgt_lb_ws_k * _trigger_ratio, 2) if bgt_lb_ws_k > 0 else 0.0
-        real_lb_fin_ws_k = realized_lb_financeiro_ws.get(ws_k, 0.0)
+        real_lb_fin_ws_k = realized_lb_gate_ws.get(ws_k, 0.0)  # apenas clientes com budget LB > 0
         lb_gate_ws = 1 if (trigger_lb_ws_k <= 0 or real_lb_fin_ws_k >= trigger_lb_ws_k) else 0
 
         bonus_rec = Q4_QTDE * peso_ws * ating_rec * salario * peso_rec * lb_gate_ws
@@ -734,7 +746,8 @@ def calc_bonus_ae(nome: str) -> dict:
             # Gate LB por WS
             "meta_lb_ws":          round(bgt_lb_ws_k, 2),
             "trigger_lb_ws":       trigger_lb_ws_k,
-            "real_lb_financeiro":  round(real_lb_fin_ws_k, 2),
+            "real_lb_financeiro":  round(realized_lb_financeiro_ws.get(ws_k, 0.0), 2),  # total para display
+            "real_lb_gate":        round(real_lb_fin_ws_k, 2),  # apenas clientes com budget LB (usado no gate)
             "lb_gate_ws":          lb_gate_ws,
             # Bônus (já aplicado gate LB por WS)
             "bonus_rec":           round(bonus_rec, 2),
