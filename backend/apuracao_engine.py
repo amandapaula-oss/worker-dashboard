@@ -648,6 +648,18 @@ def calc_bonus_ae(nome: str) -> dict:
     bgt_mb_pct  = bgt_lb_total / bgt_rec_total if bgt_rec_total else 0
     real_mb_pct = real_lb_total / real_rec_total if real_rec_total else 0
 
+    # ─ Gatilho LB — lookup antecipado para uso no gate por WS ─
+    lb_trigger_info_pre = d["lb_trigger"].get(pessoa_nome_n, {})
+    if not lb_trigger_info_pre:
+        primeiro = pessoa_nome_n.split()[0]
+        lb_trigger_info_pre = next(
+            (v for k, v in d["lb_trigger"].items() if k.startswith(primeiro)), {}
+        )
+    _meta_lb_pre    = lb_trigger_info_pre.get("meta_lb", 0.0)
+    _trigger_lb_pre = lb_trigger_info_pre.get("trigger_lb", 0.0)
+    # proporção trigger/meta (tipicamente 85%), usada para calcular trigger por WS
+    _trigger_ratio  = (_trigger_lb_pre / _meta_lb_pre) if _meta_lb_pre > 0 else 0.0
+
     # ─ Atingimento por WS (todas as 6 WS, mesmo sem budget) ─
     detalhe_ws = []
     bonus_total = 0.0
@@ -690,8 +702,14 @@ def calc_bonus_ae(nome: str) -> dict:
                 ating_mb = calc_atingimento_mb(real_mb_pct_ws, bgt_mb_pct_ws) if bgt_mb_pct_ws > 0 else 1.0
             mb_gate  = 1.0
 
-        bonus_rec = Q4_QTDE * peso_ws * ating_rec * salario * peso_rec
-        bonus_mb  = Q4_QTDE * peso_ws * ating_mb * mb_gate * salario * peso_mb
+        # ─ Gate LB por WS: trigger proporcional ao budget LB desta WS ─
+        bgt_lb_ws_k = bgt_lb_ws.get(ws_k, 0.0)
+        trigger_lb_ws_k = round(bgt_lb_ws_k * _trigger_ratio, 2) if bgt_lb_ws_k > 0 else 0.0
+        real_lb_fin_ws_k = realized_lb_financeiro_ws.get(ws_k, 0.0)
+        lb_gate_ws = 1 if (trigger_lb_ws_k <= 0 or real_lb_fin_ws_k >= trigger_lb_ws_k) else 0
+
+        bonus_rec = Q4_QTDE * peso_ws * ating_rec * salario * peso_rec * lb_gate_ws
+        bonus_mb  = Q4_QTDE * peso_ws * ating_mb * mb_gate * salario * peso_mb * lb_gate_ws
 
         bonus_total += bonus_rec + bonus_mb
 
@@ -713,12 +731,16 @@ def calc_bonus_ae(nome: str) -> dict:
             "ating_mb":            round(ating_mb, 4),
             "mb_gate":             mb_gate,
             "aplica_gate_mb":      ws_k == "apps",
-            # Bônus
+            # Gate LB por WS
+            "meta_lb_ws":          round(bgt_lb_ws_k, 2),
+            "trigger_lb_ws":       trigger_lb_ws_k,
+            "real_lb_financeiro":  round(real_lb_fin_ws_k, 2),
+            "lb_gate_ws":          lb_gate_ws,
+            # Bônus (já aplicado gate LB por WS)
             "bonus_rec":           round(bonus_rec, 2),
             "bonus_mb":            round(bonus_mb, 2),
             "bonus_ws":            round(bonus_rec + bonus_mb, 2),
-            # LB e Custo financeiros (mesma fonte da aba margem por cliente, distribuídos por WS)
-            "real_lb_financeiro":    round(realized_lb_financeiro_ws.get(ws_k, 0.0), 2),
+            # Custo financeiro
             "real_custo_financeiro": round(realized_custo_financeiro_ws.get(ws_k, 0.0), 2),
             # Clientes nesta WS
             "clientes_ws":         cli_contrib.get(ws_k, []),
@@ -728,16 +750,11 @@ def calc_bonus_ae(nome: str) -> dict:
     ating_rec_total = calc_atingimento(real_rec_total, bgt_rec_total, TRIGGER_REC_Q4)
     ating_mb_total  = calc_atingimento_mb(real_mb_pct, bgt_mb_pct)
 
-    # Gatilho Mestre: Lucro Bruto R$ (absoluto), lido da planilha de apuração
-    lb_trigger_info = d["lb_trigger"].get(pessoa_nome_n, {})
-    if not lb_trigger_info:  # fallback: busca por primeiro token
-        primeiro = pessoa_nome_n.split()[0]
-        lb_trigger_info = next(
-            (v for k, v in d["lb_trigger"].items() if k.startswith(primeiro)), {}
-        )
-    meta_lb_q4    = lb_trigger_info.get("meta_lb", 0.0)
-    trigger_lb_q4 = lb_trigger_info.get("trigger_lb", 0.0)
-    lb_gate = 1 if (trigger_lb_q4 <= 0 or real_lb_financeiro >= trigger_lb_q4) else 0
+    # Gatilho Mestre: LB total (referência/display; gate já aplicado por WS no loop)
+    meta_lb_q4    = _meta_lb_pre
+    trigger_lb_q4 = _trigger_lb_pre
+    # lb_gate global: 1 se alguma WS passou, senão 0 — apenas informativo
+    lb_gate = 1 if any(w.get("lb_gate_ws", 1) for w in detalhe_ws) else 0
 
     trigger_mb_pct_total = round(max(0.0, bgt_mb_pct * 100 - 1.5), 2)
 
@@ -763,7 +780,7 @@ def calc_bonus_ae(nome: str) -> dict:
         "budget_mb_pct":     round(bgt_mb_pct * 100, 2),
         "real_mb_pct":       round(real_mb_pct * 100, 2),
         "ating_mb_total":    round(ating_mb_total, 4),
-        "bonus_total":       round(bonus_total * lb_gate, 2),
+        "bonus_total":       round(bonus_total, 2),
         "detalhe_ws":        detalhe_ws,
         "clientes_detalhe":  clientes_detalhe,
     }
