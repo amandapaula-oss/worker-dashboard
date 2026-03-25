@@ -979,7 +979,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
               const sal = d.salario_q4;
               const pRec = d.peso_receita || 0;
               const ating = w.ating_rec ?? 0;
-              const bonus = sal * pRec * w.peso_ws * ating;
+              const bonus = w.bonus_ws ?? (sal * pRec * w.peso_ws * ating * (d.mc_gate ?? 1));
               return (
                 <div key={w.ws} style={{ borderTop: "1px solid #e8eaf0", paddingTop: 8, marginTop: 8 }}>
                   <div style={{ fontWeight: 700, color: "#1a3c6e", marginBottom: 4 }}>
@@ -999,7 +999,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
             <div style={{ borderTop: "2px solid #d0d9f0", paddingTop: 8, marginTop: 8, textAlign: "right" }}>
               <strong>Total Bônus Receita: </strong>
               <strong style={{ color: "#52c41a", fontSize: 14 }}>
-                {fmt(d.detalhe_ws.reduce((s, w) => s + d.salario_q4 * (d.peso_receita || 0) * w.peso_ws * (w.ating_rec ?? 0), 0))}
+                {fmt(d.bonus_rec || 0)}
               </strong>
             </div>
           </div>
