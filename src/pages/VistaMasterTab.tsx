@@ -1147,9 +1147,9 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         size="small"
         pagination={false}
         dataSource={[
-          { key: "tcv",    metrica: "TCV",     peso: fmtPct(d.peso_tcv || 0),     ating: fmtPct(d.ating_tcv || 0),  bonus: d.bonus_tcv || 0 },
-          { key: "rec",    metrica: "Receita",  peso: fmtPct(d.peso_receita || 0), ating: fmtPct(d.ating_rec || 0),  bonus: d.bonus_rec || 0 },
-          { key: "mc",     metrica: "MC%",      peso: fmtPct(d.peso_mc || 0),      ating: fmtPct(d.ating_mc || 0),  bonus: d.bonus_mc || 0 },
+          { key: "tcv",    metrica: "TCV",     peso: fmtPct(d.peso_tcv || 0),     ating: gate ? fmtPct(d.ating_tcv || 0) : "0,0%",  bonus: d.bonus_tcv || 0 },
+          { key: "rec",    metrica: "Receita",  peso: fmtPct(d.peso_receita || 0), ating: gate ? fmtPct(d.ating_rec || 0) : "0,0%",  bonus: d.bonus_rec || 0 },
+          { key: "mc",     metrica: "MC%",      peso: fmtPct(d.peso_mc || 0),      ating: gate ? fmtPct(d.ating_mc || 0) : "0,0%",  bonus: d.bonus_mc || 0 },
         ]}
         summary={() => (
           <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
