@@ -88,7 +88,35 @@ def gerar_pdf_ae(dados: dict) -> bytes:
         f"Contrato: {dados['contrato']} &nbsp;|&nbsp; {dados['periodo']}",
         sub
     ))
-    story.append(HRFlowable(width="100%", thickness=2, color=AZUL, spaceAfter=12))
+    story.append(HRFlowable(width="100%", thickness=2, color=AZUL, spaceAfter=10))
+
+    # ── Resultado destacado ────────────────────────────────────────────────────
+    bonus_tot  = dados.get("bonus_total", 0) or 0
+    sal        = dados.get("salario_q4", 0) or 0
+    ating_ger  = bonus_tot / sal if sal else 0.0
+    res_cor    = VERDE if bonus_tot > 0 else VERMELHO
+    res_bg     = colors.HexColor("#f6ffed") if bonus_tot > 0 else colors.HexColor("#fff2f0")
+    res_tbl = Table([[
+        Paragraph(f"<b>Bônus Total Q4 2025</b>",
+                  ParagraphStyle("rl", fontSize=10, textColor=colors.grey)),
+        Paragraph(f"<b>{_fmt(bonus_tot)}</b>",
+                  ParagraphStyle("rv", fontSize=14, textColor=res_cor, fontName="Helvetica-Bold", alignment=TA_RIGHT)),
+        Paragraph(f"<b>Atingimento</b>",
+                  ParagraphStyle("rl2", fontSize=10, textColor=colors.grey)),
+        Paragraph(f"<b>{_pct(ating_ger)}</b>",
+                  ParagraphStyle("rv2", fontSize=14, textColor=res_cor, fontName="Helvetica-Bold", alignment=TA_RIGHT)),
+    ]], colWidths=[4.5*cm, 4.5*cm, 3.5*cm, 3.9*cm])
+    res_tbl.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), res_bg),
+        ("BOX",           (0, 0), (-1, -1), 1.5, res_cor),
+        ("TOPPADDING",    (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.append(res_tbl)
+    story.append(Spacer(1, 0.4*cm))
 
     # ── Dados gerais ───────────────────────────────────────────────────────────
     story.append(Paragraph("1. Dados Cadastrais e Parâmetros", secao))
@@ -304,7 +332,35 @@ def gerar_pdf_diretor(dados: dict) -> bytes:
         f"Contrato: {dados['contrato']} &nbsp;|&nbsp; {dados['periodo']}",
         sub
     ))
-    story.append(HRFlowable(width="100%", thickness=2, color=AZUL, spaceAfter=12))
+    story.append(HRFlowable(width="100%", thickness=2, color=AZUL, spaceAfter=10))
+
+    # ── Resultado destacado ────────────────────────────────────────────────────
+    bonus_tot  = dados.get("bonus_total", 0) or 0
+    sal        = dados.get("salario_q4", 0) or 0
+    ating_ger  = bonus_tot / sal if sal else 0.0
+    res_cor    = VERDE if bonus_tot > 0 else VERMELHO
+    res_bg     = colors.HexColor("#f6ffed") if bonus_tot > 0 else colors.HexColor("#fff2f0")
+    res_tbl = Table([[
+        Paragraph(f"<b>Bônus Total Q4 2025</b>",
+                  ParagraphStyle("rl", fontSize=10, textColor=colors.grey)),
+        Paragraph(f"<b>{_fmt(bonus_tot)}</b>",
+                  ParagraphStyle("rv", fontSize=14, textColor=res_cor, fontName="Helvetica-Bold", alignment=TA_RIGHT)),
+        Paragraph(f"<b>Atingimento</b>",
+                  ParagraphStyle("rl2", fontSize=10, textColor=colors.grey)),
+        Paragraph(f"<b>{_pct(ating_ger)}</b>",
+                  ParagraphStyle("rv2", fontSize=14, textColor=res_cor, fontName="Helvetica-Bold", alignment=TA_RIGHT)),
+    ]], colWidths=[4.5*cm, 4.5*cm, 3.5*cm, 3.9*cm])
+    res_tbl.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), res_bg),
+        ("BOX",           (0, 0), (-1, -1), 1.5, res_cor),
+        ("TOPPADDING",    (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.append(res_tbl)
+    story.append(Spacer(1, 0.3*cm))
 
     # ── Gate MC ────────────────────────────────────────────────────────────────
     gate_ok = dados.get("mc_gate", 0) == 1
