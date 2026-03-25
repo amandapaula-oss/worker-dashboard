@@ -743,7 +743,7 @@ def get_margem_proj() -> pd.DataFrame:
     # PEP-level vertical override (para clientes que aparecem em múltiplas verticais)
     # Regra: override "Others" só se o cliente não tiver mapeamento no vlookup;
     #        overrides de outras verticais sempre prevalecem.
-    _pv_path = os.path.join(DIR, "pep_vertical.csv")
+    _pv_path = "pep_vertical.csv"
     if os.path.exists(_pv_path):
         try:
             pv = pd.read_csv(_pv_path, encoding="utf-8-sig", dtype=str).dropna(subset=["pep", "vertical"])
