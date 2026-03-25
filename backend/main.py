@@ -739,6 +739,26 @@ def get_margem_proj() -> pd.DataFrame:
     key = df["nome_cliente"].str.upper().str.strip()
     df["vertical"] = key.map(vlookup).fillna("")
     df["ae"]       = key.map(ae_lookup).fillna("")
+
+    # PEP-level vertical override (para clientes que aparecem em múltiplas verticais)
+    # Regra: override "Others" só se o cliente não tiver mapeamento no vlookup;
+    #        overrides de outras verticais sempre prevalecem.
+    _pv_path = os.path.join(DIR, "pep_vertical.csv")
+    if os.path.exists(_pv_path):
+        try:
+            pv = pd.read_csv(_pv_path, encoding="utf-8-sig", dtype=str).dropna(subset=["pep", "vertical"])
+            pv_map = dict(zip(pv["pep"].str.strip(), pv["vertical"].str.strip()))
+            pep_override = df["pep"].str.strip().map(pv_map)
+            # Aplica override não-Others sempre; Others só quando vlookup não mapeou
+            non_others_mask = pep_override.notna() & (pep_override != "Others")
+            others_mask     = pep_override.notna() & (pep_override == "Others") & (df["vertical"] == "")
+            df.loc[non_others_mask, "vertical"] = pep_override[non_others_mask]
+            df.loc[others_mask,     "vertical"] = "Others"
+        except Exception:
+            pass
+
+    df["vertical"] = df["vertical"].replace("", "Others").fillna("Others")
+
     return df
 
 def get_margem_pess() -> pd.DataFrame:
