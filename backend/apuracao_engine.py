@@ -255,6 +255,65 @@ def _load_all():
             except Exception:
                 pass
 
+    # ─ Pep-level lookups for director vertical scope ─────────────────────────────
+    _pv_path_e = os.path.join(DIR, "pep_vertical.csv")
+    _pep_vert_e: dict = {}
+    if os.path.exists(_pv_path_e):
+        try:
+            _pv_e = pd.read_csv(_pv_path_e, encoding="utf-8-sig", dtype=str).dropna(subset=["pep", "vertical"])
+            _pep_vert_e = dict(zip(_pv_e["pep"].str.strip(), _pv_e["vertical"].str.strip()))
+        except Exception:
+            pass
+
+    _cli_bu: dict = {}
+    if os.path.exists(clientes_path):
+        try:
+            _cdf_b = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
+            for _, _r in _cdf_b.iterrows():
+                _nc = str(_r.get("nome_cliente", "") or "").strip()
+                _nb = str(_r.get("nome_base", "") or "").strip()
+                _bu2 = str(_r.get("bu", "") or "").strip()
+                if _nc and _bu2:
+                    _cli_bu[norm(_nc)] = _bu2
+                if _nb and _bu2 and norm(_nb) not in _cli_bu:
+                    _cli_bu[norm(_nb)] = _bu2
+        except Exception:
+            pass
+
+    marg_q4["pep_base"] = marg_q4["pep"].astype(str).str.split(".").str[0].str.strip()
+    if "ws_key" not in marg_q4.columns:
+        marg_q4["ws_key"] = "demais"
+
+    _pep_info = (
+        marg_q4.drop_duplicates("pep_base")[["pep_base", "nome_norm", "nome_cliente"]]
+        .set_index("pep_base")
+    )
+
+    def _resolve_pep_vert(pep_b: str, nome_n: str) -> str:
+        pv = _pep_vert_e.get(pep_b, "")
+        cv = _cli_bu.get(nome_n, "")
+        if pv and pv != "Others":
+            return pv
+        if cv:
+            return cv
+        return "Others"
+
+    vert_by_pep = {
+        pb: _resolve_pep_vert(pb, row["nome_norm"])
+        for pb, row in _pep_info.iterrows()
+    }
+    pep_to_nome_cli = _pep_info["nome_cliente"].to_dict()
+
+    rac_by_pep: dict = {}
+    if "pep" in rac_q4.columns:
+        _rq4 = rac_q4.copy()
+        _rq4["pep_base"] = _rq4["pep"].astype(str).str.split(".").str[0].str.strip()
+        rac_by_pep = _rq4.groupby("pep_base")["valor_liquido"].sum().to_dict()
+
+    rec_by_pep_ws = marg_q4.groupby(["pep_base", "ws_key"])["receita"].sum().to_dict()
+    lb_by_pep_ws  = marg_q4.groupby(["pep_base", "ws_key"])["margem"].sum().to_dict()
+    custo_by_pep  = marg_q4.groupby("pep_base")["custo_rateado"].sum().to_dict()
+
     return {
         "pessoas":  pessoas,
         "pesos_m":  pesos_m,
@@ -282,6 +341,12 @@ def _load_all():
         "total_despesa_pessoas_q4": total_despesa_pessoas_q4,
         "total_dir_rac_q4":        total_dir_rac_q4,
         "mc_metas_dir":            mc_metas_dir,
+        "vert_by_pep":      vert_by_pep,
+        "pep_to_nome_cli":  pep_to_nome_cli,
+        "rac_by_pep":       rac_by_pep,
+        "rec_by_pep_ws":    rec_by_pep_ws,
+        "lb_by_pep_ws":     lb_by_pep_ws,
+        "custo_by_pep":     custo_by_pep,
     }
 
 
@@ -810,40 +875,57 @@ def calc_bonus_diretor(nome: str) -> dict:
 
     cli_source = [(k, disp, bgt) for k, (disp, bgt) in cli_budget.items()]
 
-    seen_cli: set[str] = set()
-    for cli_n, cli_disp, b_rec in cli_source:
-        if cli_n in seen_cli:
+    _bgt_by_cli = {norm(disp): bgt for _, disp, bgt in cli_source}
+
+    # ─ Realizado por PEP (espelha escopo da aba Margem por Cliente) ─────────────
+    real_rec_q4 = 0.0       # RAC — base do gatilho de receita
+    _sap_rec_total = 0.0    # SAP receita — denominador do LB%
+    realized_rec_ws_dir: dict = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_lb_ws_dir:  dict = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    _cli_agg: dict = {}
+
+    for pep_b, pep_vert in d.get("vert_by_pep", {}).items():
+        if pep_vert != vertical:
             continue
-        seen_cli.add(cli_n)
-        r_rec   = _match_cliente(cli_n, d["rac_by_client"])
-        r_custo = _match_cliente(cli_n, d["custo_by_client"])
-        # LB ajustado: benchmark para WS definidos, LB real para apps
-        _cli_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws"])
-        _cli_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws"])
-        _cli_rec_total = sum(_cli_rec_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4)
-        if _cli_rec_total > 0:
-            # Usa RAC × proporção WS × benchmark (mesma fórmula da tabela de WS)
-            r_lb = sum(
-                r_rec * (_cli_rec_ws.get(ws_k, 0.0) / _cli_rec_total) * WS_MB_BENCHMARK_Q4[ws_k] if ws_k in WS_MB_BENCHMARK_Q4
-                else _cli_marg_ws.get(ws_k, 0.0)
-                for ws_k in WS_PESOS_Q4
-            )
-        else:
-            r_lb = _match_cliente(cli_n, d["marg_by_client"])
-        real_rec_q4 += r_rec
-        clientes_detalhe_dir.append({
+        pep_rac       = d.get("rac_by_pep", {}).get(pep_b, 0.0)
+        pep_custo     = d.get("custo_by_pep", {}).get(pep_b, 0.0)
+        pep_rec_ws    = {ws_k: d.get("rec_by_pep_ws", {}).get((pep_b, ws_k), 0.0) for ws_k in WS_PESOS_Q4}
+        pep_lb_ws     = {ws_k: d.get("lb_by_pep_ws", {}).get((pep_b, ws_k), 0.0) for ws_k in WS_PESOS_Q4}
+        pep_rec_total = sum(pep_rec_ws.values())
+        real_rec_q4  += pep_rac
+        _sap_rec_total += pep_rec_total
+
+        # LB por WS: usa SAP margem (benchmark já aplicado em _load_all)
+        # Receita por WS: RAC escalado pela proporção SAP (para breakdown de receita)
+        for ws_k in WS_PESOS_Q4:
+            prop   = pep_rec_ws[ws_k] / pep_rec_total if pep_rec_total > 0 else (1.0 if ws_k == "demais" else 0.0)
+            realized_rec_ws_dir[ws_k] += pep_rac * prop
+            realized_lb_ws_dir[ws_k]  += pep_lb_ws[ws_k]
+
+        pep_lb_total = sum(pep_lb_ws.values())
+        cli_disp = d.get("pep_to_nome_cli", {}).get(pep_b, pep_b)
+        if cli_disp not in _cli_agg:
+            _cli_agg[cli_disp] = {"rec": 0.0, "custo": 0.0, "lb": 0.0}
+        _cli_agg[cli_disp]["rec"]   += pep_rac
+        _cli_agg[cli_disp]["custo"] += pep_custo
+        _cli_agg[cli_disp]["lb"]    += pep_lb_total
+
+    clientes_detalhe_dir = [
+        {
             "cliente":    cli_disp,
-            "budget_rec": round(b_rec, 2),
-            "real_rec":   round(r_rec, 2),
-            "real_custo": round(r_custo, 2),
-            "real_lb":    round(r_lb, 2),
-            "margem_pct": round(r_lb / r_rec * 100, 1) if r_rec > 0 else None,
-        })
+            "budget_rec": round(_bgt_by_cli.get(norm(cli_disp), 0.0), 2),
+            "real_rec":   round(agg["rec"], 2),
+            "real_custo": round(agg["custo"], 2),
+            "real_lb":    round(agg["lb"], 2),
+            "margem_pct": round(agg["lb"] / agg["rec"] * 100, 1) if agg["rec"] > 0 else None,
+        }
+        for cli_disp, agg in _cli_agg.items()
+    ]
     clientes_detalhe_dir.sort(key=lambda x: x["budget_rec"], reverse=True)
 
     ating_rec = calc_atingimento(real_rec_q4, bgt_rec_q4, TRIGGER_REC_Q4)
 
-    # ─ WS breakdown — Parte 1: budget e realizado por WS (antes do MC%) ─
+    # ─ WS breakdown budget ───────────────────────────────────────────────────────
     if not rec_dir.empty:
         bgt_rec_ws_dir = rec_dir.copy()
         bgt_rec_ws_dir["ws_key"] = rec_dir["ws"].apply(_norm_ws)
@@ -852,32 +934,10 @@ def calc_bonus_diretor(nome: str) -> dict:
         bgt_rec_ws = {}
     bgt_rec_ws["total"] = sum(v for k, v in bgt_rec_ws.items() if k != "total")
 
-    realized_rec_ws_dir: dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
-    realized_lb_ws_dir:  dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
-    for cli_n, cli_disp, _ in cli_source:
-        r_rec = _match_cliente(cli_n, d["rac_by_client"])
-        r_lb  = _match_cliente(cli_n, d["marg_by_client"])
-        actual_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws"])
-        actual_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws"])
-        actual_rec_ws  = {ws_k: actual_rec_ws.get(ws_k, 0.0)  for ws_k in WS_PESOS_Q4}
-        actual_marg_ws = {ws_k: actual_marg_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4}
-        actual_rec_total  = sum(actual_rec_ws.values())
-        actual_marg_total = sum(actual_marg_ws.values())
-        if actual_rec_total > 0:
-            for ws_k in WS_PESOS_Q4:
-                prop = actual_rec_ws[ws_k] / actual_rec_total
-                cli_real_ws_dir = r_rec * prop  # receita RAC escalada pela proporção de WS
-                realized_rec_ws_dir[ws_k] = realized_rec_ws_dir.get(ws_k, 0.0) + cli_real_ws_dir
-                # LB: usa receita RAC × benchmark — não actual_rec_ws diretamente
-                if ws_k in WS_MB_BENCHMARK_Q4:
-                    realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + cli_real_ws_dir * WS_MB_BENCHMARK_Q4[ws_k]
-                else:
-                    realized_lb_ws_dir[ws_k] = realized_lb_ws_dir.get(ws_k, 0.0) + actual_marg_ws.get(ws_k, 0.0)
-
     # ─ MC% ─
     # MC% = (LB SAP + Despesas Nexus) / Receita SAP
-    # Salva rec/LB SAP antes do possível override pelo Nexus gross_rev
-    _real_rec_sap = real_rec_q4
+    # Usa SAP receita como denominador (espelha MargemTab); RAC já está em real_rec_q4
+    _real_rec_sap = _sap_rec_total if _sap_rec_total > 0 else real_rec_q4
     _real_lb_sap  = sum(realized_lb_ws_dir.values())
 
     nexus_q4 = nexus[nexus["Periodo"].isin(Q4_PERIODOS)]
