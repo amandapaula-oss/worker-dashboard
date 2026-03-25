@@ -706,16 +706,18 @@ def get_margem_proj() -> pd.DataFrame:
         _pep_period_custo = {}
 
     # Simula custo/margem usando benchmark para WS com margem definida
+    # Alinhado com apuracao_engine.py: categoria vazia/Vazio → tratada como "Demais"
     def _apply_benchmark(row, field):
-        cat = row.get("categoria_bu", "")
+        cat = row.get("categoria_bu", "") or ""
         rec = row["receita"] if pd.notna(row["receita"]) else 0.0
+        existing_custo = row["custo_rateado"] if pd.notna(row.get("custo_rateado")) else 0.0
+        # Categoria explícita com benchmark definido — sempre sobrescreve SAP
         if cat in WS_MB_BENCHMARK and rec != 0:
             if field == "margem":
                 return rec * WS_MB_BENCHMARK[cat]
-            else:  # custo_rateado
+            else:
                 return -rec * (1 - WS_MB_BENCHMARK[cat])
         # Apps com custo=0: usa custo real de pessoas; fallback benchmark 35%
-        existing_custo = row["custo_rateado"] if pd.notna(row.get("custo_rateado")) else 0.0
         if cat == "Apps" and rec != 0 and existing_custo == 0:
             _pep_b = str(row.get("pep_base", row.get("pep", ""))).split(".")[0]
             _per   = str(row.get("periodo", ""))
@@ -726,12 +728,27 @@ def get_margem_proj() -> pd.DataFrame:
             else:
                 if field == "margem":      return rec * 0.35
                 else:                      return -rec * 0.65
+        # Categoria vazia, "Vazio" ou desconhecida → aplica benchmark Demais (37%)
+        # Evita margem irreal de 100% quando SAP não tem custo_rateado
+        if (not cat or cat.strip().lower() in ("", "vazio")) and rec != 0:
+            bench = WS_MB_BENCHMARK.get("Demais", 0.37)
+            if field == "margem":
+                return rec * bench
+            else:
+                return -rec * (1 - bench)
         if field == "margem":
             return rec + existing_custo
         return row["custo_rateado"]
 
     df["margem"]       = df.apply(_apply_benchmark, field="margem", axis=1)
     df["custo_rateado"]= df.apply(_apply_benchmark, field="custo_rateado", axis=1)
+
+    # Override OpenX: assume MB% = 45% (alinhado com apuracao_engine.py)
+    if "no_hierarquia" in df.columns:
+        openx_mask = df["no_hierarquia"].str.upper().str.strip() == "OPENX"
+        df.loc[openx_mask, "margem"]        = df.loc[openx_mask, "receita"] * 0.45
+        df.loc[openx_mask, "custo_rateado"] = df.loc[openx_mask, "receita"] * -0.55
+
     df["margem_pct"] = df.apply(lambda r: r["margem"] / r["receita"] if r["receita"] and r["receita"] > 0 else None, axis=1)
     df = df.drop(columns=["pep_base", "receita_rac", "pep_rac_key"], errors="ignore")
 
