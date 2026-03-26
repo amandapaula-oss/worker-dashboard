@@ -132,6 +132,7 @@ type DetalheCalculo = {
 const posicaoColor: Record<string, string> = {
   DIRETOR: "purple",
   AE: "blue",
+  AE_GM: "geekblue",
   AE2: "cyan",
   HUNTER: "orange",
   ESTRATEGISTAS: "green",
@@ -588,6 +589,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
         </div>
         <div>
           <strong>Pesos desta posição:</strong>&nbsp;
+          {(d.peso_tcv || 0) > 0 && <>TCV Área <Tag color="geekblue">{fmtPct(d.peso_tcv || 0)}</Tag></>}
           Receita <Tag color="blue">{fmtPct(d.peso_receita || 0)}</Tag>
           MB% <Tag color="purple">{fmtPct(d.peso_mb || 0)}</Tag>
           Salário Q4 <Tag color="default">{fmt(d.salario_q4)}</Tag>
@@ -596,6 +598,16 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
 
       {/* ── Visão Geral ── */}
       <Divider>Visão Geral</Divider>
+      {(d.peso_tcv || 0) > 0 && (
+        <MetaRealRow
+          label={`TCV Área Grupo Mult (peso ${fmtPct(d.peso_tcv || 0)})`}
+          meta={d.budget_tcv_q4 || 0}
+          triggerAmt={(d.budget_tcv_q4 || 0) * (d.trigger_rec || 0.85)}
+          real={d.real_tcv_q4 || 0}
+          ating={d.ating_tcv || 0}
+          bonusAtMaxAting={d.salario_q4 * (d.peso_tcv || 0)}
+        />
+      )}
       <MetaRealRow
         label={`Receita Total (peso ${fmtPct(d.peso_receita || 0)})`}
         meta={d.budget_rec_total || 0}
@@ -726,6 +738,16 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
                 </div>
               );
             })}
+            {(d.peso_tcv || 0) > 0 && (
+              <div style={{ borderTop: "1px solid #d0d9f0", paddingTop: 8, marginTop: 8 }}>
+                <div style={{ fontWeight: 700, color: "#1a3c6e", marginBottom: 4 }}>TCV Área Grupo Mult — Peso: {fmtPct(d.peso_tcv || 0)}</div>
+                <div style={{ color: "#444", marginBottom: 1 }}>Bônus TCV = Salário × Peso TCV × Ating. TCV Área</div>
+                <div style={{ fontFamily: "monospace", fontSize: 12 }}>
+                  = {fmt(d.salario_q4)} × {fmtPct(d.peso_tcv || 0)} × {fmtPct(d.ating_tcv || 0)}
+                  {" = "}<strong style={{ color: (d as any).bonus_tcv > 0 ? "#52c41a" : "#ff4d4f", fontSize: 13 }}>{fmt((d as any).bonus_tcv || 0)}</strong>
+                </div>
+              </div>
+            )}
             <div style={{ borderTop: "2px solid #d0d9f0", paddingTop: 8, marginTop: 8, textAlign: "right" }}>
               <strong>Total Bônus: </strong>
               <strong style={{ color: "#52c41a", fontSize: 14 }}>{fmt(d.bonus_total)}</strong>
