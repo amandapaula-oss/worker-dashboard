@@ -145,7 +145,7 @@ function WorkerTab() {
   );
 }
 
-type Section = "worker" | "cockpit" | "metas" | null;
+type Section = "worker" | "cockpit" | "metas" | "pl" | null;
 
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
@@ -205,6 +205,17 @@ export default function Dashboard() {
                 <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Apuração de Metas</Title>
                 <Text type="secondary">Acompanhamento e apuração de metas</Text>
               </Card>
+
+              <Card
+                hoverable
+                onClick={() => setSection("pl")}
+                style={{ width: 280, textAlign: "center", border: "2px solid #dde3f0", cursor: "pointer" }}
+                styles={{ body: { padding: "2.5rem 2rem" } }}
+              >
+                <div style={{ fontSize: 52, marginBottom: 16 }}>📈</div>
+                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>P&L</Title>
+                <Text type="secondary">Resumo por empresa e margem por cliente</Text>
+              </Card>
             </div>
           )}
 
@@ -250,6 +261,18 @@ export default function Dashboard() {
                 ]}
               />
             </>
+          )}
+
+          {section === "pl" && (
+            <Tabs
+              defaultActiveKey="resumo"
+              type="card"
+              size="large"
+              items={[
+                { key: "resumo", label: "📋 Resumo por Empresa",  children: <ResumoTab /> },
+                { key: "margem", label: "📊 Margem por Cliente",  children: <MargemTab /> },
+              ]}
+            />
           )}
 
           {section === "cockpit" && (
