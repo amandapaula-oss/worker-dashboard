@@ -1301,6 +1301,15 @@ export function VistaMasterTabQ3() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detalheQ3, setDetalheQ3] = useState<DetalheCalculo | null>(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+  const [loadingPdfQ3, setLoadingPdfQ3] = useState(false);
+
+  const handlePdfQ3 = () => {
+    if (!detalheQ3) return;
+    setLoadingPdfQ3(true);
+    downloadApuracaoPdfQ3(detalheQ3.nome)
+      .catch(() => message.error("Erro ao gerar PDF Q3"))
+      .finally(() => setLoadingPdfQ3(false));
+  };
 
   const carregar = () => {
     setLoading(true);
@@ -1435,9 +1444,20 @@ export function VistaMasterTabQ3() {
         width={820}
         extra={
           detalheQ3 && (
-            <Tag color="geekblue" style={{ fontSize: 14 }}>
-              Bônus Q3: {fmt(detalheQ3.bonus_total)}
-            </Tag>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <Tag color="geekblue" style={{ fontSize: 14 }}>
+                Bônus Q3: {fmt(detalheQ3.bonus_total)}
+              </Tag>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PrinterOutlined />}
+                loading={loadingPdfQ3}
+                onClick={handlePdfQ3}
+              >
+                Gerar PDF Q3
+              </Button>
+            </div>
           )
         }
       >
