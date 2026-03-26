@@ -971,6 +971,29 @@ def _load_q3_realized():
         except Exception:
             pass
 
+    # Override com dados validados de q3_realizados_gm.csv (source of truth por cliente)
+    _ov_path = os.path.join(DIR, "q3_realizados_gm.csv")
+    if os.path.exists(_ov_path):
+        try:
+            ov = pd.read_csv(_ov_path, encoding="utf-8-sig")
+            for _, row in ov.iterrows():
+                cli_n = norm(str(row["cliente"]))
+                rec   = float(row["receita"])
+                lb    = float(row["lb"])
+                rac_by_client_nh[cli_n]  = rec
+                rec_by_client_nh[cli_n]  = rec
+                marg_by_client_nh[cli_n] = lb
+                custo_by_client_nh[cli_n] = lb - rec  # negativo
+                rec_by_client_ws_nh[(cli_n, "apps")]  = rec
+                marg_by_client_ws_nh[(cli_n, "apps")] = lb
+                # limpa ws_keys alternativos do SAP para este cliente
+                for _ws in [k for k in list(rec_by_client_ws_nh) if k[0] == cli_n and k[1] != "apps"]:
+                    del rec_by_client_ws_nh[_ws]
+                for _ws in [k for k in list(marg_by_client_ws_nh) if k[0] == cli_n and k[1] != "apps"]:
+                    del marg_by_client_ws_nh[_ws]
+        except Exception:
+            pass
+
     return {
         "rac_by_client_nh":      rac_by_client_nh,
         "marg_by_client_nh":     marg_by_client_nh,
