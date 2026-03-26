@@ -1949,16 +1949,18 @@ def get_visao_master() -> list[dict]:
                     "ating_anual":  anual.get("ating_anual"),
                     "anual_ok":     anual.get("disponivel", False),
                 })
-            elif pos in ("AE", "AE2", "HUNTER", "ESTRATEGISTAS", "CS"):
+            elif pos in ("AE", "AE_GM", "AE2", "HUNTER", "ESTRATEGISTAS", "CS"):
                 res = calc_bonus_ae(nome)
                 bgt_r = res["budget_rec_total"] or 1
                 bgt_m = res["budget_mb_pct"] or 1
                 nome_n_vis = norm(nome)
-                vertical_ae = AE_BS_OVERRIDE.get(nome_n_vis) or _resolve_vertical_for_ae(nome, ae_vert)
+                vertical_ae = "Grupo Mult" if pos == "AE_GM" else (AE_BS_OVERRIDE.get(nome_n_vis) or _resolve_vertical_for_ae(nome, ae_vert))
                 q4_lb_meta = res["budget_mb_pct"] / 100 * res["budget_rec_total"] if res.get("budget_mb_pct") else 0
                 anual = calc_bonus_anual(nome, pos, res["salario_q4"],
                                          res["real_rec_total"], res["budget_rec_total"],
                                          res.get("real_lb_total", 0), q4_lb_meta)
+                bgt_tcv = res.get("budget_tcv_q4") or 0
+                real_tcv = res.get("real_tcv_q4") or 0
                 resultados.append({
                     "nome":     res["nome"],
                     "posicao":  res["posicao"],
@@ -1969,11 +1971,11 @@ def get_visao_master() -> list[dict]:
                     "ating_principal": res["ating_rec_total"],
                     "ating_rec":  res["ating_rec_total"],
                     "ating_mb":   res["ating_mb_total"],
-                    "ating_tcv":  None,
+                    "ating_tcv":  res.get("ating_tcv"),
                     "ating_mc":   None,
                     "pct_rec":  round(res["real_rec_total"] / bgt_r, 4),
                     "pct_mb":   round(res["real_mb_pct"] / bgt_m, 4) if bgt_m else 0,
-                    "pct_tcv":  None,
+                    "pct_tcv":  round(real_tcv / bgt_tcv, 4) if bgt_tcv else None,
                     "pct_mc":   None,
                     "mc_gate":    None,
                     "gate_ok":    bool(res.get("lb_gate", 1)),
