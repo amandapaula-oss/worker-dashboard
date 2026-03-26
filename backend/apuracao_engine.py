@@ -792,8 +792,8 @@ def calc_bonus_ae(nome: str) -> dict:
     # Gatilho Mestre: LB total (referência/display; gate já aplicado por WS no loop)
     meta_lb_q4    = _meta_lb_pre
     trigger_lb_q4 = _trigger_lb_pre
-    # lb_gate global: 1 se alguma WS passou, senão 0 — apenas informativo
-    lb_gate = 1 if any(w.get("lb_gate_ws", 1) for w in detalhe_ws) else 0
+    # lb_gate global: 1 se houve bônus efetivo (todos os gates passaram em algum WS)
+    lb_gate = 1 if bonus_total > 0 else 0
 
     trigger_mb_pct_total = round(max(0.0, bgt_mb_pct * 100 - 1.5), 2)
 
@@ -1255,7 +1255,7 @@ def calc_bonus_ae_q3(nome: str) -> dict:
 
     ating_rec_total = calc_atingimento(real_rec_total, bgt_rec_total, TRIGGER_REC_Q3)
     ating_mb_total  = calc_atingimento_mb(real_mb_pct, bgt_mb_pct, MB_TRIGGER_DELTA_Q3)
-    lb_gate = 1 if any(w.get("lb_gate_ws", 1) for w in detalhe_ws) else 0
+    lb_gate = 1 if bonus_total > 0 else 0
     trigger_mb_pct_total = round(max(0.0, bgt_mb_pct * 100 - MB_TRIGGER_DELTA_Q3 * 100), 2)
 
     clientes_detalhe.sort(key=lambda x: x["budget_rec"], reverse=True)
