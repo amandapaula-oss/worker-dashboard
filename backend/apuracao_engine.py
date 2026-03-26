@@ -40,6 +40,7 @@ def _load_all():
     bgt_tcv   = pd.read_csv(os.path.join(DIR, "budget_tcv.csv"),          encoding="utf-8-sig")
     tcv_real_df = pd.read_csv(os.path.join(DIR, "tcv_realizado.csv"),     encoding="utf-8-sig")
     tcv_real_map = dict(zip(tcv_real_df["vertical"], tcv_real_df["tcv_realizado"].astype(float)))
+    tcv_real_q3_map = dict(zip(tcv_real_df["vertical"], tcv_real_df["tcv_q3"].astype(float))) if "tcv_q3" in tcv_real_df.columns else {}
     pesos_ws_df = pd.read_csv(os.path.join(DIR, "premissas_pesos_ws_pessoa.csv"), encoding="utf-8-sig")
     pesos_ws_df["nome_norm"] = pesos_ws_df["nome"].apply(norm)
     # dict: nome_norm → {ws_key: peso}
@@ -363,6 +364,7 @@ def _load_all():
         "nexus":         nexus,
         "lb_trigger":    lb_trigger_map,
         "tcv_real":      tcv_real_map,
+        "tcv_real_q3":   tcv_real_q3_map,
         "pesos_ws_pessoa": pesos_ws_pessoa,
         "total_despesa_pessoas_q4": total_despesa_pessoas_q4,
         "total_dir_rac_q4":        total_dir_rac_q4,
@@ -1247,8 +1249,8 @@ def calc_bonus_ae_q3(nome: str) -> dict:
         bgt_tcv_q3_ae = float(
             tcv_rows[tcv_rows["descricao"].apply(lambda x: "receita" in str(x).lower())]["q3"].sum()
         )
-        # Q3 TCV realizado (quando disponível no tcv_realizado.csv — campo q3 ou fallback 0)
-        real_tcv_q3_ae = 0.0
+        # Q3 TCV realizado: lido do tcv_realizado.csv coluna tcv_q3
+        real_tcv_q3_ae = float(d["tcv_real_q3"].get("Grupo Mult", 0.0))
         ating_tcv_ae   = calc_atingimento(real_tcv_q3_ae, bgt_tcv_q3_ae, TRIGGER_REC_Q3)
         bonus_tcv_ae   = Q3_QTDE * ating_tcv_ae * salario * peso_tcv
         bonus_total   += bonus_tcv_ae
