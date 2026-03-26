@@ -526,9 +526,16 @@ export default function VistaMasterTab() {
             {/* Q3 panel — apenas AE_GM */}
             {(detalheQ3 || loadingQ3) && (
               <div style={{ marginBottom: 32 }}>
-                <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a3c6e" }}>
-                  Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q3 2025</span>
-                </h2>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1a3c6e" }}>
+                    Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q3 2025</span>
+                  </h2>
+                  {detalheQ3 && (
+                    <Button size="small" icon={<PrinterOutlined />} loading={loadingPdfQ3} onClick={handlePdfQ3}>
+                      Gerar PDF Q3
+                    </Button>
+                  )}
+                </div>
                 {loadingQ3 && <Spin />}
                 {detalheQ3 && !loadingQ3 && <DetalheDrawerQ3 d={detalheQ3} />}
                 <Divider style={{ borderColor: "#adc6ff" }} />
