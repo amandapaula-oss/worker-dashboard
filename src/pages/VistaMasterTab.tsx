@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Table, Spin, message, Tag, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
 import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { useReactToPrint } from "react-to-print";
-import { getApuracaoVisaoMaster, getApuracaoCalcular, getApuracaoCalcularQ3 } from "../api";
+import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3 } from "../api";
 import { toTitleCase } from "../utils/format";
 
 const { Option } = Select;
@@ -1245,6 +1245,187 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
           },
         ]}
       />
+    </div>
+  );
+}
+
+// ─── Apuração Q3 — apenas AE_GM (Grupo Mult) ─────────────────────────────────
+
+type MasterRowQ3 = {
+  nome: string;
+  posicao: string;
+  contrato: string;
+  vertical: string;
+  salario: number;
+  bonus: number;
+  ating_rec: number | null;
+  ating_mb: number | null;
+  ating_tcv: number | null;
+  pct_rec: number | null;
+  pct_mb: number | null;
+  pct_tcv: number | null;
+  gate_ok: boolean;
+  tipo_calc: string;
+  erro?: string;
+};
+
+export function VistaMasterTabQ3() {
+  const [data, setData] = useState<MasterRowQ3[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detalheQ3, setDetalheQ3] = useState<DetalheCalculo | null>(null);
+  const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+
+  const carregar = () => {
+    setLoading(true);
+    getApuracaoVisaoMasterQ3()
+      .then(setData)
+      .catch(() => message.error("Erro ao carregar visão master Q3"))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { carregar(); }, []);
+
+  const abrirDetalhe = (nome: string) => {
+    setDrawerOpen(true);
+    setDetalheQ3(null);
+    setLoadingDetalhe(true);
+    getApuracaoCalcularQ3(nome)
+      .then(setDetalheQ3)
+      .catch((e: Error) => message.error(`Erro: ${e.message}`, 10))
+      .finally(() => setLoadingDetalhe(false));
+  };
+
+  const totalBonus = data.reduce((s, r) => s + r.bonus, 0);
+
+  const atCol = (v: number | null) => {
+    if (v == null) return <span style={{ color: "#ccc" }}>—</span>;
+    return (
+      <span style={{ color: v >= 1 ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>
+        {fmtPct(v)}
+      </span>
+    );
+  };
+
+  const columnsQ3 = [
+    {
+      title: "Nome",
+      dataIndex: "nome",
+      key: "nome",
+      render: (v: string) => (
+        <span style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }} onClick={() => abrirDetalhe(v)}>
+          <UserOutlined style={{ marginRight: 6 }} />{toTitleCase(v)}
+        </span>
+      ),
+    },
+    {
+      title: "Posição",
+      dataIndex: "posicao",
+      key: "posicao",
+      render: (v: string) => <Tag color={posicaoColor[v.toUpperCase()] || "default"}>{v}</Tag>,
+    },
+    {
+      title: "Contrato",
+      dataIndex: "contrato",
+      key: "contrato",
+      render: (v: string) => <Tag color={contratoColor[v] || "default"}>{v}</Tag>,
+    },
+    {
+      title: "Gatilho LB",
+      key: "gate_ok",
+      render: (_: any, row: MasterRowQ3) => (
+        <div style={{ textAlign: "center" }}>
+          {row.gate_ok
+            ? <CheckCircleFilled style={{ color: "#52c41a", fontSize: 18 }} />
+            : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 18 }} />
+          }
+        </div>
+      ),
+    },
+    {
+      title: "% TCV",
+      key: "pct_tcv",
+      render: (_: any, row: MasterRowQ3) => atCol(row.pct_tcv),
+    },
+    {
+      title: "% Receita",
+      key: "pct_rec",
+      render: (_: any, row: MasterRowQ3) => atCol(row.pct_rec),
+    },
+    {
+      title: "% MB",
+      key: "pct_mb",
+      render: (_: any, row: MasterRowQ3) => atCol(row.pct_mb),
+    },
+    {
+      title: "Bônus Q3",
+      dataIndex: "bonus",
+      key: "bonus",
+      align: "right" as const,
+      sorter: (a: MasterRowQ3, b: MasterRowQ3) => a.bonus - b.bonus,
+      render: (v: number, row: MasterRowQ3) => (
+        <span style={{ fontWeight: 600, color: v > 0 ? "#52c41a" : row.erro ? "#ff4d4f" : "#999" }}>
+          {row.erro ? "Erro" : fmt(v)}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
+        <Tag color="geekblue" style={{ fontSize: 13 }}>Grupo Mult — AE_GM</Tag>
+        <Button icon={<ReloadOutlined />} onClick={carregar} loading={loading}>
+          Atualizar
+        </Button>
+        <div style={{ marginLeft: "auto", fontWeight: 600, fontSize: 15 }}>
+          Total bônus Q3: <span style={{ color: "#52c41a" }}>{fmt(totalBonus)}</span>
+        </div>
+      </div>
+
+      <Spin spinning={loading}>
+        <Table
+          dataSource={data}
+          columns={columnsQ3}
+          rowKey="nome"
+          size="small"
+          pagination={false}
+          summary={() => (
+            <Table.Summary.Row style={{ background: "#fafafa", fontWeight: 600 }}>
+              <Table.Summary.Cell index={0} colSpan={6}>Total ({data.length} pessoas)</Table.Summary.Cell>
+              <Table.Summary.Cell index={6} />
+              <Table.Summary.Cell index={7} align="right">
+                <span style={{ color: "#52c41a" }}>{fmt(totalBonus)}</span>
+              </Table.Summary.Cell>
+            </Table.Summary.Row>
+          )}
+        />
+      </Spin>
+
+      <Drawer
+        title={detalheQ3 ? `Memória de Cálculo Q3 — ${detalheQ3.nome}` : "Carregando..."}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        width={820}
+        extra={
+          detalheQ3 && (
+            <Tag color="geekblue" style={{ fontSize: 14 }}>
+              Bônus Q3: {fmt(detalheQ3.bonus_total)}
+            </Tag>
+          )
+        }
+      >
+        {loadingDetalhe && <Spin />}
+        {detalheQ3 && !loadingDetalhe && (
+          <div style={{ padding: 8 }}>
+            <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a3c6e" }}>
+              Memória de Cálculo — {detalheQ3.nome}&nbsp;
+              <span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q3 2025</span>
+            </h2>
+            <DetalheDrawerQ3 d={detalheQ3} />
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

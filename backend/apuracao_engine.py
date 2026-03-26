@@ -2008,6 +2008,61 @@ def get_visao_master() -> list[dict]:
     return resultados
 
 
+# ─── Visão Master Q3 (apenas AE_GM) ──────────────────────────────────────────
+
+def get_visao_master_q3() -> list[dict]:
+    """Retorna visão consolidada Q3 para AE_GM (Grupo Mult)."""
+    d = _load_all()
+    pessoas = d["pessoas"]
+    resultados = []
+
+    ae_gm = pessoas[pessoas["Posicao"].str.upper().str.strip() == "AE_GM"]
+
+    for _, p in ae_gm.iterrows():
+        nome = p["Nome"]
+        sal  = float(p.get("Sal_Q3") or 0)
+        try:
+            res  = calc_bonus_ae_q3(nome)
+            bgt_r = res["budget_rec_total"] or 1
+            bgt_m = res["budget_mb_pct"] or 1
+            resultados.append({
+                "nome":     res["nome"],
+                "posicao":  res["posicao"],
+                "contrato": res["contrato"],
+                "vertical": "Grupo Mult",
+                "salario":  res["salario_q4"],
+                "bonus":    res["bonus_total"],
+                "ating_rec":  res["ating_rec_total"],
+                "ating_mb":   res["ating_mb_total"],
+                "ating_tcv":  res.get("ating_tcv"),
+                "pct_rec":  round(res["real_rec_total"] / bgt_r, 4),
+                "pct_mb":   round(res["real_mb_pct"] / bgt_m, 4) if bgt_m else 0,
+                "pct_tcv":  round(res["real_tcv_q4"] / res["budget_tcv_q4"], 4)
+                            if res.get("budget_tcv_q4") else None,
+                "gate_ok":  bool(res.get("lb_gate", 1)),
+                "tipo_calc": "Comercial",
+            })
+        except Exception as e:
+            resultados.append({
+                "nome":     nome,
+                "posicao":  "AE_GM",
+                "contrato": str(p.get("Contrato", "")),
+                "vertical": "Grupo Mult",
+                "salario":  sal,
+                "bonus":    0.0,
+                "ating_rec":  0.0,
+                "ating_mb":   None,
+                "ating_tcv":  None,
+                "pct_rec":  None,
+                "pct_mb":   None,
+                "pct_tcv":  None,
+                "gate_ok":  False,
+                "tipo_calc": "Erro",
+                "erro":     str(e),
+            })
+    return resultados
+
+
 # ─── CLI rápido para testar ──────────────────────────────────────────────────
 
 if __name__ == "__main__":

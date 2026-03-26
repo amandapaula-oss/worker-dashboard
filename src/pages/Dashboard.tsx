@@ -10,7 +10,7 @@ import SapTab from "./SapTab";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 import MargemTab from "./MargemTab";
 import CheckLucasTab from "./CheckLucasTab";
-import VistaMasterTab from "./VistaMasterTab";
+import VistaMasterTab, { VistaMasterTabQ3 } from "./VistaMasterTab";
 import ResumoTab from "./ResumoTab";
 import ClientesTab from "./ClientesTab";
 
@@ -243,6 +243,7 @@ export default function Dashboard() {
                 items={[
                   { key: "resumo",       label: "📋 Resumo por Empresa", children: <ResumoTab apenasAtribuidos={apenasAtribuidos} /> },
                   { key: "visao-master", label: "🎯 Apuração Q4",    children: <VistaMasterTab /> },
+                  { key: "visao-master-q3", label: "🎯 Apuração Q3",  children: <VistaMasterTabQ3 /> },
                   { key: "margem",       label: "📊 Margem por Cliente",  children: <MargemTab apenasAtribuidos={apenasAtribuidos} /> },
                   { key: "check",        label: "🔍 Check Lucas",         children: <CheckLucasTab /> },
                   { key: "clientes",     label: "👥 Clientes",            children: <ClientesTab /> },

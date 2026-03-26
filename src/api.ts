@@ -181,6 +181,10 @@ export async function getApuracaoVisaoMaster() {
   return apiFetch("/api/apuracao/visao-master");
 }
 
+export async function getApuracaoVisaoMasterQ3() {
+  return apiFetch("/api/apuracao/visao-master-q3");
+}
+
 export async function getApuracaoBonusAnual(nome: string) {
   return apiFetch(`/api/apuracao/bonus-anual/${encodeURIComponent(nome)}`);
 }

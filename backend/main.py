@@ -1221,7 +1221,7 @@ def get_clt_data(meses: str = "", user=Depends(get_current_user)):
 
 from apuracao_engine import (
     calc_bonus_ae, calc_bonus_ae_q3, calc_bonus_diretor, get_visao_master,
-    _load_all, norm as eng_norm
+    get_visao_master_q3, _load_all, norm as eng_norm
 )
 
 @app.get("/api/apuracao/pessoas")
@@ -1281,6 +1281,14 @@ def get_apuracao_visao_master(user=Depends(get_current_user)):
     """Retorna todos os avaliados com bônus calculado (visão consolidada)."""
     try:
         return get_visao_master()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/apuracao/visao-master-q3")
+def get_apuracao_visao_master_q3(user=Depends(get_current_user)):
+    """Retorna bônus Q3 para AE_GM (Grupo Mult)."""
+    try:
+        return get_visao_master_q3()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
