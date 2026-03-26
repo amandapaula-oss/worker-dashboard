@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Table, Spin, message, Tag, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
 import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { useReactToPrint } from "react-to-print";
-import { getApuracaoVisaoMaster, getApuracaoCalcular } from "../api";
+import { getApuracaoVisaoMaster, getApuracaoCalcular, getApuracaoCalcularQ3 } from "../api";
 import { toTitleCase } from "../utils/format";
 
 const { Option } = Select;
@@ -305,6 +305,8 @@ export default function VistaMasterTab() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detalhe, setDetalhe] = useState<DetalheCalculo | null>(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+  const [detalheQ3, setDetalheQ3] = useState<DetalheCalculo | null>(null);
+  const [loadingQ3, setLoadingQ3] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: detalhe ? `Memória de Cálculo — ${detalhe.nome}` : "Memória de Cálculo" });
 
@@ -318,12 +320,23 @@ export default function VistaMasterTab() {
 
   useEffect(() => { carregar(); }, []);
 
-  const abrirDetalhe = (nome: string) => {
+  const abrirDetalhe = (nome: string, posicao?: string) => {
     setDrawerOpen(true);
     setDetalhe(null);
+    setDetalheQ3(null);
     setLoadingDetalhe(true);
     getApuracaoCalcular(nome)
-      .then(setDetalhe)
+      .then((d: DetalheCalculo) => {
+        setDetalhe(d);
+        // Carrega Q3 automaticamente para AE_GM (Grupo Mult)
+        if ((posicao || d.posicao) === "AE_GM") {
+          setLoadingQ3(true);
+          getApuracaoCalcularQ3(nome)
+            .then(setDetalheQ3)
+            .catch(() => {})
+            .finally(() => setLoadingQ3(false));
+        }
+      })
       .catch((e: Error) => message.error(`Erro: ${e.message}`, 10))
       .finally(() => setLoadingDetalhe(false));
   };
@@ -351,8 +364,8 @@ export default function VistaMasterTab() {
       title: "Nome",
       dataIndex: "nome",
       key: "nome",
-      render: (v: string) => (
-        <span style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }} onClick={() => abrirDetalhe(v)}>
+      render: (v: string, record: MasterRow) => (
+        <span style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }} onClick={() => abrirDetalhe(v, record.posicao)}>
           <UserOutlined style={{ marginRight: 6 }} />{toTitleCase(v)}
         </span>
       ),
@@ -468,6 +481,11 @@ export default function VistaMasterTab() {
         extra={
           detalhe && (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {detalheQ3 && (
+                <Tag color="geekblue" style={{ fontSize: 14 }}>
+                  Bônus Q3: {fmt(detalheQ3.bonus_total)}
+                </Tag>
+              )}
               <Tag color="blue" style={{ fontSize: 14 }}>
                 Bônus Q4: {fmt(detalhe.bonus_total)}
               </Tag>
@@ -486,6 +504,17 @@ export default function VistaMasterTab() {
         {loadingDetalhe && <Spin />}
         {detalhe && !loadingDetalhe && (
           <div ref={printRef} style={{ padding: 8 }}>
+            {/* Q3 panel — apenas AE_GM */}
+            {(detalheQ3 || loadingQ3) && (
+              <div style={{ marginBottom: 32 }}>
+                <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a3c6e" }}>
+                  Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q3 2025</span>
+                </h2>
+                {loadingQ3 && <Spin />}
+                {detalheQ3 && !loadingQ3 && <DetalheDrawerQ3 d={detalheQ3} />}
+                <Divider style={{ borderColor: "#adc6ff" }} />
+              </div>
+            )}
             <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a2e5a" }}>
               Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q4 2025</span>
             </h2>
@@ -518,23 +547,43 @@ function DetalheDrawer({ d }: { d: DetalheCalculo }) {
 
       <Divider />
       <div style={{ textAlign: "right", fontSize: 18, fontWeight: 700, color: "#52c41a" }}>
-        Bônus Total Q4: {fmt(d.bonus_total)}
+        Bônus Total {d.periodo || "Q4"}: {fmt(d.bonus_total)}
       </div>
 
     </div>
   );
 }
 
+// ─── Q3 Drawer container (apenas AE_GM) ──────────────────────────────────────
+
+function DetalheDrawerQ3({ d }: { d: DetalheCalculo }) {
+  return (
+    <div>
+      <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
+        <Descriptions.Item label="Posição">{d.posicao}</Descriptions.Item>
+        <Descriptions.Item label="Contrato">{d.contrato}</Descriptions.Item>
+        <Descriptions.Item label="Salário Q3">{fmt(d.salario_q4)}</Descriptions.Item>
+        <Descriptions.Item label="Período">{d.periodo}</Descriptions.Item>
+      </Descriptions>
+      <DetalheAE d={d} periodoLabel="Q3" />
+      <Divider />
+      <div style={{ textAlign: "right", fontSize: 18, fontWeight: 700, color: "#52c41a" }}>
+        Bônus Total Q3: {fmt(d.bonus_total)}
+      </div>
+    </div>
+  );
+}
+
 // ─── Detalhe AE / Comercial ───────────────────────────────────────────────────
 
-function DetalheAE({ d }: { d: DetalheCalculo }) {
+function DetalheAE({ d, periodoLabel = "Q4" }: { d: DetalheCalculo; periodoLabel?: string }) {
   const triggerRec = d.trigger_rec ?? 0.85;
   const triggerMbPctTotal = d.trigger_mb_pct_total ?? ((d.budget_mb_pct ?? 0) - 1.5);
   const lbGateOk = (d.lb_gate ?? 1) === 1;
 
   return (
     <div>
-      <ResultadoBox bonusTotal={d.bonus_total ?? 0} salario={d.salario_q4 ?? 0} />
+      <ResultadoBox bonusTotal={d.bonus_total ?? 0} salario={d.salario_q4 ?? 0} periodo={d.periodo} />
       {/* ── Gatilho Mestre ── */}
       <Divider>Gatilho Mestre — Lucro Bruto (R$)</Divider>
       <div style={{
@@ -560,7 +609,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
         </div>
         {(d.meta_lb_q4 ?? 0) > 0 && (
           <MetaRealRow
-            label="Lucro Bruto Q4"
+            label={`Lucro Bruto ${periodoLabel}`}
             meta={d.meta_lb_q4 || 0}
             triggerAmt={d.trigger_lb_q4 || 0}
             real={d.real_lb_total || 0}
@@ -847,7 +896,7 @@ function DetalheAE({ d }: { d: DetalheCalculo }) {
 
 // ─── Detalhe Diretor ──────────────────────────────────────────────────────────
 
-function ResultadoBox({ bonusTotal, salario }: { bonusTotal: number; salario: number }) {
+function ResultadoBox({ bonusTotal, salario, periodo = "Q4 2025" }: { bonusTotal: number; salario: number; periodo?: string }) {
   const ating = salario > 0 ? bonusTotal / salario : 0;
   const ok = bonusTotal > 0;
   return (
@@ -858,7 +907,7 @@ function ResultadoBox({ bonusTotal, salario }: { bonusTotal: number; salario: nu
       display: "flex", alignItems: "center", justifyContent: "space-between",
     }}>
       <div>
-        <div style={{ fontSize: 11, color: "#888", marginBottom: 2 }}>Bônus Total Q4 2025</div>
+        <div style={{ fontSize: 11, color: "#888", marginBottom: 2 }}>Bônus Total {periodo}</div>
         <div style={{ fontSize: 22, fontWeight: 700, color: ok ? "#52c41a" : "#ff4d4f" }}>
           {fmt(bonusTotal)}
         </div>

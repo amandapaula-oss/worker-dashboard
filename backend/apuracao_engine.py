@@ -13,6 +13,11 @@ DIR = os.path.dirname(__file__)
 Q4_PERIODOS = ["2025-10", "2025-11", "2025-12"]
 Q4_QTDE = 1  # 1 quarter
 
+Q3_PERIODOS = ["2025-07", "2025-08", "2025-09"]
+Q3_QTDE = 1  # 1 quarter
+TRIGGER_REC_Q3    = 0.90   # trigger receita/TCV Q3
+MB_TRIGGER_DELTA_Q3 = 0.010  # 1.0pp abaixo da meta MB para Q3
+
 # ─── Normalização de nomes ────────────────────────────────────────────────────
 
 def norm(s: str) -> str:
@@ -812,6 +817,466 @@ def calc_bonus_ae(nome: str) -> dict:
         "trigger_lb_q4": round(trigger_lb_q4, 2),
         "real_lb_total":    round(real_lb_financeiro, 2),
         "real_custo_total": round(real_custo_total_fin, 2),
+        "budget_rec_total":  round(bgt_rec_total, 2),
+        "real_rec_total":    round(real_rec_total, 2),
+        "ating_rec_total":   round(ating_rec_total, 4),
+        "budget_mb_pct":     round(bgt_mb_pct * 100, 2),
+        "real_mb_pct":       round(real_mb_pct * 100, 2),
+        "ating_mb_total":    round(ating_mb_total, 4),
+        "bonus_total":       round(bonus_total, 2),
+        "detalhe_ws":        detalhe_ws,
+        "clientes_detalhe":  clientes_detalhe,
+    }
+
+
+# ─── Cálculo AE Q3 (apenas Grupo Mult) ───────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def _load_q3_realized():
+    """Carrega e processa dados SAP Q3. Retorna dicts de lookups (vazios se sem dados Q3)."""
+    rac    = pd.read_csv(os.path.join(DIR, "rac_projetos.csv"),    encoding="utf-8-sig")
+    margem = pd.read_csv(os.path.join(DIR, "margem_projetos.csv"), encoding="utf-8-sig")
+
+    rac_q3  = rac[rac["periodo"].isin(Q3_PERIODOS)].copy()
+    marg_q3 = margem[margem["periodo"].isin(Q3_PERIODOS)].copy()
+
+    if rac_q3.empty and marg_q3.empty:
+        empty: dict = {
+            "rac_by_client_nh":      {},
+            "marg_by_client_nh":     {},
+            "rec_by_client_nh":      {},
+            "custo_by_client_nh":    {},
+            "rec_by_client_ws_nh":   {},
+            "marg_by_client_ws_nh":  {},
+        }
+        return empty
+
+    # Substitui receita SAP por RAC onde há match
+    if "pep" in rac_q3.columns and not marg_q3.empty:
+        _rac_rec = (
+            rac_q3.assign(pep_base=rac_q3["pep"].astype(str).str.split(".").str[0].str.strip())
+            .groupby(["periodo", "pep_base", "nome_cliente"])["valor_liquido"].sum()
+            .reset_index().rename(columns={"valor_liquido": "receita_rac", "pep_base": "_pep_rac"})
+        )
+        marg_q3["_pep_base_tmp"] = marg_q3["pep"].astype(str).str.split(".").str[0].str.strip()
+        marg_q3 = marg_q3.merge(
+            _rac_rec,
+            left_on=["periodo", "_pep_base_tmp", "nome_cliente"],
+            right_on=["periodo", "_pep_rac", "nome_cliente"],
+            how="left"
+        )
+        marg_q3["receita"] = marg_q3["receita_rac"].where(marg_q3["receita_rac"].notna(), marg_q3["receita"])
+        marg_q3 = marg_q3.drop(columns=["receita_rac", "_pep_rac", "_pep_base_tmp"], errors="ignore")
+
+    # Aplica benchmarks de MB% por WS (mesma lógica Q4)
+    if "categoria_bu" in marg_q3.columns:
+        _ws_k_col = marg_q3["categoria_bu"].apply(
+            lambda x: _norm_ws(str(x)) if pd.notna(x) and str(x).strip() else "demais"
+        )
+        for _ws_k, _bench in WS_MB_BENCHMARK_Q4.items():
+            _mask = (_ws_k_col == _ws_k) & marg_q3["receita"].notna() & (marg_q3["receita"] != 0)
+            marg_q3.loc[_mask, "margem"]        = marg_q3.loc[_mask, "receita"] * _bench
+            marg_q3.loc[_mask, "custo_rateado"] = marg_q3.loc[_mask, "receita"] * -(1 - _bench)
+            marg_q3.loc[_mask, "margem_pct"]    = _bench
+        _apps_zero_mask = (
+            (_ws_k_col == "apps") &
+            marg_q3["receita"].notna() & (marg_q3["receita"] != 0) &
+            (marg_q3["custo_rateado"].fillna(0) == 0)
+        )
+        if _apps_zero_mask.any():
+            for _idx in marg_q3[_apps_zero_mask].index:
+                _rec = float(marg_q3.at[_idx, "receita"])
+                marg_q3.at[_idx, "custo_rateado"] = _rec * -0.65
+                marg_q3.at[_idx, "margem"]         = _rec * 0.35
+                marg_q3.at[_idx, "margem_pct"]     = 0.35
+        marg_q3["ws_key"] = _ws_k_col
+
+    # Override OpenX
+    if "no_hierarquia" in marg_q3.columns:
+        openx_mask = marg_q3["no_hierarquia"].str.upper().str.strip() == "OPENX"
+        marg_q3.loc[openx_mask, "margem"]        = marg_q3.loc[openx_mask, "receita"] * 0.45
+        marg_q3.loc[openx_mask, "custo_rateado"] = marg_q3.loc[openx_mask, "receita"] * -0.55
+        marg_q3.loc[openx_mask, "margem_pct"]    = 0.45
+
+    rac_q3["nome_norm"]  = rac_q3["nome_cliente"].apply(norm)
+    marg_q3["nome_norm"] = marg_q3["nome_cliente"].apply(norm)
+
+    # Limpa nomes de recorrência
+    _recorr_pat = re.compile(r'\([A-Z0-9]+\)\s*$')
+    def _clean(n: str) -> str:
+        n = _recorr_pat.sub('', n).strip()
+        n = re.sub(r'^RECORRENCIA\s+', '', n).strip()
+        return re.sub(r'\s+RECORRENCIA\s*$', '', n).strip()
+    marg_q3["nome_norm"] = marg_q3["nome_norm"].apply(_clean)
+
+    # Alias SAP → canonical usando clientes.csv
+    _cli_path = os.path.join(DIR, "clientes.csv")
+    if os.path.exists(_cli_path):
+        try:
+            _cdf = pd.read_csv(_cli_path, encoding="utf-8-sig")
+            if "nome_base" in _cdf.columns:
+                _alias: dict[str, str] = {}
+                for _, _r in _cdf.iterrows():
+                    _nc = str(_r.get("nome_cliente", "") or "").strip()
+                    _nb = str(_r.get("nome_base", "") or "").strip()
+                    if _nc and _nb:
+                        _alias[norm(_nb)] = norm(_nc)
+                if _alias:
+                    rac_q3["nome_norm"]  = rac_q3["nome_norm"].map(lambda x: _alias.get(x, x))
+                    marg_q3["nome_norm"] = marg_q3["nome_norm"].map(lambda x: _alias.get(x, x))
+        except Exception:
+            pass
+
+    # Exclui empresas Hyper
+    _EXCL_RAC  = {"BR07", "BR0C"}
+    _EXCL_MARG = {"Hyper", "BR07"}
+    rac_q3_nh  = rac_q3[~rac_q3["empresa"].isin(_EXCL_RAC)]
+    marg_q3_nh = marg_q3[~marg_q3["empresa"].isin(_EXCL_MARG)] if "empresa" in marg_q3.columns else marg_q3
+
+    rac_by_client_nh  = rac_q3_nh.groupby("nome_norm")["valor_liquido"].sum().to_dict()
+    marg_by_client_nh = marg_q3_nh.groupby("nome_norm")["margem"].sum().to_dict()
+    rec_by_client_nh  = marg_q3_nh.groupby("nome_norm")["receita"].sum().to_dict()
+    custo_by_client_nh = marg_q3_nh.groupby("nome_norm")["custo_rateado"].sum().to_dict()
+
+    if "ws_key" in marg_q3_nh.columns:
+        rec_by_client_ws_nh  = marg_q3_nh.groupby(["nome_norm", "ws_key"])["receita"].sum().to_dict()
+        marg_by_client_ws_nh = marg_q3_nh.groupby(["nome_norm", "ws_key"])["margem"].sum().to_dict()
+    else:
+        rec_by_client_ws_nh  = {}
+        marg_by_client_ws_nh = {}
+
+    # Adiciona aliases canonical → base para lookups
+    if os.path.exists(_cli_path):
+        try:
+            _cdf2 = pd.read_csv(_cli_path, encoding="utf-8-sig")
+            if "nome_base" in _cdf2.columns:
+                for _, _r in _cdf2.iterrows():
+                    nc = str(_r.get("nome_cliente", "") or "").strip()
+                    nb = str(_r.get("nome_base", "") or "").strip()
+                    if nc and nb:
+                        nc_n, nb_n = norm(nc), norm(nb)
+                        for lk in [rac_by_client_nh, marg_by_client_nh, rec_by_client_nh, custo_by_client_nh]:
+                            if nb_n in lk and nc_n not in lk:
+                                lk[nc_n] = lk[nb_n]
+                        for ws_k in WS_PESOS_Q4:
+                            if (nb_n, ws_k) in rec_by_client_ws_nh and (nc_n, ws_k) not in rec_by_client_ws_nh:
+                                rec_by_client_ws_nh[(nc_n, ws_k)]  = rec_by_client_ws_nh[(nb_n, ws_k)]
+                            if (nb_n, ws_k) in marg_by_client_ws_nh and (nc_n, ws_k) not in marg_by_client_ws_nh:
+                                marg_by_client_ws_nh[(nc_n, ws_k)] = marg_by_client_ws_nh[(nb_n, ws_k)]
+        except Exception:
+            pass
+
+    return {
+        "rac_by_client_nh":      rac_by_client_nh,
+        "marg_by_client_nh":     marg_by_client_nh,
+        "rec_by_client_nh":      rec_by_client_nh,
+        "custo_by_client_nh":    custo_by_client_nh,
+        "rec_by_client_ws_nh":   rec_by_client_ws_nh,
+        "marg_by_client_ws_nh":  marg_by_client_ws_nh,
+    }
+
+
+def calc_bonus_ae_q3(nome: str) -> dict:
+    """Calcula bônus Q3 para AE_GM (Grupo Mult). Estrutura idêntica ao Q4 mas usando colunas q3."""
+    d   = _load_all()
+    q3r = _load_q3_realized()
+
+    pessoas = d["pessoas"]
+    bgt_rec = d["bgt_rec"]
+    bgt_lb  = d["bgt_lb"]
+
+    nome_n = norm(nome)
+    pessoa = pessoas[pessoas["nome_norm"] == nome_n]
+    if pessoa.empty:
+        pessoa = pessoas[pessoas["nome_norm"].str.contains(nome_n.split()[0])]
+    if pessoa.empty:
+        raise ValueError(f"Pessoa não encontrada: {nome}")
+    pessoa = pessoa.iloc[0]
+    pessoa_nome_n = norm(str(pessoa["Nome"]))
+
+    salario = float(pessoa.get("Sal_Q3") or 0)
+    posicao = str(pessoa["Posicao"]).upper().strip()
+
+    pesos_row = d["pesos_m"][
+        (d["pesos_m"]["Periodo"] == "Quarter") &
+        (d["pesos_m"]["Posicao"].str.upper() == posicao)
+    ]
+    if pesos_row.empty:
+        pesos_row = d["pesos_m"][(d["pesos_m"]["Periodo"] == "Quarter") & (d["pesos_m"]["Posicao"] == "AE")]
+    pesos_row = pesos_row.iloc[0]
+    peso_tcv = float(pesos_row["TCV"] or 0)
+    peso_rec = float(pesos_row["Receita"] or 0)
+    peso_mb  = float(pesos_row["MB_pct"] or 0)
+
+    # Budget Q3 por cliente/WS para este AE (usa ae_q3 e coluna q3)
+    rec_ae = bgt_rec[bgt_rec["ae_q3"].apply(norm) == pessoa_nome_n].copy()
+    lb_ae  = bgt_lb[bgt_lb["ae_q3"].apply(norm) == pessoa_nome_n].copy()
+
+    if not rec_ae.empty and "bs" in rec_ae.columns:
+        primary_bs = AE_BS_OVERRIDE.get(pessoa_nome_n) or rec_ae["bs"].value_counts().idxmax()
+        rec_ae = rec_ae[rec_ae["bs"] == primary_bs].copy()
+        if not lb_ae.empty and "bs" in lb_ae.columns:
+            lb_ae = lb_ae[lb_ae["bs"] == primary_bs].copy()
+
+    rec_ae["ws_key"] = rec_ae["ws"].apply(_norm_ws)
+    lb_ae["ws_key"]  = lb_ae["ws"].apply(_norm_ws)
+
+    bgt_rec_ws = rec_ae.groupby("ws_key")["q3"].sum().to_dict()
+    bgt_lb_ws  = lb_ae.groupby("ws_key")["q3"].sum().to_dict()
+    bgt_rec_ws["total"] = float(rec_ae["q3"].sum())
+    bgt_lb_ws["total"]  = float(lb_ae["q3"].sum())
+
+    person_ws_weights = d["pesos_ws_pessoa"].get(pessoa_nome_n, dict(WS_PESOS_Q4))
+
+    realized_rec_ws:               dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_lb_ws:                dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_lb_financeiro_ws:     dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_lb_gate_ws:           dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_custo_financeiro_ws:  dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    real_lb_financeiro:   float = 0.0
+    real_custo_total_fin: float = 0.0
+
+    clientes_ae = rec_ae["cliente_norm"].dropna().unique()
+    clientes_detalhe = []
+    cli_contrib: dict[str, list] = {}
+
+    for cli_n in clientes_ae:
+        real_rec   = _match_cliente(cli_n, q3r["rac_by_client_nh"])
+        real_lb    = _match_cliente(cli_n, q3r["marg_by_client_nh"])
+        real_custo = _match_cliente(cli_n, q3r["custo_by_client_nh"])
+
+        cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
+        cli_bgt  = float(cli_rows["q3"].sum())
+        cli_display = cli_rows["cliente"].iloc[0] if not cli_rows.empty else cli_n
+        cli_bonus_lb  = 0.0
+        cli_lb_fin    = 0.0
+        cli_custo_fin = 0.0
+
+        actual_rec_ws  = _match_cliente_ws(cli_n, q3r["rec_by_client_ws_nh"])
+        actual_marg_ws = _match_cliente_ws(cli_n, q3r["marg_by_client_ws_nh"])
+        actual_rec_ws  = {ws_k: actual_rec_ws.get(ws_k, 0.0)  for ws_k in WS_PESOS_Q4}
+        actual_marg_ws = {ws_k: actual_marg_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4}
+        actual_rec_total = sum(actual_rec_ws.values())
+
+        cli_rec_ws    = cli_rows.groupby("ws_key")["q3"].sum()
+        cli_lb_bgt_ws = (
+            lb_ae[lb_ae["cliente_norm"] == cli_n].groupby("ws_key")["q3"].sum()
+            if not lb_ae.empty else pd.Series(dtype=float)
+        )
+
+        if actual_rec_total > 0:
+            for ws_k in WS_PESOS_Q4:
+                prop = actual_rec_ws[ws_k] / actual_rec_total
+                cli_real_ws = real_rec * prop
+                realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
+                bv = float(cli_rec_ws.get(ws_k, 0.0))
+                if cli_real_ws > 0 or bv > 0:
+                    cli_contrib.setdefault(ws_k, []).append({
+                        "cliente":    cli_display,
+                        "budget_rec": round(bv, 2),
+                        "real_rec":   round(cli_real_ws, 2),
+                    })
+                if ws_k in WS_MB_BENCHMARK_Q4:
+                    _ws_lb  = cli_real_ws * WS_MB_BENCHMARK_Q4[ws_k]
+                    _lb_fin = _ws_lb
+                    _cu_fin = _lb_fin - cli_real_ws
+                else:
+                    _ws_lb  = actual_marg_ws.get(ws_k, 0.0)
+                    _lb_fin = _ws_lb
+                    _cu_fin = _ws_lb - actual_rec_ws.get(ws_k, 0.0)
+                realized_lb_ws[ws_k]             = realized_lb_ws.get(ws_k, 0.0)             + _ws_lb
+                realized_lb_financeiro_ws[ws_k]  = realized_lb_financeiro_ws.get(ws_k, 0.0)  + _lb_fin
+                realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + _cu_fin
+                cli_bonus_lb += _ws_lb
+                if float(cli_lb_bgt_ws.get(ws_k, 0.0)) > 0:
+                    realized_lb_gate_ws[ws_k] = realized_lb_gate_ws.get(ws_k, 0.0) + _lb_fin
+                cli_lb_fin    += _lb_fin
+                cli_custo_fin += _cu_fin
+        else:
+            cli_rec_total = float(cli_rec_ws.sum())
+            cli_lb_ws = (
+                lb_ae[lb_ae["cliente_norm"] == cli_n].groupby("ws_key")["q3"].sum()
+                if not lb_ae.empty else pd.Series(dtype=float)
+            )
+            cli_lb_total = float(cli_lb_ws.sum()) if len(cli_lb_ws) else 1.0
+            for ws_k, bv in cli_rec_ws.items():
+                prop = float(bv) / cli_rec_total if cli_rec_total > 0 else 0.0
+                cli_real_ws = real_rec * prop
+                realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + cli_real_ws
+                _lb_f  = real_lb    * prop
+                _cu_f  = real_custo * prop
+                realized_lb_financeiro_ws[ws_k]    = realized_lb_financeiro_ws.get(ws_k, 0.0)    + _lb_f
+                realized_custo_financeiro_ws[ws_k] = realized_custo_financeiro_ws.get(ws_k, 0.0) + _cu_f
+                if float(cli_lb_ws.get(ws_k, 0.0)) > 0:
+                    realized_lb_gate_ws[ws_k] = realized_lb_gate_ws.get(ws_k, 0.0) + _lb_f
+                cli_lb_fin    += _lb_f
+                cli_custo_fin += _cu_f
+                cli_contrib.setdefault(ws_k, []).append({
+                    "cliente":    cli_display,
+                    "budget_rec": round(float(bv), 2),
+                    "real_rec":   round(cli_real_ws, 2),
+                })
+            for ws_k, bv in cli_lb_ws.items():
+                prop = float(bv) / cli_lb_total if cli_lb_total > 0 else 0.0
+                _ws_lb = real_lb * prop
+                realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
+                cli_bonus_lb += _ws_lb
+
+        real_lb_financeiro   += cli_lb_fin
+        real_custo_total_fin += cli_custo_fin
+        margem_pct_visual = cli_lb_fin / real_rec if real_rec > 0 else None
+        clientes_detalhe.append({
+            "cliente":    cli_display,
+            "budget_rec": round(cli_bgt, 2),
+            "real_rec":   round(real_rec, 2),
+            "real_custo": round(cli_custo_fin, 2),
+            "real_lb":    round(cli_lb_fin, 2),
+            "margem_pct": round(margem_pct_visual * 100, 1) if margem_pct_visual is not None else None,
+        })
+
+    realized_rec_ws["total"]              = sum(v for k, v in realized_rec_ws.items()              if k != "total")
+    realized_lb_ws["total"]               = sum(v for k, v in realized_lb_ws.items()               if k != "total")
+    realized_lb_financeiro_ws["total"]    = sum(v for k, v in realized_lb_financeiro_ws.items()    if k != "total")
+    realized_lb_gate_ws["total"]          = sum(v for k, v in realized_lb_gate_ws.items()          if k != "total")
+    realized_custo_financeiro_ws["total"] = sum(v for k, v in realized_custo_financeiro_ws.items() if k != "total")
+
+    bgt_rec_total  = bgt_rec_ws.get("total", 1) or 1
+    bgt_lb_total   = bgt_lb_ws.get("total", 0)
+    real_rec_total = realized_rec_ws.get("total", 0)
+    real_lb_total  = realized_lb_ws.get("total", 0)
+    bgt_mb_pct     = bgt_lb_total / bgt_rec_total if bgt_rec_total else 0
+    real_mb_pct    = real_lb_total / real_rec_total if real_rec_total else 0
+
+    # Trigger ratio LB (igual ao Q4 — usa mesma tabela anual, proporção é estável)
+    lb_trigger_info = d["lb_trigger"].get(pessoa_nome_n, {})
+    if not lb_trigger_info:
+        primeiro = pessoa_nome_n.split()[0]
+        lb_trigger_info = next(
+            (v for k, v in d["lb_trigger"].items() if k.startswith(primeiro)), {}
+        )
+    _meta_lb    = lb_trigger_info.get("meta_lb", 0.0)
+    _trigger_lb = lb_trigger_info.get("trigger_lb", 0.0)
+    _trigger_ratio = (_trigger_lb / _meta_lb) if _meta_lb > 0 else 0.0
+
+    detalhe_ws = []
+    bonus_total = 0.0
+
+    for ws_k in WS_PESOS_Q4:
+        peso_ws  = person_ws_weights.get(ws_k, 0.0)
+        bgt_r    = bgt_rec_ws.get(ws_k, 0.0)
+        real_r   = realized_rec_ws.get(ws_k, 0.0)
+        bgt_lb_  = bgt_lb_ws.get(ws_k, 0.0)
+        real_lb_ = realized_lb_ws.get(ws_k, 0.0)
+
+        ating_rec = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q3)
+
+        bgt_mb_pct_ws  = bgt_lb_ / bgt_r if bgt_r > 0 else 0.0
+        real_lb_fin_ws = realized_lb_financeiro_ws.get(ws_k, 0.0)
+        if real_r > 0:
+            if ws_k in WS_MB_BENCHMARK_Q4:
+                real_mb_pct_ws      = WS_MB_BENCHMARK_Q4[ws_k]
+                real_lb_            = real_r * real_mb_pct_ws
+            else:
+                real_mb_pct_ws      = real_lb_ / real_r
+            real_mb_pct_display = real_lb_fin_ws / real_r
+        else:
+            real_mb_pct_ws      = 0.0
+            real_mb_pct_display = 0.0
+
+        trigger_mb_value = round(max(0.0, bgt_mb_pct_ws * 100 - MB_TRIGGER_DELTA_Q3 * 100), 2)
+
+        if ws_k == "apps":
+            ating_mb = calc_atingimento_mb(real_mb_pct_ws, bgt_mb_pct_ws, MB_TRIGGER_DELTA_Q3)
+            mb_gate  = 1.0 if ating_mb > 0 else 0.0
+        else:
+            if bgt_r == 0 and real_r == 0:
+                ating_mb = 0.0
+            elif bgt_lb_ == 0:
+                ating_mb = 0.0
+            else:
+                ating_mb = calc_atingimento_mb(real_mb_pct_ws, bgt_mb_pct_ws, MB_TRIGGER_DELTA_Q3) if bgt_mb_pct_ws > 0 else 1.0
+            mb_gate  = 1.0
+
+        bgt_lb_ws_k     = bgt_lb_ws.get(ws_k, 0.0)
+        trigger_lb_ws_k = round(bgt_lb_ws_k * _trigger_ratio, 2) if bgt_lb_ws_k > 0 else 0.0
+        real_lb_fin_ws_k = realized_lb_gate_ws.get(ws_k, 0.0)
+        lb_gate_ws = 1 if (trigger_lb_ws_k <= 0 or real_lb_fin_ws_k >= trigger_lb_ws_k) else 0
+
+        bonus_rec = Q3_QTDE * peso_ws * ating_rec * salario * peso_rec * lb_gate_ws
+        bonus_mb  = Q3_QTDE * peso_ws * ating_mb  * mb_gate  * salario * peso_mb  * lb_gate_ws
+
+        bonus_total += bonus_rec + bonus_mb
+
+        detalhe_ws.append({
+            "ws":                  ws_k,
+            "peso_ws":             round(peso_ws, 4),
+            "budget_rec":          round(bgt_r, 2),
+            "trigger_rec_amount":  round(bgt_r * TRIGGER_REC_Q3, 2),
+            "real_rec":            round(real_r, 2),
+            "receita_faltante":    round(max(0.0, bgt_r * TRIGGER_REC_Q3 - real_r), 2),
+            "ating_rec":           round(ating_rec, 4),
+            "budget_mb_pct":       round(bgt_mb_pct_ws * 100, 2),
+            "trigger_mb_pct":      trigger_mb_value,
+            "real_mb_pct":         round(real_mb_pct_display * 100, 2),
+            "mb_faltante":         round(max(0.0, trigger_mb_value - real_mb_pct_display * 100), 2),
+            "ating_mb":            round(ating_mb, 4),
+            "mb_gate":             mb_gate,
+            "aplica_gate_mb":      ws_k == "apps",
+            "meta_lb_ws":          round(bgt_lb_ws_k, 2),
+            "trigger_lb_ws":       trigger_lb_ws_k,
+            "real_lb_financeiro":  round(realized_lb_financeiro_ws.get(ws_k, 0.0), 2),
+            "real_lb_gate":        round(real_lb_fin_ws_k, 2),
+            "lb_gate_ws":          lb_gate_ws,
+            "bonus_rec":           round(bonus_rec, 2),
+            "bonus_mb":            round(bonus_mb, 2),
+            "bonus_ws":            round(bonus_rec + bonus_mb, 2),
+            "real_custo_financeiro": round(realized_custo_financeiro_ws.get(ws_k, 0.0), 2),
+            "clientes_ws":         cli_contrib.get(ws_k, []),
+        })
+
+    # TCV Grupo Mult Q3
+    bgt_tcv_q3_ae = 0.0
+    real_tcv_q3_ae = 0.0
+    ating_tcv_ae = 0.0
+    bonus_tcv_ae = 0.0
+    if peso_tcv > 0:
+        tcv_rows = d["bgt_tcv"][d["bgt_tcv"]["ae"].apply(
+            lambda x: str(x).strip() if pd.notna(x) else "") == "Grupo Mult"]
+        bgt_tcv_q3_ae = float(
+            tcv_rows[tcv_rows["descricao"].apply(lambda x: "receita" in str(x).lower())]["q3"].sum()
+        )
+        # Q3 TCV realizado (quando disponível no tcv_realizado.csv — campo q3 ou fallback 0)
+        real_tcv_q3_ae = 0.0
+        ating_tcv_ae   = calc_atingimento(real_tcv_q3_ae, bgt_tcv_q3_ae, TRIGGER_REC_Q3)
+        bonus_tcv_ae   = Q3_QTDE * ating_tcv_ae * salario * peso_tcv
+        bonus_total   += bonus_tcv_ae
+
+    ating_rec_total = calc_atingimento(real_rec_total, bgt_rec_total, TRIGGER_REC_Q3)
+    ating_mb_total  = calc_atingimento_mb(real_mb_pct, bgt_mb_pct, MB_TRIGGER_DELTA_Q3)
+    lb_gate = 1 if any(w.get("lb_gate_ws", 1) for w in detalhe_ws) else 0
+    trigger_mb_pct_total = round(max(0.0, bgt_mb_pct * 100 - MB_TRIGGER_DELTA_Q3 * 100), 2)
+
+    clientes_detalhe.sort(key=lambda x: x["budget_rec"], reverse=True)
+    return {
+        "nome":          pessoa["Nome"],
+        "posicao":       posicao,
+        "contrato":      str(pessoa.get("Contrato", "")),
+        "salario_q4":    salario,  # campo salario_q4 contém salário do período (Q3 neste caso)
+        "periodo":       "Q3 2025",
+        "peso_tcv":      peso_tcv,
+        "peso_receita":  peso_rec,
+        "peso_mb":       peso_mb,
+        "budget_tcv_q4": round(bgt_tcv_q3_ae, 2),
+        "real_tcv_q4":   round(real_tcv_q3_ae, 2),
+        "ating_tcv":     round(ating_tcv_ae, 4),
+        "bonus_tcv":     round(bonus_tcv_ae, 2),
+        "trigger_rec":   TRIGGER_REC_Q3,
+        "trigger_mb_pct_total": trigger_mb_pct_total,
+        "lb_gate":       lb_gate,
+        "meta_lb_q4":    0.0,
+        "trigger_lb_q4": 0.0,
+        "real_lb_total":     round(real_lb_financeiro, 2),
+        "real_custo_total":  round(real_custo_total_fin, 2),
         "budget_rec_total":  round(bgt_rec_total, 2),
         "real_rec_total":    round(real_rec_total, 2),
         "ating_rec_total":   round(ating_rec_total, 4),

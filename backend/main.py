@@ -1220,7 +1220,7 @@ def get_clt_data(meses: str = "", user=Depends(get_current_user)):
 # ── Apuração de Metas endpoints ───────────────────────────────────────────────
 
 from apuracao_engine import (
-    calc_bonus_ae, calc_bonus_diretor, get_visao_master,
+    calc_bonus_ae, calc_bonus_ae_q3, calc_bonus_diretor, get_visao_master,
     _load_all, norm as eng_norm
 )
 
@@ -1263,6 +1263,16 @@ def get_apuracao_calcular(nome: str, user=Depends(get_current_user)):
         return JSONResponse(content=_sanitize(result))
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")
+
+@app.get("/api/apuracao/calcular-q3")
+def get_apuracao_calcular_q3(nome: str, user=Depends(get_current_user)):
+    """Calcula bônus Q3 para AE_GM (Grupo Mult)."""
+    import traceback
+    try:
+        result = calc_bonus_ae_q3(nome)
+        return JSONResponse(content=_sanitize(result))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")
 

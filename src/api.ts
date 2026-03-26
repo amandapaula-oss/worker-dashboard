@@ -173,6 +173,10 @@ export async function getApuracaoCalcular(nome: string) {
   return apiFetch(`/api/apuracao/calcular${buildQuery({ nome })}`);
 }
 
+export async function getApuracaoCalcularQ3(nome: string) {
+  return apiFetch(`/api/apuracao/calcular-q3${buildQuery({ nome })}`);
+}
+
 export async function getApuracaoVisaoMaster() {
   return apiFetch("/api/apuracao/visao-master");
 }
