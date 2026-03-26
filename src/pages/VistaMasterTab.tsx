@@ -1301,15 +1301,8 @@ export function VistaMasterTabQ3() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detalheQ3, setDetalheQ3] = useState<DetalheCalculo | null>(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
-  const [loadingPdfQ3, setLoadingPdfQ3] = useState(false);
-
-  const handlePdfQ3 = () => {
-    if (!detalheQ3) return;
-    setLoadingPdfQ3(true);
-    downloadApuracaoPdfQ3(detalheQ3.nome)
-      .catch(() => message.error("Erro ao gerar PDF Q3"))
-      .finally(() => setLoadingPdfQ3(false));
-  };
+  const printRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: detalheQ3 ? `Memória de Cálculo Q3 — ${detalheQ3.nome}` : "Memória de Cálculo Q3" });
 
   const carregar = () => {
     setLoading(true);
@@ -1452,10 +1445,9 @@ export function VistaMasterTabQ3() {
                 type="primary"
                 size="small"
                 icon={<PrinterOutlined />}
-                loading={loadingPdfQ3}
-                onClick={handlePdfQ3}
+                onClick={() => handlePrint()}
               >
-                Gerar PDF Q3
+                Imprimir / PDF Q3
               </Button>
             </div>
           )
@@ -1463,7 +1455,7 @@ export function VistaMasterTabQ3() {
       >
         {loadingDetalhe && <Spin />}
         {detalheQ3 && !loadingDetalhe && (
-          <div style={{ padding: 8 }}>
+          <div ref={printRef} style={{ padding: 8 }}>
             <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a3c6e" }}>
               Memória de Cálculo — {detalheQ3.nome}&nbsp;
               <span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q3 2025</span>
