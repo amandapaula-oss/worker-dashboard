@@ -1237,12 +1237,12 @@ def calc_bonus_ae_q3(nome: str) -> dict:
             mb_gate  = 1.0
 
         bgt_lb_ws_k     = bgt_lb_ws.get(ws_k, 0.0)
-        trigger_lb_ws_k = round(bgt_lb_ws_k * _trigger_ratio, 2) if bgt_lb_ws_k > 0 else 0.0
+        trigger_lb_ws_k = round(bgt_lb_ws_k * TRIGGER_REC_Q3, 2) if bgt_lb_ws_k > 0 else 0.0
         real_lb_fin_ws_k = realized_lb_gate_ws.get(ws_k, 0.0)
         lb_gate_ws = 1 if (trigger_lb_ws_k <= 0 or real_lb_fin_ws_k >= trigger_lb_ws_k) else 0
 
         bonus_rec = Q3_QTDE * peso_ws * ating_rec * salario * peso_rec * lb_gate_ws
-        rec_gate  = 1 if ating_rec > 0 else 0
+        rec_gate  = lb_gate_ws  # Q3: se o gate de LB passou, o bônus MB também é pago
         bonus_mb  = Q3_QTDE * peso_ws * ating_mb  * mb_gate  * salario * peso_mb  * lb_gate_ws * rec_gate
 
         bonus_total += bonus_rec + bonus_mb

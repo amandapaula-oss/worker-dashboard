@@ -1325,6 +1325,24 @@ def get_bonus_anual(nome: str, user=Depends(get_current_user)):
         import traceback
         raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")
 
+@app.get("/api/apuracao/pdf-q3")
+def get_apuracao_pdf_q3(nome: str, user=Depends(get_current_user)):
+    """Gera PDF com memória de cálculo individual (Q3 2025)."""
+    from fastapi.responses import Response
+    from pdf_apuracao import gerar_pdf
+    from apuracao_engine import calc_bonus_ae_q3
+    try:
+        dados = calc_bonus_ae_q3(nome)
+        pdf_bytes = gerar_pdf(dados)
+        nome_arquivo = nome.replace(" ", "_").replace("/", "_")
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="apuracao_q3_{nome_arquivo}.pdf"'}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/apuracao/pdf")
 def get_apuracao_pdf(nome: str, user=Depends(get_current_user)):
     """Gera PDF com memória de cálculo individual (Q4 2025)."""

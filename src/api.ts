@@ -203,6 +203,22 @@ export async function updateClienteAe(nome_cliente: string, ae: string) {
   });
 }
 
+export async function downloadApuracaoPdfQ3(nome: string): Promise<void> {
+  const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+  const res = await fetch(
+    `${BASE_URL}/api/apuracao/pdf-q3?nome=${encodeURIComponent(nome)}`,
+    { headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `apuracao_q3_${nome.replace(/ /g, "_")}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function downloadApuracaoPdf(nome: string): Promise<void> {
   const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const res = await fetch(

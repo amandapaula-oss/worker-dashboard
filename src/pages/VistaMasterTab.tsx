@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Table, Spin, message, Tag, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
 import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { useReactToPrint } from "react-to-print";
-import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3 } from "../api";
+import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3, downloadApuracaoPdfQ3 } from "../api";
 import { toTitleCase } from "../utils/format";
 
 const { Option } = Select;
@@ -307,8 +307,17 @@ export default function VistaMasterTab() {
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
   const [detalheQ3, setDetalheQ3] = useState<DetalheCalculo | null>(null);
   const [loadingQ3, setLoadingQ3] = useState(false);
+  const [loadingPdfQ3, setLoadingPdfQ3] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: detalhe ? `Memória de Cálculo — ${detalhe.nome}` : "Memória de Cálculo" });
+
+  const handlePdfQ3 = () => {
+    if (!detalheQ3) return;
+    setLoadingPdfQ3(true);
+    downloadApuracaoPdfQ3(detalheQ3.nome)
+      .catch(() => message.error("Erro ao gerar PDF Q3"))
+      .finally(() => setLoadingPdfQ3(false));
+  };
 
   const carregar = () => {
     setLoading(true);
@@ -482,9 +491,19 @@ export default function VistaMasterTab() {
           detalhe && (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {detalheQ3 && (
-                <Tag color="geekblue" style={{ fontSize: 14 }}>
-                  Bônus Q3: {fmt(detalheQ3.bonus_total)}
-                </Tag>
+                <>
+                  <Tag color="geekblue" style={{ fontSize: 14 }}>
+                    Bônus Q3: {fmt(detalheQ3.bonus_total)}
+                  </Tag>
+                  <Button
+                    size="small"
+                    icon={<PrinterOutlined />}
+                    loading={loadingPdfQ3}
+                    onClick={handlePdfQ3}
+                  >
+                    PDF Q3
+                  </Button>
+                </>
               )}
               <Tag color="blue" style={{ fontSize: 14 }}>
                 Bônus Q4: {fmt(detalhe.bonus_total)}
