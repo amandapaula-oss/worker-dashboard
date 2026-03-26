@@ -43,12 +43,22 @@ def _load_all():
     tcv_real_q3_map = dict(zip(tcv_real_df["vertical"], tcv_real_df["tcv_q3"].astype(float))) if "tcv_q3" in tcv_real_df.columns else {}
     pesos_ws_df = pd.read_csv(os.path.join(DIR, "premissas_pesos_ws_pessoa.csv"), encoding="utf-8-sig")
     pesos_ws_df["nome_norm"] = pesos_ws_df["nome"].apply(norm)
-    # dict: nome_norm → {ws_key: peso}
+    # dict: nome_norm → {ws_key: peso}  (Q4)
     pesos_ws_pessoa = {
         row["nome_norm"]: {
             ws_k: float(row.get(ws_k, 0.0) or 0.0)
             for ws_k in WS_PESOS_Q4
         }
+        for _, row in pesos_ws_df.iterrows()
+    }
+    # dict: nome_norm → {ws_key: peso}  (Q3 — usa colunas _q3 se existirem, senão herda Q4)
+    def _ws_peso_q3(row, ws_k):
+        v = row.get(f"{ws_k}_q3")
+        if v is not None and v == v and str(v).strip() != "":  # not NaN, not empty
+            return float(v)
+        return float(row.get(ws_k, 0.0) or 0.0)
+    pesos_ws_pessoa_q3 = {
+        row["nome_norm"]: {ws_k: _ws_peso_q3(row, ws_k) for ws_k in WS_PESOS_Q4}
         for _, row in pesos_ws_df.iterrows()
     }
     rac       = pd.read_csv(os.path.join(DIR, "rac_projetos.csv"),        encoding="utf-8-sig")
@@ -365,7 +375,8 @@ def _load_all():
         "lb_trigger":    lb_trigger_map,
         "tcv_real":      tcv_real_map,
         "tcv_real_q3":   tcv_real_q3_map,
-        "pesos_ws_pessoa": pesos_ws_pessoa,
+        "pesos_ws_pessoa":     pesos_ws_pessoa,
+        "pesos_ws_pessoa_q3":  pesos_ws_pessoa_q3,
         "total_despesa_pessoas_q4": total_despesa_pessoas_q4,
         "total_dir_rac_q4":        total_dir_rac_q4,
         "mc_metas_dir":            mc_metas_dir,
@@ -1054,7 +1065,7 @@ def calc_bonus_ae_q3(nome: str) -> dict:
     bgt_rec_ws["total"] = float(rec_ae["q3"].sum())
     bgt_lb_ws["total"]  = float(lb_ae["q3"].sum())
 
-    person_ws_weights = d["pesos_ws_pessoa"].get(pessoa_nome_n, dict(WS_PESOS_Q4))
+    person_ws_weights = d["pesos_ws_pessoa_q3"].get(pessoa_nome_n, dict(WS_PESOS_Q4))
 
     realized_rec_ws:               dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
     realized_lb_ws:                dict[str, float] = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
