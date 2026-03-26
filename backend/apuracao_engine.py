@@ -2022,7 +2022,18 @@ def get_visao_master_q3() -> list[dict]:
     pessoas = d["pessoas"]
     resultados = []
 
-    ae_gm = pessoas[pessoas["Posicao"].str.upper().str.strip() == "AE_GM"]
+    # Inclui AE_GM + AEs que têm budget Q3 no Grupo Mult (ex: Danilo — AE sem TCV)
+    bgt_rec_q3 = d["bgt_rec"]
+    ae_com_budget_q3_gm = set(
+        bgt_rec_q3[
+            (bgt_rec_q3["bs"].str.upper().str.strip() == "GRUPO MULT") &
+            (bgt_rec_q3["q3"].fillna(0) > 0)
+        ]["ae_q3"].apply(lambda x: str(x).strip().upper())
+    )
+    ae_gm = pessoas[
+        (pessoas["Posicao"].str.upper().str.strip() == "AE_GM") |
+        (pessoas["Posicao"].str.upper().str.strip() == "AE") & pessoas["Nome"].apply(lambda x: str(x).strip().upper()).isin(ae_com_budget_q3_gm)
+    ]
 
     for _, p in ae_gm.iterrows():
         nome = p["Nome"]
