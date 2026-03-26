@@ -782,7 +782,9 @@ def calc_bonus_ae(nome: str) -> dict:
         bgt_tcv_q4_ae = float(
             tcv_rows[tcv_rows["descricao"].apply(lambda x: "receita" in str(x).lower())]["q4"].sum()
         )
-        real_tcv_q4_ae = float(d["tcv_real"].get("Grupo Mult", 0.0))
+        # Lookup por pessoa (ex: "Edmilson", "Guilherme"); fallback para vertical
+        _tcv_key = pessoa["Nome"].strip().split()[0].capitalize()
+        real_tcv_q4_ae = float(d["tcv_real"].get(_tcv_key, d["tcv_real"].get("Grupo Mult", 0.0)))
         ating_tcv_ae   = calc_atingimento(real_tcv_q4_ae, bgt_tcv_q4_ae, TRIGGER_REC_Q4)
         bonus_tcv_ae   = Q4_QTDE * ating_tcv_ae * salario * peso_tcv
         bonus_total   += bonus_tcv_ae
@@ -1249,8 +1251,9 @@ def calc_bonus_ae_q3(nome: str) -> dict:
         bgt_tcv_q3_ae = float(
             tcv_rows[tcv_rows["descricao"].apply(lambda x: "receita" in str(x).lower())]["q3"].sum()
         )
-        # Q3 TCV realizado: lido do tcv_realizado.csv coluna tcv_q3
-        real_tcv_q3_ae = float(d["tcv_real_q3"].get("Grupo Mult", 0.0))
+        # Q3 TCV realizado: lookup por pessoa; fallback para vertical
+        _tcv_key_q3 = pessoa["Nome"].strip().split()[0].capitalize()
+        real_tcv_q3_ae = float(d["tcv_real_q3"].get(_tcv_key_q3, d["tcv_real_q3"].get("Grupo Mult", 0.0)))
         ating_tcv_ae   = calc_atingimento(real_tcv_q3_ae, bgt_tcv_q3_ae, TRIGGER_REC_Q3)
         bonus_tcv_ae   = Q3_QTDE * ating_tcv_ae * salario * peso_tcv
         bonus_total   += bonus_tcv_ae
