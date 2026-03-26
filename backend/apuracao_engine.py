@@ -498,6 +498,7 @@ def calc_bonus_ae(nome: str) -> dict:
     if pesos_row.empty:
         pesos_row = d["pesos_m"][(d["pesos_m"]["Periodo"] == "Quarter") & (d["pesos_m"]["Posicao"] == "AE")]
     pesos_row = pesos_row.iloc[0]
+    peso_tcv = float(pesos_row["TCV"] or 0)
     peso_rec = float(pesos_row["Receita"] or 0)
     peso_mb  = float(pesos_row["MB_pct"] or 0)
 
@@ -762,6 +763,22 @@ def calc_bonus_ae(nome: str) -> dict:
             "clientes_ws":         cli_contrib.get(ws_k, []),
         })
 
+    # TCV da área (apenas AE_GM — usa TCV do vertical Grupo Mult)
+    bgt_tcv_q4_ae = 0.0
+    real_tcv_q4_ae = 0.0
+    ating_tcv_ae = 0.0
+    bonus_tcv_ae = 0.0
+    if peso_tcv > 0:
+        tcv_rows = d["bgt_tcv"][d["bgt_tcv"]["ae"].apply(
+            lambda x: str(x).strip() if pd.notna(x) else "") == "Grupo Mult"]
+        bgt_tcv_q4_ae = float(
+            tcv_rows[tcv_rows["descricao"].apply(lambda x: "receita" in str(x).lower())]["q4"].sum()
+        )
+        real_tcv_q4_ae = float(d["tcv_real"].get("Grupo Mult", 0.0))
+        ating_tcv_ae   = calc_atingimento(real_tcv_q4_ae, bgt_tcv_q4_ae, TRIGGER_REC_Q4)
+        bonus_tcv_ae   = Q4_QTDE * ating_tcv_ae * salario * peso_tcv
+        bonus_total   += bonus_tcv_ae
+
     # Atingimento total
     ating_rec_total = calc_atingimento(real_rec_total, bgt_rec_total, TRIGGER_REC_Q4)
     ating_mb_total  = calc_atingimento_mb(real_mb_pct, bgt_mb_pct)
@@ -781,8 +798,13 @@ def calc_bonus_ae(nome: str) -> dict:
         "contrato":      str(pessoa.get("Contrato", "")),
         "salario_q4":    salario,
         "periodo":       "Q4 2025",
+        "peso_tcv":      peso_tcv,
         "peso_receita":  peso_rec,
         "peso_mb":       peso_mb,
+        "budget_tcv_q4": round(bgt_tcv_q4_ae, 2),
+        "real_tcv_q4":   round(real_tcv_q4_ae, 2),
+        "ating_tcv":     round(ating_tcv_ae, 4),
+        "bonus_tcv":     round(bonus_tcv_ae, 2),
         "trigger_rec":   TRIGGER_REC_Q4,
         "trigger_mb_pct_total": trigger_mb_pct_total,
         "lb_gate":       lb_gate,
