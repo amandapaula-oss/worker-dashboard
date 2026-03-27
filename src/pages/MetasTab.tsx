@@ -4,9 +4,10 @@ import { SearchOutlined } from "@ant-design/icons";
 import { getMetasFilters, getMetasCustoPessoal } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
 import { toTitleCase } from "../utils/format";
+import { theme } from "../theme";
 
 const labelStyle: React.CSSProperties = {
-  color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
+  color: theme.text, fontSize: "0.8rem", fontWeight: 600,
   textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
 };
 
@@ -58,7 +59,7 @@ export default function MetasTab() {
       width: 150,
       align: "right" as const,
       render: (v: number) => (
-        <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>
+        <span style={{ color: v < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>
           {v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
         </span>
       ),

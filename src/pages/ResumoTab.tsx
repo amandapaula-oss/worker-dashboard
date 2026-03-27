@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Typography, Card, Statistic } from "antd";
 import { getMargemFilters, getResumo } from "../api";
 import { toTitleCase } from "../utils/format";
+import { theme } from "../theme";
 
 const { Text } = Typography;
 
@@ -9,7 +10,7 @@ const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const labelStyle: React.CSSProperties = {
-  color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
+  color: theme.text, fontSize: "0.8rem", fontWeight: 600,
   textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
 };
 
@@ -141,11 +142,11 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
       children: [
         {
           ...numCol(`${p}_receita`), title: "Receita", width: 140,
-          render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
+          render: (v: number) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span>,
         },
         {
           ...numCol(`${p}_custo`), title: "Custo", width: 140,
-          render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
+          render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v || 0)}</span>,
         },
         {
           ...numCol(`${p}_margem`), title: "Margem", width: 140,
@@ -171,11 +172,11 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
         children: [
           {
             ...numCol("total_receita"), title: "Receita", width: 150,
-            render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span>,
+            render: (v: number) => <span style={{ color: theme.text, fontWeight: 700 }}>{brl(v || 0)}</span>,
           },
           {
             ...numCol("total_custo"), title: "Custo", width: 150,
-            render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span>,
+            render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text, fontWeight: 700 }}>{brl(v || 0)}</span>,
           },
           {
             ...numCol("total_margem"), title: "Margem", width: 150,
@@ -231,8 +232,8 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
       {/* KPI Cards */}
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
         {[
-          { label: "Receita Total",  value: `R$ ${totReceita.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, color: "#1a2e5a" },
-          { label: "Custo Rateado",  value: `R$ ${totCusto.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,   color: totCusto  < 0 ? "#c0392b" : "#1a2e5a" },
+          { label: "Receita Total",  value: `R$ ${totReceita.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, color: theme.text },
+          { label: "Custo Rateado",  value: `R$ ${totCusto.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,   color: totCusto  < 0 ? "#c0392b" : theme.text },
           { label: "Margem Bruta",   value: `R$ ${totMargem.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,   color: totMargem < 0 ? "#c0392b" : "#0a7a3e" },
           { label: "Margem %",       value: `${(totPct * 100).toFixed(1)}%`,                                                                     color: totPct < 0.1 ? "#c0392b" : totPct < 0.3 ? "#856404" : "#0a7a3e" },
         ].map(k => (

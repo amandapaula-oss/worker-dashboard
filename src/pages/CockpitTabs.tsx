@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Select, Spin, Table, message } from "antd";
 import { getNexusFilters, getDre, getStreams, getMatricial } from "../api";
 import PLTable from "../components/PLTable";
+import { theme } from "../theme";
 
 
 const labelStyle: React.CSSProperties = {
-  color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
+  color: theme.text, fontSize: "0.8rem", fontWeight: 600,
   textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
 };
 
@@ -207,7 +208,7 @@ export function MatricialTab() {
       if (typeof v !== "number") return <strong>{v}</strong>;
       const isPct = pctCols.includes(col);
       const formatted = isPct ? `${(v * 100).toFixed(1)}%` : v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-      const color = v < 0 ? "#c0392b" : "#1a2e5a";
+      const color = v < 0 ? "#c0392b" : theme.text;
       return <span style={{ color }}>{formatted}</span>;
     },
   }));

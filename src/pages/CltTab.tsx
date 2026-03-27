@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Select, Table, Spin } from "antd";
 import { getCltData } from "../api";
 import { toTitleCase } from "../utils/format";
+import { theme } from "../theme";
 
 const labelStyle: React.CSSProperties = {
-  color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
+  color: theme.text, fontSize: "0.8rem", fontWeight: 600,
   textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
 };
 
@@ -45,7 +46,7 @@ export default function CltTab() {
       key: "totalizador",
       align: "right" as const,
       render: (v: number) => (
-        <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a" }}>
+        <span style={{ color: v < 0 ? "#c0392b" : theme.text }}>
           {v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       ),

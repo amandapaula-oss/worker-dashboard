@@ -7,6 +7,7 @@ import KPICard from "../components/KPICard";
 import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
+import { theme } from "../theme";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 import MargemTab from "./MargemTab";
 import CheckLucasTab from "./CheckLucasTab";
@@ -75,7 +76,7 @@ function WorkerTab() {
   const breadcrumbItems = [
     {
       title: (
-        <span style={{ cursor: "pointer", color: "#2d50a0" }} onClick={() => setPath([])}>
+        <span style={{ cursor: "pointer", color: theme.link }} onClick={() => setPath([])}>
           <HomeOutlined /> Início
         </span>
       ),
@@ -84,7 +85,7 @@ function WorkerTab() {
       title: (
         <span
           style={{ cursor: i < path.length - 1 ? "pointer" : "default",
-                   color: i === path.length - 1 ? "#1a2e5a" : "#2d50a0",
+                   color: i === path.length - 1 ? theme.text : theme.link,
                    fontWeight: i === path.length - 1 ? 600 : 400 }}
           onClick={() => i < path.length - 1 && setPath(prev => prev.slice(0, i + 1))}
         >
@@ -98,7 +99,7 @@ function WorkerTab() {
     <div>
       <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
         <Space wrap>
-          <Text strong style={{ color: "#1a2e5a" }}>Competência:</Text>
+          <Text strong style={{ color: theme.text }}>Competência:</Text>
           <Button size="small" type="link" onClick={() => setSelComp(competencias)}>Todas</Button>
           <Button size="small" type="link" onClick={() => setSelComp([])}>Nenhuma</Button>
           <Divider type="vertical" />
@@ -120,7 +121,7 @@ function WorkerTab() {
         </div>
       )}
 
-      <Title level={5} style={{ color: "#1a2e5a", borderBottom: "2px solid #2d50a0", paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
+      <Title level={5} style={{ color: theme.text, borderBottom: `2px solid ${theme.accent}`, paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
         Comparativo por Competência
       </Title>
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : <MonthlySection data={mensal} />}
@@ -129,7 +130,7 @@ function WorkerTab() {
 
       {currentLevel && (
         <>
-          <Title level={5} style={{ color: "#1a2e5a", borderBottom: "2px solid #2d50a0", paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
+          <Title level={5} style={{ color: theme.text, borderBottom: `2px solid ${theme.accent}`, paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
             Visão por {LEVEL_LABELS[currentLevel]}
           </Title>
           {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
@@ -152,16 +153,16 @@ export default function Dashboard() {
   const [apenasAtribuidos, setApenasAtribuidos] = useState(false);
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: "#2d50a0", borderRadius: 8 } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: theme.accent, borderRadius: 8 } }}>
       <Layout style={{ minHeight: "100vh", background: "#f4f6fb" }}>
         <Header style={{ background: "#fff", borderBottom: "1px solid #dde3f0", padding: "0 2rem", height: "auto", lineHeight: "normal", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", paddingTop: "0.8rem", paddingBottom: "0.8rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {section && (
-              <Button icon={<ArrowLeftOutlined />} type="text" style={{ color: "#2d50a0" }} onClick={() => setSection(null)} />
+              <Button icon={<ArrowLeftOutlined />} type="text" style={{ color: theme.link }} onClick={() => setSection(null)} />
             )}
             <span style={{ fontSize: 28 }}>📊</span>
             <div>
-              <Title level={4} style={{ margin: 0, color: "#1a2e5a" }}>Cockpit FP&A</Title>
+              <Title level={4} style={{ margin: 0, color: theme.text }}>Cockpit FP&A</Title>
               <Text type="secondary" style={{ fontSize: "0.8rem" }}>Visualização gerencial de resultados financeiros</Text>
             </div>
           </div>
@@ -180,7 +181,7 @@ export default function Dashboard() {
                 styles={{ body: { padding: "2.5rem 2rem" } }}
               >
                 <div style={{ fontSize: 52, marginBottom: 16 }}>👷</div>
-                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Worker</Title>
+                <Title level={4} style={{ color: theme.text, marginBottom: 8 }}>Worker</Title>
                 <Text type="secondary">Base Worker, receitas e custos por colaborador</Text>
               </Card>
 
@@ -191,7 +192,7 @@ export default function Dashboard() {
                 styles={{ body: { padding: "2.5rem 2rem" } }}
               >
                 <div style={{ fontSize: 52, marginBottom: 16 }}>🏢</div>
-                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Financeiro</Title>
+                <Title level={4} style={{ color: theme.text, marginBottom: 8 }}>Financeiro</Title>
                 <Text type="secondary">DRE, P&L por Stream, Matricial e Base SAP S4</Text>
               </Card>
 
@@ -202,7 +203,7 @@ export default function Dashboard() {
                 styles={{ body: { padding: "2.5rem 2rem" } }}
               >
                 <div style={{ fontSize: 52, marginBottom: 16 }}>🎯</div>
-                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>Apuração de Metas</Title>
+                <Title level={4} style={{ color: theme.text, marginBottom: 8 }}>Apuração de Metas</Title>
                 <Text type="secondary">Acompanhamento e apuração de metas</Text>
               </Card>
 
@@ -213,7 +214,7 @@ export default function Dashboard() {
                 styles={{ body: { padding: "2.5rem 2rem" } }}
               >
                 <div style={{ fontSize: 52, marginBottom: 16 }}>📈</div>
-                <Title level={4} style={{ color: "#1a2e5a", marginBottom: 8 }}>P&L</Title>
+                <Title level={4} style={{ color: theme.text, marginBottom: 8 }}>P&L</Title>
                 <Text type="secondary">Resumo por empresa e margem por cliente</Text>
               </Card>
             </div>
@@ -238,7 +239,7 @@ export default function Dashboard() {
                   checked={apenasAtribuidos}
                   onChange={v => setApenasAtribuidos(v)}
                 />
-                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: apenasAtribuidos ? "#2d50a0" : "#6b7fa3" }}>
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: apenasAtribuidos ? theme.link : "#6b7fa3" }}>
                   Apenas projetos atribuídos
                 </span>
                 {apenasAtribuidos && (
@@ -294,9 +295,9 @@ export default function Dashboard() {
       <style>{`
         .total-row td { background-color: #dce6f7 !important; font-weight: 700; }
         .subtotal-row td { background-color: #dce6f7 !important; font-weight: 700; }
-        .ant-table-thead > tr > th { background: #2d50a0 !important; color: #fff !important; font-weight: 600; }
+        .ant-table-thead > tr > th { background: ${theme.accent} !important; color: #fff !important; font-weight: 600; }
         .ant-table-row:hover > td { background: #f0f4ff !important; }
-        .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active { background: #2d50a0 !important; border-color: #2d50a0 !important; }
+        .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active { background: ${theme.accent} !important; border-color: ${theme.accent} !important; }
         .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn { color: #fff !important; }
       `}</style>
     </ConfigProvider>

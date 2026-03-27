@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Select, Table } from "antd";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Mensal } from "../types";
+import { theme } from "../theme";
 
 interface Props {
   data: Mensal[];
@@ -35,7 +36,7 @@ export default function MonthlySection({ data }: Props) {
     { title: "Custo", dataIndex: "custo", key: "custo",
       render: (v: number) => fmtBRL(v), align: "right" as const },
     { title: "Lucro Bruto", dataIndex: "lucro_bruto", key: "lucro_bruto",
-      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a" }}>{fmtBRL(v)}</span>,
+      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : theme.text }}>{fmtBRL(v)}</span>,
       align: "right" as const },
     { title: "Margem Bruta %", dataIndex: "margem_bruta", key: "margem_bruta",
       render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#1a7a4a", fontWeight: 600 }}>{fmtPct(v)}</span>,
@@ -63,11 +64,11 @@ export default function MonthlySection({ data }: Props) {
           />
           <Tooltip
             formatter={(v: number | string | undefined) => fmtVal(Number(v ?? 0), metric)}
-            labelStyle={{ color: "#1a2e5a" }}
+            labelStyle={{ color: theme.text }}
             contentStyle={{ borderRadius: 8, border: "1px solid #dde3f0" }}
           />
           <Bar dataKey={metric} radius={[4, 4, 0, 0]}>
-            {chartData.map((_, i) => <Cell key={i} fill="#2d50a0" />)}
+            {chartData.map((_, i) => <Cell key={i} fill={theme.accent} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>

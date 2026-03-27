@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Form, Input, Button, Alert, Card, Typography } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { login } from "../api";
+import { theme } from "../theme";
 
 const { Title, Text } = Typography;
 
@@ -28,12 +29,12 @@ export default function Login() {
       display: "flex", alignItems: "center", justifyContent: "center",
     }}>
       <Card
-        style={{ width: 380, borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)", borderTop: "4px solid #2d50a0" }}
+        style={{ width: 380, borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)", borderTop: `4px solid ${theme.accent}` }}
         styles={{ body: { padding: "2rem" } }}
       >
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>👷</div>
-          <Title level={3} style={{ color: "#1a2e5a", margin: 0 }}>Worker Dashboard</Title>
+          <Title level={3} style={{ color: theme.text, margin: 0 }}>Worker Dashboard</Title>
           <Text type="secondary">Faça login para continuar</Text>
         </div>
 
@@ -48,7 +49,7 @@ export default function Login() {
           </Form.Item>
           <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
             <Button type="primary" htmlType="submit" size="large" block loading={loading}
-              style={{ background: "#2d50a0", borderColor: "#2d50a0", borderRadius: 8 }}>
+              style={{ background: theme.accent, borderColor: theme.accent, borderRadius: 8 }}>
               Entrar
             </Button>
           </Form.Item>

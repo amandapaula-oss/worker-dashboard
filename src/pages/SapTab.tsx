@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Select, Table, Spin, message } from "antd";
 import { getSapFilters, getSapData } from "../api";
+import { theme } from "../theme";
 
 
 export default function SapTab() {
@@ -87,4 +88,4 @@ export default function SapTab() {
   );
 }
 
-const labelStyle: React.CSSProperties = { color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 };
+const labelStyle: React.CSSProperties = { color: theme.text, fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 };

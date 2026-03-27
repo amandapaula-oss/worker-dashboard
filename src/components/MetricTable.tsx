@@ -1,6 +1,7 @@
 import React from "react";
 import { Table, Tag } from "antd";
 import { Metrica } from "../types";
+import { theme } from "../theme";
 
 interface Props {
   data: Metrica[];
@@ -26,7 +27,7 @@ export default function MetricTable({ data, onSelect, levelKey }: Props) {
         if (isTotal) return <strong>{text}</strong>;
         if (onSelect) return (
           <span
-            style={{ color: "#2d50a0", cursor: "pointer", textDecoration: "underline" }}
+            style={{ color: theme.link, cursor: "pointer", textDecoration: "underline" }}
             onClick={() => onSelect(row)}
           >
             {text} <span style={{ fontSize: "0.75rem" }}>›</span>
@@ -61,7 +62,7 @@ export default function MetricTable({ data, onSelect, levelKey }: Props) {
       dataIndex: "lucro_bruto",
       key: "lucro_bruto",
       render: (v: number) => (
-        <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a" }}>{fmtBRL(v)}</span>
+        <span style={{ color: v < 0 ? "#c0392b" : theme.text }}>{fmtBRL(v)}</span>
       ),
       align: "right" as const,
     },

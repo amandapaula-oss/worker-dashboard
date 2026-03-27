@@ -1,5 +1,6 @@
 import React from "react";
 import { Table } from "antd";
+import { theme } from "../theme";
 
 interface PLRow {
   name: string;
@@ -29,7 +30,7 @@ export default function PLTable({ rows, columns }: Props) {
       fixed: "left" as const,
       width: 220,
       render: (text: string, record: PLRow) => (
-        <span style={{ fontWeight: record.is_subtotal ? 700 : 400, color: "#1a2e5a" }}>{text}</span>
+        <span style={{ fontWeight: record.is_subtotal ? 700 : 400, color: theme.text }}>{text}</span>
       ),
     },
     ...columns.map(col => ({
@@ -41,7 +42,7 @@ export default function PLTable({ rows, columns }: Props) {
       render: (_: any, record: PLRow) => {
         const v = record.values[col] ?? 0;
         const formatted = record.is_pct ? fmtPct(v) : fmtBRL(v);
-        const color = v < 0 && !record.is_pct ? "#c0392b" : "#1a2e5a";
+        const color = v < 0 && !record.is_pct ? "#c0392b" : theme.text;
         return <span style={{ fontWeight: record.is_subtotal ? 700 : 400, color }}>{formatted}</span>;
       },
     })),

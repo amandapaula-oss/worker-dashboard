@@ -5,11 +5,12 @@ import * as XLSX from "xlsx";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas, getMargemPessoaProjetos } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
 import { toTitleCase } from "../utils/format";
+import { theme } from "../theme";
 
 const { Text } = Typography;
 
 const labelStyle: React.CSSProperties = {
-  color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
+  color: theme.text, fontSize: "0.8rem", fontWeight: 600,
   textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
 };
 
@@ -198,14 +199,14 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
+      render: (v: number) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
       title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
       render: (v: number) => (
-        <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>
+        <span style={{ color: v < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span>
       ),
     },
     {
@@ -248,14 +249,14 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
+      render: (v: number) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
       title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
       render: (v: number) => (
-        <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>
+        <span style={{ color: v < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span>
       ),
     },
     {
@@ -301,14 +302,14 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
+      render: (v: number) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
       title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
       render: (v: number) => (
-        <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>
+        <span style={{ color: v < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span>
       ),
     },
     {
@@ -338,12 +339,12 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
+      render: (v: number) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
       title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
       align: "right" as const,
-      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
+      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
       title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100,
@@ -438,8 +439,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     const periodoCols = selPeriodos.map(p => ({
       title: periodoLabel(p),
       children: [
-        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
-        { ...numCol(`${p}_custo`),   title: "Custo",   render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_custo`),   title: "Custo",   render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
         { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ],
     }));
@@ -453,8 +454,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       {
         title: "Total",
         children: [
-          { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
-          { ...numCol("total_custo"),   title: "Custo",   render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
+          { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: theme.text, fontWeight: 700 }}>{brl(v || 0)}</span> },
+          { ...numCol("total_custo"),   title: "Custo",   render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : theme.text, fontWeight: 700 }}>{brl(v || 0)}</span> },
           { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
         ],
       },
@@ -497,8 +498,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     const periodoCols = selPeriodos.map(p => ({
       title: periodoLabel(p),
       children: [
-        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
-        { ...numCol(`${p}_custo`),   title: "Custo",   render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_custo`),   title: "Custo",   render: (v: number) => v != null ? <span style={{ color: (v||0) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
         { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ],
     }));
@@ -508,8 +509,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       { title: "AE",       dataIndex: "ae",           key: "ae",           width: 180, ellipsis: true, render: (v: string) => toTitleCase(v) || "—" },
       ...periodoCols,
       { title: "Total", children: [
-        { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
-        { ...numCol("total_custo"),   title: "Custo",   render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
+        { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: theme.text, fontWeight: 700 }}>{brl(v || 0)}</span> },
+        { ...numCol("total_custo"),   title: "Custo",   render: (v: number) => <span style={{ color: (v||0) < 0 ? "#c0392b" : theme.text, fontWeight: 700 }}>{brl(v || 0)}</span> },
         { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ]},
     ];
@@ -525,7 +526,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     const periodoCols = selPeriodos.map(p => ({
       title: periodoLabel(p),
       children: [
-        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
+        { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
         { ...numCol(`${p}_margem_pct`, (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ],
     }));
@@ -536,7 +537,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       { title: "Empresa", dataIndex: "empresa",        key: "empresa",        width: 110, render: (v: string) => toTitleCase(v) || "—" },
       ...periodoCols,
       { title: "Total", children: [
-        { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 700 }}>{brl(v || 0)}</span> },
+        { ...numCol("total_receita"), title: "Receita", render: (v: number) => <span style={{ color: theme.text, fontWeight: 700 }}>{brl(v || 0)}</span> },
         { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ]},
     ];
@@ -564,10 +565,10 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       render: (v: string) => toTitleCase(v) || "—" },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita)||0) - (Number(b.receita)||0),
-      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
+      render: (v: number) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span> },
     { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_rateado)||0) - (Number(b.custo_rateado)||0),
-      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
+      render: (v: number) => <span style={{ color: v < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span> },
     { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100, align: "center" as const,
       sorter: (a: any, b: any) => (Number(a.margem_pct)||0) - (Number(b.margem_pct)||0),
       render: (v: number | "") => <MargemTag value={v} /> },
@@ -702,7 +703,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
   const breadcrumb = [
     {
       title: (
-        <span style={{ cursor: "pointer", color: "#2d50a0" }}
+        <span style={{ cursor: "pointer", color: theme.link }}
           onClick={() => { setSelectedCliente(null); setSelectedPep(null); setSelectedPessoa(null); }}>
           <HomeOutlined /> Clientes
         </span>
@@ -710,26 +711,26 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     },
     ...(selectedCliente ? [{
       title: selectedPep ? (
-        <span style={{ cursor: "pointer", color: "#2d50a0" }}
+        <span style={{ cursor: "pointer", color: theme.link }}
           onClick={() => { setSelectedPep(null); setSelectedPessoa(null); }}>
           {selectedCliente}
         </span>
       ) : (
-        <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{selectedCliente}</span>
+        <span style={{ color: theme.text, fontWeight: 600 }}>{selectedCliente}</span>
       ),
     }] : []),
     ...(selectedPep ? [{
       title: selectedPessoa ? (
-        <span style={{ cursor: "pointer", color: "#2d50a0" }}
+        <span style={{ cursor: "pointer", color: theme.link }}
           onClick={() => setSelectedPessoa(null)}>
           {selectedPep.pep}
         </span>
       ) : (
-        <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{selectedPep.pep}</span>
+        <span style={{ color: theme.text, fontWeight: 600 }}>{selectedPep.pep}</span>
       ),
     }] : []),
     ...(selectedPessoa ? [{
-      title: <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{selectedPessoa.nome}</span>,
+      title: <span style={{ color: theme.text, fontWeight: 600 }}>{selectedPessoa.nome}</span>,
     }] : []),
   ];
 
@@ -742,8 +743,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     return (
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
         {[
-          { label: "Receita Total",    value: receita,       color: "#1a2e5a", fmt: "brl" },
-          { label: "Custo Rateado",    value: custo_rateado, color: custo_rateado < 0 ? "#c0392b" : "#1a2e5a", fmt: "brl" },
+          { label: "Receita Total",    value: receita,       color: theme.text, fmt: "brl" },
+          { label: "Custo Rateado",    value: custo_rateado, color: custo_rateado < 0 ? "#c0392b" : theme.text, fmt: "brl" },
           { label: "Margem Bruta",     value: margem,        color: margem < 0 ? "#c0392b" : "#0a7a3e", fmt: "brl" },
           { label: "Margem %",         value: margem_pct,    color: margem_pct < 0.1 ? "#c0392b" : margem_pct < 0.3 ? "#856404" : "#0a7a3e", fmt: "pct" },
         ].map(k => (
@@ -840,7 +841,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
           />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "flex-end" }}>
-          <Button icon={<DownloadOutlined />} onClick={exportExcel} style={{ background: "#2d50a0", color: "#fff", border: "none" }}>
+          <Button icon={<DownloadOutlined />} onClick={exportExcel} style={{ background: theme.accent, color: "#fff", border: "none" }}>
             Exportar Excel
           </Button>
         </div>
@@ -855,7 +856,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
 
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : selectedPessoa ? (
         <>
-          <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0, marginBottom: 12 }}
+          <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: theme.link, paddingLeft: 0, marginBottom: 12 }}
             onClick={() => setSelectedPessoa(null)}>
             Voltar para pessoas
           </Button>
@@ -891,7 +892,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       ) : (selectedPep || searchPessoa.trim()) ? (
         <>
           {selectedPep && (
-            <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0, marginBottom: 12 }}
+            <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: theme.link, paddingLeft: 0, marginBottom: 12 }}
               onClick={() => setSelectedPep(null)}>
               Voltar para projetos
             </Button>
@@ -930,7 +931,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         </>
       ) : selectedCliente ? (
         <>
-          <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: "#2d50a0", paddingLeft: 0, marginBottom: 12 }}
+          <Button icon={<ArrowLeftOutlined />} type="link" style={{ color: theme.link, paddingLeft: 0, marginBottom: 12 }}
             onClick={() => setSelectedCliente(null)}>
             Voltar para clientes
           </Button>

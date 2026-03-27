@@ -4,6 +4,7 @@ import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCir
 import { useReactToPrint } from "react-to-print";
 import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3 } from "../api";
 import { toTitleCase } from "../utils/format";
+import { theme } from "../theme";
 
 const { Option } = Select;
 
@@ -204,12 +205,12 @@ function AchievementBar({ meta, trigger, realizado, bonusAtMaxAting }: {
         <React.Fragment key={t.ating}>
           <div style={{
             position: "absolute", left: `${t.pos}%`, top: 20, width: t.ating === 1.0 ? 2 : 1, height: 14,
-            background: t.ating === 1.0 ? "#1677ff80" : "rgba(0,0,0,0.12)",
+            background: t.ating === 1.0 ? `${theme.link}80` : "rgba(0,0,0,0.12)",
             transform: "translateX(-50%)",
           }} />
           <div style={{
             position: "absolute", left: `${t.pos}%`, top: 36,
-            fontSize: 9, color: t.ating === 1.0 ? "#1677ff" : "#bbb",
+            fontSize: 9, color: t.ating === 1.0 ? theme.link : "#bbb",
             transform: "translateX(-50%)", whiteSpace: "nowrap", textAlign: "center",
           }}>
             {Math.round(t.ating * 100)}%
@@ -353,7 +354,7 @@ export default function VistaMasterTab() {
       dataIndex: "nome",
       key: "nome",
       render: (v: string, record: MasterRow) => (
-        <span style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }} onClick={() => abrirDetalhe(v, record.posicao)}>
+        <span style={{ cursor: "pointer", color: theme.link, fontWeight: 500 }} onClick={() => abrirDetalhe(v, record.posicao)}>
           <UserOutlined style={{ marginRight: 6 }} />{toTitleCase(v)}
         </span>
       ),
@@ -487,7 +488,7 @@ export default function VistaMasterTab() {
         {loadingDetalhe && <Spin />}
         {detalhe && !loadingDetalhe && (
           <div ref={printRef} style={{ padding: 8 }}>
-            <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a2e5a" }}>
+            <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: theme.text }}>
               Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q4 2025</span>
             </h2>
             <DetalheDrawer d={detalhe} />
@@ -1103,7 +1104,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         columns={[
           { title: "Linha", dataIndex: "linha", width: "45%",
             render: (v: string, row: any) => {
-              const color = row.tipo === "receita" ? "#1a2e5a"
+              const color = row.tipo === "receita" ? theme.text
                 : row.tipo === "mb" ? "#1a6e3c"
                 : row.tipo === "despesa" ? "#e67e22"
                 : "#0050b3";
@@ -1115,7 +1116,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
           { title: "Realizado Q4", dataIndex: "real", align: "right" as const,
             render: (v: number, row: any) => {
               if (v === 0 && row.tipo !== "mb" && row.tipo !== "mc") return <span style={{ color: "#ccc" }}>—</span>;
-              const color = row.tipo === "receita" ? "#1a2e5a"
+              const color = row.tipo === "receita" ? theme.text
                 : row.tipo === "mb" ? "#1a6e3c"
                 : row.tipo === "despesa" ? "#e67e22"
                 : "#0050b3";
@@ -1287,7 +1288,7 @@ export function VistaMasterTabQ3() {
       dataIndex: "nome",
       key: "nome",
       render: (v: string) => (
-        <span style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }} onClick={() => abrirDetalhe(v)}>
+        <span style={{ cursor: "pointer", color: theme.link, fontWeight: 500 }} onClick={() => abrirDetalhe(v)}>
           <UserOutlined style={{ marginRight: 6 }} />{toTitleCase(v)}
         </span>
       ),

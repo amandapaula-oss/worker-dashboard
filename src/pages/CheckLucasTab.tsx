@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Select, Table, Spin, message, Card, Statistic } from "antd";
 import { getRazaoFilters, getRazaoComparativo } from "../api";
 import { toTitleCase } from "../utils/format";
+import { theme } from "../theme";
 
 const labelStyle: React.CSSProperties = {
-  color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
+  color: theme.text, fontSize: "0.8rem", fontWeight: 600,
   textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
 };
 
@@ -80,13 +81,13 @@ export default function CheckLucasTab() {
       title: "Receita (RAC)", dataIndex: "receita", key: "receita", width: 150,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
+      render: (v: number) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
       title: "Receita (Razão)", dataIndex: "receita_razao", key: "receita_razao", width: 170,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita_razao) || 0) - (Number(b.receita_razao) || 0),
-      render: (v: number) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
+      render: (v: number) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
       title: "Δ Receita", dataIndex: "diff_receita", key: "diff_receita", width: 145,
@@ -99,13 +100,13 @@ export default function CheckLucasTab() {
       title: "Custo CLT (DP)", dataIndex: "custo_clt", key: "custo_clt", width: 150,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_clt) || 0) - (Number(b.custo_clt) || 0),
-      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
+      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
       title: "Custo CLT (Razão)", dataIndex: "payroll_razao", key: "payroll_razao", width: 175,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.payroll_razao) || 0) - (Number(b.payroll_razao) || 0),
-      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
+      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
       title: "Δ CLT", dataIndex: "diff_clt", key: "diff_clt", width: 130,
@@ -118,13 +119,13 @@ export default function CheckLucasTab() {
       title: "Custo PJ (Arq. Lucas)", dataIndex: "custo_pj", key: "custo_pj", width: 170,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_pj) || 0) - (Number(b.custo_pj) || 0),
-      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
+      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
       title: "Custo PJ (Razão)", dataIndex: "thirdparty_razao", key: "thirdparty_razao", width: 170,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.thirdparty_razao) || 0) - (Number(b.thirdparty_razao) || 0),
-      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v || 0)}</span>,
+      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v || 0)}</span>,
     },
     {
       title: "Δ PJ", dataIndex: "diff_pj", key: "diff_pj", width: 130,
@@ -154,11 +155,11 @@ export default function CheckLucasTab() {
   ];
 
   const kpis = [
-    { label: "Receita (RAC)",         value: totReceita,               sub: `Razão: ${brl(totRecRazao)}`,          color: "#1a2e5a" },
+    { label: "Receita (RAC)",         value: totReceita,               sub: `Razão: ${brl(totRecRazao)}`,          color: theme.text },
     { label: "Δ Receita",             value: totReceita - totRecRazao, sub: "RAC − Razão",                         color: Math.abs(totReceita - totRecRazao) < 1 ? "#888" : totReceita > totRecRazao ? "#0a7a3e" : "#c0392b" },
-    { label: "Custo CLT (DP)",        value: totCusClt,                sub: `Razão: ${brl(totPayroll)}`,           color: totCusClt < 0 ? "#c0392b" : "#1a2e5a" },
+    { label: "Custo CLT (DP)",        value: totCusClt,                sub: `Razão: ${brl(totPayroll)}`,           color: totCusClt < 0 ? "#c0392b" : theme.text },
     { label: "Δ CLT",                 value: totCusClt - totPayroll,   sub: "DP − Razão",                         color: Math.abs(totCusClt - totPayroll) < 1 ? "#888" : totCusClt > totPayroll ? "#0a7a3e" : "#c0392b" },
-    { label: "Custo PJ (Arq. Lucas)", value: totCusPj,                 sub: `Razão: ${brl(totThirdParty)}`,        color: totCusPj < 0 ? "#c0392b" : "#1a2e5a" },
+    { label: "Custo PJ (Arq. Lucas)", value: totCusPj,                 sub: `Razão: ${brl(totThirdParty)}`,        color: totCusPj < 0 ? "#c0392b" : theme.text },
     { label: "Δ PJ",                  value: totCusPj - totThirdParty, sub: "Arq. Lucas − Razão",                 color: Math.abs(totCusPj - totThirdParty) < 1 ? "#888" : totCusPj > totThirdParty ? "#0a7a3e" : "#c0392b" },
     { label: "Margem (RAC+DP+Lucas)", value: totMargemRac,             sub: `Razão: ${brl(totMargemRazao)}`,       color: totMargemRac < 0 ? "#c0392b" : "#0a7a3e" },
     { label: "Δ Margem",              value: totMargemRac - totMargemRazao, sub: "Bases − Razão",                  color: Math.abs(totMargemRac - totMargemRazao) < 1 ? "#888" : totMargemRac > totMargemRazao ? "#0a7a3e" : "#c0392b" },

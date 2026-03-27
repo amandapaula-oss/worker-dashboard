@@ -3,6 +3,7 @@ import { Table, Input, Select, Spin, message, Button, Breadcrumb, Tag } from "an
 import { HomeOutlined, SearchOutlined, EditOutlined, CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { getClientes, updateClienteAe, getMargemProjetos, getMargemPessoas } from "../api";
 import { toTitleCase } from "../utils/format";
+import { theme } from "../theme";
 
 const brl = (v: any) =>
   Number(v) ? Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—";
@@ -20,21 +21,25 @@ function MargemTag({ value }: { value: any }) {
 }
 
 const labelStyle: React.CSSProperties = {
-  color: "#3a4f7a", fontSize: "0.8rem", fontWeight: 600,
+  color: theme.text, fontSize: "0.8rem", fontWeight: 600,
   textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
 };
 
-const BU_COLORS: Record<string, string> = {
-  "Finance": "#1677ff",
-  "Retail": "#52c41a",
-  "Health": "#eb2f96",
-  "Multisector": "#fa8c16",
-  "Grupo Mult": "#722ed1",
+const BU_COLORS: Record<string, { color: string; bg: string }> = {
+  "Finance":    { color: theme.cat1.main, bg: theme.cat1.bg },
+  "Retail":     { color: theme.cat4.main, bg: theme.cat4.bg },
+  "Health":     { color: theme.cat3.main, bg: theme.cat3.bg },
+  "Multisector":{ color: theme.cat3.main, bg: theme.cat3.bg },
+  "Grupo Mult": { color: theme.cat3.main, bg: theme.cat3.bg },
 };
 
 function BuTag({ bu }: { bu: string }) {
-  const color = BU_COLORS[bu] || "#aaa";
-  return <Tag color={color} style={{ fontWeight: 600 }}>{bu || "—"}</Tag>;
+  const colors = BU_COLORS[bu] || { color: theme.cat2.main, bg: theme.cat2.bg };
+  return (
+    <span style={{ background: colors.bg, color: colors.color, fontWeight: 600, padding: "2px 8px", borderRadius: 4, fontSize: "0.85rem", display: "inline-block" }}>
+      {bu || "—"}
+    </span>
+  );
 }
 
 function AeCell({ row, onSave }: { row: any; onSave: (nome: string, ae: string) => Promise<void> }) {
@@ -80,7 +85,7 @@ function AeCell({ row, onSave }: { row: any; onSave: (nome: string, ae: string) 
   return (
     <span style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}
       onClick={e => { e.stopPropagation(); setEditing(true); }}>
-      <span style={{ color: value ? "#1a2e5a" : "#aaa" }}>{value || "— sem AE"}</span>
+      <span style={{ color: value ? theme.text : "#aaa" }}>{value || "— sem AE"}</span>
       <EditOutlined style={{ color: "#aab4cc", fontSize: 12 }} />
     </span>
   );
@@ -150,7 +155,7 @@ export default function ClientesTab() {
   const breadcrumb = [
     {
       title: (
-        <span style={{ cursor: "pointer", color: "#2d50a0" }}
+        <span style={{ cursor: "pointer", color: theme.link }}
           onClick={() => { setSelectedCliente(null); setSelectedPep(null); }}>
           <HomeOutlined /> Clientes
         </span>
@@ -158,16 +163,16 @@ export default function ClientesTab() {
     },
     ...(selectedCliente ? [{
       title: selectedPep ? (
-        <span style={{ cursor: "pointer", color: "#2d50a0" }}
+        <span style={{ cursor: "pointer", color: theme.link }}
           onClick={() => setSelectedPep(null)}>
           {selectedCliente}
         </span>
       ) : (
-        <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{selectedCliente}</span>
+        <span style={{ color: theme.text, fontWeight: 600 }}>{selectedCliente}</span>
       ),
     }] : []),
     ...(selectedPep ? [{
-      title: <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{selectedPep.pep}</span>,
+      title: <span style={{ color: theme.text, fontWeight: 600 }}>{selectedPep.pep}</span>,
     }] : []),
   ];
 
@@ -198,13 +203,13 @@ export default function ClientesTab() {
       title: "Receita", dataIndex: "receita", key: "receita", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: any) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
+      render: (v: any) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
       title: "Custo", dataIndex: "custo_rateado", key: "custo_rateado", width: 155,
       align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
-      render: (v: any) => <span style={{ color: Number(v) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span>,
+      render: (v: any) => <span style={{ color: Number(v) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span>,
     },
     {
       title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100,
@@ -228,10 +233,10 @@ export default function ClientesTab() {
     { title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110 },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: any) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
+      render: (v: any) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span> },
     { title: "Custo", dataIndex: "custo_rateado", key: "custo_rateado", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.custo_rateado) || 0) - (Number(b.custo_rateado) || 0),
-      render: (v: any) => <span style={{ color: Number(v) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
+      render: (v: any) => <span style={{ color: Number(v) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span> },
     { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100, align: "center" as const,
       sorter: (a: any, b: any) => (Number(a.margem_pct) || 0) - (Number(b.margem_pct) || 0),
       render: (v: any) => <MargemTag value={v} /> },
@@ -250,9 +255,9 @@ export default function ClientesTab() {
       render: (v: any) => Number(v) > 0 ? Number(v).toLocaleString("pt-BR") : "—" },
     { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
       sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: any) => <span style={{ color: "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
+      render: (v: any) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span> },
     { title: "Custo", dataIndex: "custo_rateado", key: "custo_rateado", width: 155, align: "right" as const,
-      render: (v: any) => <span style={{ color: Number(v) < 0 ? "#c0392b" : "#1a2e5a", fontWeight: 600 }}>{brl(v)}</span> },
+      render: (v: any) => <span style={{ color: Number(v) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span> },
     { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100, align: "center" as const,
       render: (v: any) => <MargemTag value={v} /> },
   ];
@@ -305,7 +310,7 @@ export default function ClientesTab() {
 
       selectedPep ? (
         <>
-          <Button type="link" style={{ color: "#2d50a0", paddingLeft: 0, marginBottom: 12 }}
+          <Button type="link" style={{ color: theme.link, paddingLeft: 0, marginBottom: 12 }}
             onClick={() => setSelectedPep(null)}>← Voltar para projetos</Button>
           {loadingPess ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
             <Table
@@ -320,7 +325,7 @@ export default function ClientesTab() {
         </>
       ) : selectedCliente ? (
         <>
-          <Button type="link" style={{ color: "#2d50a0", paddingLeft: 0, marginBottom: 12 }}
+          <Button type="link" style={{ color: theme.link, paddingLeft: 0, marginBottom: 12 }}
             onClick={() => { setSelectedCliente(null); setSelectedPep(null); }}>← Voltar para clientes</Button>
           {loadingProj ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
             <Table

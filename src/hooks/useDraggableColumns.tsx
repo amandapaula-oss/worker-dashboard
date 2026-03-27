@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { theme } from "../theme";
 
 /**
  * Hook que habilita reordenação de colunas por drag-and-drop
@@ -43,7 +44,7 @@ export function useDraggableColumns<T extends { key?: string | number; dataIndex
             if (resizing.current) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = "move";
-            (e.currentTarget as HTMLElement).style.borderLeft = "2px solid #2d50a0";
+            (e.currentTarget as HTMLElement).style.borderLeft = `2px solid ${theme.accent}`;
           },
           onDragLeave: (e: React.DragEvent<HTMLElement>) => {
             (e.currentTarget as HTMLElement).style.borderLeft = "";

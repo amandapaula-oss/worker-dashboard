@@ -1,5 +1,6 @@
 import React from "react";
 import { Card, Statistic } from "antd";
+import { theme } from "../theme";
 
 interface Props {
   label: string;
@@ -14,7 +15,7 @@ function fmt(value: number, format: "brl" | "pct") {
 
 export default function KPICard({ label, value, format = "brl" }: Props) {
   const isNegative = value < 0;
-  const color = isNegative ? "#c0392b" : format === "pct" ? "#1a7a4a" : "#1a2e5a";
+  const color = isNegative ? "#c0392b" : format === "pct" ? "#1a7a4a" : theme.text;
 
   return (
     <Card style={{ flex: 1, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
