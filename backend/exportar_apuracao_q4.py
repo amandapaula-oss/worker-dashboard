@@ -17,7 +17,7 @@ from apuracao_engine import (
 
 OUTPUT = os.path.join(os.path.dirname(__file__), "apuracao_q4_exportado.xlsx")
 
-POSICOES_AE   = {"AE", "AE2", "HUNTER", "ESTRATEGISTAS", "CS"}
+POSICOES_AE   = {"AE", "AE2", "AE_GM", "HUNTER", "ESTRATEGISTAS", "CS"}
 POSICOES_DIR  = {"DIRETOR"}
 
 

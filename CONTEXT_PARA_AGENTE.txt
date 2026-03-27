@@ -1,0 +1,370 @@
+================================================================================
+CONTEXTO DO PROJETO — worker-dashboard
+Para novo agente continuar o desenvolvimento
+================================================================================
+
+REPOSITÓRIO
+-----------
+GitHub: amandapaula-oss/worker-dashboard
+Branch: master
+Auto-deploy: backend → Render, frontend → Vercel (push para master = deploy)
+Python para rodar scripts: C:/Users/amanda.paula/AppData/Local/Python/pythoncore-3.14-64/python.exe
+
+ESTRUTURA DO PROJETO
+--------------------
+C:/Users/amanda.paula/worker-dashboard/
+  backend/               ← FastAPI (Python)
+    main.py              ← Endpoints da API
+    apuracao_engine.py   ← Engine de cálculo de bônus (ARQUIVO CENTRAL)
+    *.csv                ← Dados/premissas (28 arquivos)
+  src/
+    pages/
+      VistaMasterTab.tsx ← Painel principal de apuração (ARQUIVO CENTRAL FRONTEND)
+      MargemTab.tsx, RacTab.tsx, etc.
+    api.ts               ← Funções de fetch para o backend
+
+================================================================================
+REGRAS DE NEGÓCIO — BÔNUS Q4 2025
+================================================================================
+
+POSIÇÕES
+--------
+- DIRETOR: TCV(20%) + Receita(30%) + MB%(10%) + MC%(40%) — calc_bonus_diretor()
+- AE:      Receita(60%) + MB%(40%) — calc_bonus_ae()
+- AE_GM:   TCV Área(20%) + Receita(30%) + MB%(50%) — calc_bonus_ae() com peso_tcv=0.2
+  → AE_GM são os AEs do vertical Grupo Mult: Edmilson, Guilherme, DANILO DE SOUZA MACIEIRA
+  → TCV é do vertical inteiro "Grupo Mult" (não por cliente individual)
+- HUNTER:  TCV(70%) + Receita(20%) + MB%(10%)
+- ESTRATEGISTAS: Receita(60%) + MB%(40%)
+
+FÓRMULA GERAL (AE/AE_GM)
+-------------------------
+Bônus = Σ por WS [ sal × peso_rec × peso_ws × ating_rec × lb_gate_ws
+                  + sal × peso_mb  × peso_ws × ating_mb  × mb_gate × lb_gate_ws ]
+       + sal × peso_tcv × ating_tcv_area   (apenas AE_GM)
+
+WORK STREAMS (WS) — pesos padrão Q4
+-------------------------------------
+apps: 70%, cloud: 8%, dados: 8%, hyper: 8%, demais: 6%
+Danilo (AE_GM) tem pesos customizados: apps=72%, cloud=10%, dados=0%, hyper=10%, demais=8%
+(definido em premissas_pesos_ws_pessoa.csv)
+
+TRIGGERS Q4
+-----------
+- Receita/TCV: 85% da meta → abaixo = 0, entre trigger e meta = 50%→100% linear
+- MB%:         meta - 1.5pp → abaixo = 0, linear até meta
+- Apps: gate MB = bloqueia bônus MB apps se ating_mb = 0
+
+TRIGGERS Q3
+-----------
+- Receita/TCV: 90% da meta
+- MB%:         meta - 1.0pp
+
+GATE LB POR WS (implementado recentemente)
+-------------------------------------------
+- Para cada WS, verifica se LB realizado >= trigger LB proporcional
+- realized_lb_gate_ws: acumula APENAS clientes com budget LB > 0 naquela WS
+  (evita que clientes sem budget inflem o gate)
+- trigger_lb_ws_k = bgt_lb_ws * (trigger_lb_anual / meta_lb_anual)
+- Se trigger = 0 → gate auto-passa
+
+BENCHMARKS MB% POR WS
+----------------------
+Cloud: 34%, Dados: 35%, Hyper: 35%, Demais: 37%
+Apps: calculado de verdade (custo real ou benchmark 35% se sem custo)
+
+================================================================================
+ARQUIVOS CSV IMPORTANTES
+================================================================================
+
+premissas_pessoas.csv
+  → Nome, Posicao, Contrato, Sal_Q1, Sal_Q2, Sal_Q3, Sal_Q4
+  → Posicoes: AE, AE_GM, DIRETOR, HUNTER, Estrategistas, CS, Socio
+  → AE_GM: Edmilson, Guilherme, DANILO DE SOUZA MACIEIRA
+
+premissas_pesos_meta.csv
+  → Periodo (Quarter/Anual), Posicao, TCV, Receita, MB_pct, MC_pct, ENPS, NPS
+  → Quarter AE_GM: TCV=0.2, Receita=0.3, MB_pct=0.5
+
+premissas_pesos_ws.csv / premissas_pesos_ws_pessoa.csv
+  → Pesos por WS. premissas_pesos_ws_pessoa.csv sobrescreve para pessoas específicas
+
+premissas_lb_trigger.csv
+  → nome, meta_lb, trigger_lb (valores anuais)
+  → Usado para calcular trigger_ratio = trigger_lb / meta_lb (~85%)
+
+premissas_triggers.csv
+  → Meta, Q1, Q2, Q3, Q4, FY — triggers percentuais por período
+  → Q3: TCV/Rec=0.90, MB%=-1.0pp | Q4: TCV/Rec=0.85, MB%=-1.5pp
+
+budget_receita.csv
+  → tipo, bs, ae_q1..ae_q4, ws, cliente, q1, q2, q3, q4, fy
+  → Budget de receita por cliente/WS/trimestre
+
+budget_lb.csv
+  → tipo, bs, ae_q1..ae_q4, ws, cliente, q1, q2, q3, q4, fy
+  → Budget de Lucro Bruto (Margem Bruta) por cliente/WS/trimestre
+
+budget_tcv.csv
+  → ae, descricao, q1, q2, q3, q4, fy
+  → Budget TCV por vertical. AE_GM usa ae="Grupo Mult", descricao="Receita"
+
+tcv_realizado.csv
+  → vertical, tcv_realizado (valores Q4 apenas, sem Q3 ainda)
+
+clientes.csv
+  → nome_cliente, bu, ae, nome_base
+  → nome_base = nome no SAP (alias para match com budget)
+
+margem_projetos.csv / rac_projetos.csv
+  → Dados SAP reais. Atualmente apenas Q4 (2025-10, 2025-11, 2025-12)
+  → Q3 (2025-07, 2025-08, 2025-09) ainda NÃO existe → bônus Q3 = 0 enquanto não carregado
+
+================================================================================
+ENGINE — apuracao_engine.py
+================================================================================
+
+FUNÇÕES PRINCIPAIS
+------------------
+calc_bonus_ae(nome: str) → dict
+  → Calcula bônus Q4 para AE, AE_GM, Hunter
+  → Usa coluna q4 do budget, ae_q4, Sal_Q4
+
+calc_bonus_ae_q3(nome: str) → dict
+  → Calcula bônus Q3 para AE_GM (adicionado recentemente)
+  → Usa coluna q3 do budget, ae_q3, Sal_Q3
+  → _load_q3_realized() carrega SAP Q3 (vazio por ora)
+
+calc_bonus_diretor(nome: str) → dict
+  → Calcula bônus Q4 para Diretores
+
+_load_all() → dict (cached com lru_cache)
+  → Carrega TODOS os dados Q4 (budget, SAP, lookups, etc.)
+
+_load_q3_realized() → dict (cached com lru_cache)
+  → Carrega dados SAP Q3 (vazio até dados serem adicionados)
+
+CONSTANTES IMPORTANTES
+----------------------
+Q4_PERIODOS = ["2025-10", "2025-11", "2025-12"]
+Q3_PERIODOS = ["2025-07", "2025-08", "2025-09"]
+TRIGGER_REC_Q4 = 0.85
+TRIGGER_REC_Q3 = 0.90
+MB_TRIGGER_DELTA = 0.015  (Q4: 1.5pp)
+MB_TRIGGER_DELTA_Q3 = 0.010  (Q3: 1.0pp)
+WS_PESOS_Q4 = {cloud:0.08, apps:0.70, dados:0.08, hyper:0.08, demais:0.06}
+WS_MB_BENCHMARK_Q4 = {cloud:0.34, dados:0.35, hyper:0.35, demais:0.37}
+
+CAMPOS RETORNADOS POR calc_bonus_ae()
+--------------------------------------
+nome, posicao, contrato, salario_q4, periodo ("Q4 2025" ou "Q3 2025")
+peso_tcv, peso_receita, peso_mb
+budget_tcv_q4, real_tcv_q4, ating_tcv, bonus_tcv   ← só AE_GM
+budget_rec_total, real_rec_total, ating_rec_total
+budget_mb_pct, real_mb_pct, ating_mb_total
+meta_lb_q4, trigger_lb_q4, real_lb_total, lb_gate
+bonus_total
+detalhe_ws: lista por WS com campos:
+  ws, peso_ws, budget_rec, trigger_rec_amount, real_rec, ating_rec
+  budget_mb_pct, trigger_mb_pct, real_mb_pct, ating_mb, mb_gate, aplica_gate_mb
+  meta_lb_ws, trigger_lb_ws, real_lb_financeiro, real_lb_gate, lb_gate_ws
+  bonus_rec, bonus_mb, bonus_ws, clientes_ws
+clientes_detalhe: lista por cliente com budget_rec, real_rec, real_lb, real_custo, margem_pct
+
+================================================================================
+ENDPOINTS API (main.py)
+================================================================================
+
+GET /api/apuracao/pessoas
+  → Lista pessoas com posição, contrato, salário Q4
+
+GET /api/apuracao/calcular?nome=NOME
+  → Calcula bônus Q4. Chama calc_bonus_diretor se DIRETOR, senão calc_bonus_ae
+
+GET /api/apuracao/calcular-q3?nome=NOME
+  → Calcula bônus Q3 para AE_GM
+
+GET /api/apuracao/visao-master
+  → Todos os bônus calculados (tabela consolidada)
+
+GET /api/apuracao/bonus-anual/{nome}
+  → Bônus anual (Q1–Q4)
+
+GET /api/apuracao/pdf?nome=NOME
+  → Gera PDF da memória de cálculo
+
+================================================================================
+FRONTEND — VistaMasterTab.tsx
+================================================================================
+
+COMPONENTES PRINCIPAIS
+-----------------------
+VistaMasterTab      → componente principal, tabela com todos os avaliados
+DetalheDrawer       → container do drawer Q4
+DetalheDrawerQ3     → container do drawer Q3 (apenas AE_GM)
+DetalheAE           → detalhe de bônus AE/AE_GM (reutilizado Q3 e Q4 via periodoLabel prop)
+DetalheDir          → detalhe de bônus Diretor
+ResultadoBox        → caixa de resultado (bônus total) — aceita prop periodo
+MetaRealRow         → linha de meta/realizado com barra visual
+
+LÓGICA DO DRAWER
+----------------
+- Clicar no nome de uma pessoa abre o drawer
+- Para AE_GM: busca Q4 E Q3 em paralelo
+- Painel Q3 aparece ACIMA do Q4 no drawer (somente se posicao === "AE_GM")
+- Header do drawer mostra "Bônus Q3: R$X" e "Bônus Q4: R$Y" para AE_GM
+
+RECALCULO LOCAL (FRONTEND)
+---------------------------
+O frontend recalcula alguns bônus localmente para exibir na tabela de WS.
+Aplica lb_gate_ws ao recalcular:
+  const lbGate = w.lb_gate_ws ?? 1;
+  const bRec = sal * pRec * w.peso_ws * (w.ating_rec ?? 0) * lbGate;
+  const gate = w.aplica_gate_mb ? (w.mb_gate ?? 1) : 1;
+  const bMb  = sal * pMb  * w.peso_ws * (w.ating_mb ?? 0) * gate * lbGate;
+
+================================================================================
+VALORES ATUAIS Q4 (referência, estado em 2026-03-26)
+================================================================================
+
+AE_GM (Grupo Mult):
+  Edmilson:              bônus R$ 5.470,91  | sal R$ 36.000
+  Guilherme:             bônus R$ 22.590,94 | sal R$ 36.000
+  DANILO DE SOUZA MACIEIRA: bônus R$ 3.191,36 | sal R$ 21.000
+
+AE outros:
+  MIRELLA ANDRADE ARAUJO:          bônus R$ 0       | sal R$ 20.940
+  JOSE EDUARDO DOS SANTOS GARCIA:  bônus R$ 942,91  | sal R$ 18.132
+  FABIO LUIS BERTI BARCELOS:       bônus R$ 0       | sal R$ 15.690
+  VINICIUS TEDESCO GANDRA MARTINS: bônus R$ 405,77  | sal R$ 11.271
+  Nicolly Brasil:                  bônus R$ 0       | sal R$ 13.012
+
+================================================================================
+VALORES HARDCODED / SIMPLIFICAÇÕES — IMPORTANTE PARA MANUTENÇÃO
+================================================================================
+
+Os itens abaixo estão hardcoded no engine e precisarão de atenção quando
+os dados reais estiverem disponíveis:
+
+1. real_tcv_q3_ae = 0.0  (linha em calc_bonus_ae_q3, após bloco "if peso_tcv > 0")
+   MOTIVO: tcv_realizado.csv só tem coluna "tcv_realizado" com valores Q4.
+   Não existe dado de TCV realizado Q3 ainda.
+   QUANDO TIVER DADO: adicionar coluna "tcv_q3" em tcv_realizado.csv e atualizar
+   essa linha para: real_tcv_q3_ae = float(d["tcv_real_q3"].get("Grupo Mult", 0.0))
+   (vai precisar de novo campo no _load_all() ou _load_q3_realized())
+
+2. Benchmark Apps = 35% (fallback)  (linha: marg_q4.at[_idx, "margem_pct"] = 0.35)
+   MOTIVO: quando um projeto Apps não tem custo_rateado no SAP e não tem dados
+   de margem_pessoas.csv para aquele PEP+período, usa 35% de MB% como fallback.
+   Está presente tanto em _load_all() (Q4) quanto em _load_q3_realized() (Q3).
+   NÃO MUDA com os dados Q3 — é um fallback de segurança, não um dado faltante.
+
+3. Override OpenX = 45% MB  (linhas com "openx_mask" em _load_all e _load_q3_realized)
+   MOTIVO: projetos com no_hierarquia="OPENX" usam MB% fixo de 45% independente
+   do SAP. Decisão de negócio, não um dado faltante.
+
+4. _trigger_ratio para Q3 usa mesma tabela anual de premissas_lb_trigger.csv
+   MOTIVO: essa tabela só tem valores anuais (meta_lb, trigger_lb). O ratio
+   trigger/meta (~85%) é aplicado proporcionalmente ao budget Q3 de cada WS.
+   Se as metas anuais mudarem para Q3, atualizar premissas_lb_trigger.csv.
+
+5. WS_MB_BENCHMARK_Q4 usado também no Q3  (em _load_q3_realized e calc_bonus_ae_q3)
+   MOTIVO: os benchmarks de MB% por WS (cloud=34%, dados=35%, etc.) são os mesmos
+   para Q3 e Q4 por decisão de negócio. Se mudarem para Q3, criar WS_MB_BENCHMARK_Q3.
+
+================================================================================
+COMO ADICIONAR DADOS SAP Q3 (passo a passo)
+================================================================================
+
+Quando o usuário fornecer os dados SAP Q3, o agente deve:
+
+PASSO 1 — margem_projetos.csv
+  Adicionar linhas com periodo="2025-07", "2025-08" ou "2025-09".
+  Colunas obrigatórias:
+    periodo, pep, nome_cliente, empresa, centro_lucro, no_hierarquia,
+    categoria_bu, receita, custo_rateado, horas_total, margem, margem_pct
+  categoria_bu deve usar os valores: Apps, Cloud, Cyber, Dados, Hyper, Demais
+  (o engine normaliza para minúsculas internamente via _norm_ws())
+
+PASSO 2 — rac_projetos.csv
+  Adicionar linhas com periodo="2025-07", "2025-08" ou "2025-09".
+  Colunas obrigatórias:
+    periodo, empresa, pep, nome_cliente, tipo, centro_lucro,
+    no_hierarquia, categoria_bu, valor_liquido
+  valor_liquido = receita RAC (substitui receita do SAP quando há match por PEP+periodo+cliente)
+
+PASSO 3 — tcv_realizado.csv (se TCV Q3 estiver disponível)
+  Atualmente: vertical, tcv_realizado  (apenas Q4)
+  Adicionar coluna "tcv_q3" com o TCV realizado Q3 por vertical.
+  Depois atualizar a linha hardcoded em calc_bonus_ae_q3():
+    Trocar: real_tcv_q3_ae = 0.0
+    Por:    real_tcv_q3_ae = float(d["tcv_real"].get("Grupo Mult_q3", 0.0))
+    (ou ajustar conforme estrutura do arquivo atualizado)
+
+PASSO 4 — Invalidar cache do engine (se servidor estiver rodando)
+  O engine usa @lru_cache. Em produção no Render, o deploy automático reinicia
+  o processo e limpa o cache. Em desenvolvimento local, reiniciar o servidor.
+
+NÃO é necessário mexer em código para os passos 1 e 2 — o engine lê
+automaticamente qualquer linha com periodo nos Q3_PERIODOS.
+
+================================================================================
+TAREFAS PENDENTES / POSSÍVEIS PRÓXIMOS PASSOS
+================================================================================
+
+1. DADOS SAP Q3 (main pendente):
+   Usuário vai fornecer arquivo com dados SAP Q3. Seguir passo a passo acima.
+   Estrutura esperada: igual a margem_projetos.csv e rac_projetos.csv atuais,
+   com periodo = "2025-07", "2025-08" ou "2025-09".
+
+2. TCV REALIZADO Q3 (hardcoded como 0.0):
+   Ver seção "VALORES HARDCODED" acima. Quando o usuário fornecer o número,
+   atualizar tcv_realizado.csv e a linha hardcoded em calc_bonus_ae_q3().
+
+3. BÔNUS ANUAL (Q1 a Q4):
+   Existe endpoint /api/apuracao/bonus-anual/{nome} mas não foi validado
+   recentemente para AE_GM.
+
+================================================================================
+BUGS RESOLVIDOS RECENTEMENTE (histórico para evitar regressão)
+================================================================================
+
+- Nicolly: R$312 bonus_mb Demais → causado por lb_gate_ws não aplicado no frontend
+  FIX: aplicar lb_gate_ws no recalculo local do frontend
+
+- José Eduardo R$5.077 bonus apps: OURIBANK tinha LB realizado sem budget apps
+  FIX: realized_lb_gate_ws só acumula clientes com bgt_lb > 0 naquela WS
+
+- José Eduardo R$580 bonus hyper: bgt_lb=0 → trigger=0 → gate passa → ating_mb=1.0 fallback
+  FIX: elif bgt_lb_ == 0: ating_mb = 0.0
+
+- José Eduardo Demais: R$290,12 correto (40%×6%×66.7%×18.132,80)
+  FIX: adicionar OURIBANK Demais q4=93.480 em budget_lb.csv
+
+- Fabio: Honda/RiminiStreet/Waycarbon/Bauducco/SortenaBet/Falconi faltando
+  FIX: adicionados em budget_receita.csv (ws=Demais, q4=0) e clientes.csv
+
+- AE_GM: TCV da área não exibido no frontend
+  FIX: MetaRealRow TCV adicionado em VistaMasterTab, calc TCV no engine
+
+================================================================================
+COMANDOS ÚTEIS
+================================================================================
+
+# Testar engine:
+C:/Users/amanda.paula/AppData/Local/Python/pythoncore-3.14-64/python.exe -c "
+import sys, os
+sys.path.insert(0, 'C:/Users/amanda.paula/worker-dashboard/backend')
+os.chdir('C:/Users/amanda.paula/worker-dashboard/backend')
+from apuracao_engine import calc_bonus_ae
+r = calc_bonus_ae('NOME COMPLETO')
+print(r)
+"
+
+# TypeScript check:
+cd C:/Users/amanda.paula/worker-dashboard && npx tsc --noEmit
+
+# Deploy:
+cd C:/Users/amanda.paula/worker-dashboard && git add -p && git commit -m "msg" && git push origin master
+
+================================================================================

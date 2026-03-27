@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Table, Spin, message, Tag, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
 import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { useReactToPrint } from "react-to-print";
-import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3, downloadApuracaoPdfQ3 } from "../api";
+import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3 } from "../api";
 import { toTitleCase } from "../utils/format";
 
 const { Option } = Select;
@@ -305,19 +305,8 @@ export default function VistaMasterTab() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detalhe, setDetalhe] = useState<DetalheCalculo | null>(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
-  const [detalheQ3, setDetalheQ3] = useState<DetalheCalculo | null>(null);
-  const [loadingQ3, setLoadingQ3] = useState(false);
-  const [loadingPdfQ3, setLoadingPdfQ3] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: detalhe ? `Memória de Cálculo — ${detalhe.nome}` : "Memória de Cálculo" });
-
-  const handlePdfQ3 = () => {
-    if (!detalheQ3) return;
-    setLoadingPdfQ3(true);
-    downloadApuracaoPdfQ3(detalheQ3.nome)
-      .catch(() => message.error("Erro ao gerar PDF Q3"))
-      .finally(() => setLoadingPdfQ3(false));
-  };
 
   const carregar = () => {
     setLoading(true);
@@ -330,22 +319,12 @@ export default function VistaMasterTab() {
   useEffect(() => { carregar(); }, []);
 
   const abrirDetalhe = (nome: string, posicao?: string) => {
+    void posicao;
     setDrawerOpen(true);
     setDetalhe(null);
-    setDetalheQ3(null);
     setLoadingDetalhe(true);
     getApuracaoCalcular(nome)
-      .then((d: DetalheCalculo) => {
-        setDetalhe(d);
-        // Carrega Q3 automaticamente para AE_GM (Grupo Mult)
-        if ((posicao || d.posicao) === "AE_GM") {
-          setLoadingQ3(true);
-          getApuracaoCalcularQ3(nome)
-            .then(setDetalheQ3)
-            .catch(() => {})
-            .finally(() => setLoadingQ3(false));
-        }
-      })
+      .then((d: DetalheCalculo) => setDetalhe(d))
       .catch((e: Error) => message.error(`Erro: ${e.message}`, 10))
       .finally(() => setLoadingDetalhe(false));
   };
@@ -490,21 +469,6 @@ export default function VistaMasterTab() {
         extra={
           detalhe && (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {detalheQ3 && (
-                <>
-                  <Tag color="geekblue" style={{ fontSize: 14 }}>
-                    Bônus Q3: {fmt(detalheQ3.bonus_total)}
-                  </Tag>
-                  <Button
-                    size="small"
-                    icon={<PrinterOutlined />}
-                    loading={loadingPdfQ3}
-                    onClick={handlePdfQ3}
-                  >
-                    PDF Q3
-                  </Button>
-                </>
-              )}
               <Tag color="blue" style={{ fontSize: 14 }}>
                 Bônus Q4: {fmt(detalhe.bonus_total)}
               </Tag>
@@ -523,24 +487,6 @@ export default function VistaMasterTab() {
         {loadingDetalhe && <Spin />}
         {detalhe && !loadingDetalhe && (
           <div ref={printRef} style={{ padding: 8 }}>
-            {/* Q3 panel — apenas AE_GM */}
-            {(detalheQ3 || loadingQ3) && (
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1a3c6e" }}>
-                    Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q3 2025</span>
-                  </h2>
-                  {detalheQ3 && (
-                    <Button size="small" icon={<PrinterOutlined />} loading={loadingPdfQ3} onClick={handlePdfQ3}>
-                      Gerar PDF Q3
-                    </Button>
-                  )}
-                </div>
-                {loadingQ3 && <Spin />}
-                {detalheQ3 && !loadingQ3 && <DetalheDrawerQ3 d={detalheQ3} />}
-                <Divider style={{ borderColor: "#adc6ff" }} />
-              </div>
-            )}
             <h2 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700, color: "#1a2e5a" }}>
               Memória de Cálculo — {detalhe.nome} &nbsp;<span style={{ fontSize: 13, fontWeight: 400, color: "#888" }}>Q4 2025</span>
             </h2>
