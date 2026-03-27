@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Select, Table, Spin, message } from "antd";
 import { getSapFilters, getSapData } from "../api";
 import { theme } from "../theme";
@@ -12,23 +12,26 @@ export default function SapTab() {
   const [data, setData] = useState<{ columns: string[]; data: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtersReady, setFiltersReady] = useState(false);
+  const initialLoad = useRef(true);
 
   useEffect(() => {
-    getSapFilters()
-      .then(f => {
+    Promise.all([getSapFilters(), getSapData({})])
+      .then(([f, d]) => {
         setFilters(f);
         setSelCompanies(f.companies);
+        setData(d);
         setFiltersReady(true);
+        initialLoad.current = false;
       })
       .catch(err => {
-        console.error("Sap Filters Error:", err);
-        message.error("Erro ao carregar filtros SAP");
-        setLoading(false);
-      });
+        console.error("Sap Error:", err);
+        message.error("Erro ao carregar dados SAP");
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!filtersReady) return;
+    if (!filtersReady || initialLoad.current) return;
     if (!selCompanies.length && filters.companies.length) return;
     setLoading(true);
     const params: Record<string, string> = {};

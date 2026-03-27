@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Button, Breadcrumb, Input } from "antd";
 import { HomeOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
 import { getRacFilters, getRacProjetos, getRacPessoas, getRacPessoaProjetos } from "../api";
@@ -23,6 +23,7 @@ export default function RacTab() {
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [selTipos, setSelTipos]       = useState<string[]>([]);
   const [filtersReady, setFiltersReady] = useState(false);
+  const initialLoad = useRef(true);
 
   const [projetos, setProjetos] = useState<any[]>([]);
   const [pessoas, setPessoas]   = useState<any[]>([]);
@@ -37,22 +38,26 @@ export default function RacTab() {
   const [searchPep, setSearchPep]         = useState("");
   const [searchPessoa, setSearchPessoa]   = useState("");
 
-  // load filters
+  // load filters + initial data in parallel
   useEffect(() => {
-    getRacFilters()
-      .then(f => {
+    Promise.all([getRacFilters(), getRacProjetos({}), getRacPessoas({})])
+      .then(([f, proj, pess]) => {
         setFilters(f);
         setSelPeriodos(f.periodos);
         setSelEmpresas(f.empresas);
         setSelTipos(f.tipos);
+        setProjetos(proj);
+        setPessoas(pess);
         setFiltersReady(true);
+        initialLoad.current = false;
       })
-      .catch(() => { message.error("Erro ao carregar filtros"); setLoading(false); });
+      .catch(() => { message.error("Erro ao carregar dados"); })
+      .finally(() => setLoading(false));
   }, []);
 
-  // load projetos
+  // load projetos on filter change
   useEffect(() => {
-    if (!filtersReady || selectedPep) return;
+    if (!filtersReady || initialLoad.current || selectedPep) return;
     setLoading(true);
     const params: Record<string, string> = {};
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
@@ -67,7 +72,7 @@ export default function RacTab() {
 
   // load all pessoas (for search) or specific PEP (for drill-down)
   useEffect(() => {
-    if (!filtersReady) return;
+    if (!filtersReady || (initialLoad.current && !selectedPep)) return;
     const params: Record<string, string> = {};
     if (selectedPep) params.pep = selectedPep.pep;
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");

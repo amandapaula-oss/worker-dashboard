@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Select, Spin, Table, message } from "antd";
 import { getNexusFilters, getDre, getStreams, getMatricial } from "../api";
 import PLTable from "../components/PLTable";
@@ -25,24 +25,28 @@ export function DreTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filtersReady, setFiltersReady] = useState(false);
+  const initialLoad = useRef(true);
 
   useEffect(() => {
-    getNexusFilters()
-      .then(f => {
+    Promise.all([getNexusFilters(), getDre({ tipo })])
+      .then(([f, d]) => {
         setFilters(f);
         setSelAnos(f.anos);
         setSelEmpresas(f.empresas);
+        setData(d);
         setFiltersReady(true);
+        initialLoad.current = false;
       })
       .catch(err => {
-        console.error("Nexus Filters Error:", err);
-        message.error("Erro ao carregar filtros Nexus");
-        setLoading(false);
-      });
+        console.error("DRE Error:", err);
+        message.error("Erro ao carregar dados da DRE");
+      })
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!filtersReady) return;
+    if (!filtersReady || initialLoad.current) return;
     if (!selAnos.length && filters.anos.length) return;
     setLoading(true);
     const params: Record<string, string> = { tipo };
@@ -95,25 +99,29 @@ export function StreamsTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filtersReady, setFiltersReady] = useState(false);
+  const initialLoad = useRef(true);
 
   useEffect(() => {
-    getNexusFilters()
-      .then(f => {
+    Promise.all([getNexusFilters(), getStreams({ tipo })])
+      .then(([f, d]) => {
         setFilters(f);
         setSelAnos(f.anos);
         setSelEmpresas(f.empresas);
         setSelStreams(f.streams);
+        setData(d);
         setFiltersReady(true);
+        initialLoad.current = false;
       })
       .catch(err => {
-        console.error("Nexus Filters Streams Error:", err);
-        message.error("Erro ao carregar filtros Nexus (Streams)");
-        setLoading(false);
-      });
+        console.error("Streams Error:", err);
+        message.error("Erro ao carregar dados por Stream");
+      })
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!filtersReady) return;
+    if (!filtersReady || initialLoad.current) return;
     if (!selAnos.length && filters.anos.length) return;
     setLoading(true);
     const params: Record<string, string> = { tipo };
@@ -170,19 +178,27 @@ export function MatricialTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filtersReady, setFiltersReady] = useState(false);
+  const initialLoad = useRef(true);
 
   useEffect(() => {
-    getNexusFilters()
-      .then(f => { setFilters(f); setSelAnos(f.anos); setFiltersReady(true); })
+    Promise.all([getNexusFilters(), getMatricial({ tipo })])
+      .then(([f, d]) => {
+        setFilters(f);
+        setSelAnos(f.anos);
+        setData(d);
+        setFiltersReady(true);
+        initialLoad.current = false;
+      })
       .catch(err => {
-        console.error("Nexus Filters Matricial Error:", err);
-        message.error("Erro ao carregar filtros Nexus (Matricial)");
-        setLoading(false);
-      });
+        console.error("Matricial Error:", err);
+        message.error("Erro ao carregar dados de P&L Matricial");
+      })
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!filtersReady) return;
+    if (!filtersReady || initialLoad.current) return;
     if (!selAnos.length && filters.anos.length) return;
     setLoading(true);
     const params: Record<string, string> = { tipo };

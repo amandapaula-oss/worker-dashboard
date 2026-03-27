@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Typography, Card, Statistic } from "antd";
 import { getMargemFilters, getResumo } from "../api";
 import { toTitleCase } from "../utils/format";
@@ -42,10 +42,13 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
   const [rawData, setRawData]                 = useState<any[]>([]);
   const [loading, setLoading]                 = useState(true);
   const [filtersReady, setFiltersReady]       = useState(false);
+  const initialLoad = useRef(true);
 
   useEffect(() => {
-    getMargemFilters()
-      .then((f: any) => {
+    const params: Record<string, string> = {};
+    if (apenasAtribuidos) params.apenas_atribuidos = "true";
+    Promise.all([getMargemFilters(), getResumo(params)])
+      .then(([f, d]: [any, any]) => {
         setPeriodos(f.periodos);
         setSelPeriodos(f.periodos);
         setEmpresas(f.empresas);
@@ -54,13 +57,17 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
           setCategoriasBu(f.categorias_bu);
           setSelCategoriasBu(f.categorias_bu);
         }
+        setRawData(d);
         setFiltersReady(true);
+        initialLoad.current = false;
       })
-      .catch(() => { message.error("Erro ao carregar filtros"); setLoading(false); });
+      .catch(() => { message.error("Erro ao carregar dados"); })
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!filtersReady) return;
+    if (!filtersReady || initialLoad.current) return;
     setLoading(true);
     const params: Record<string, string> = {};
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
