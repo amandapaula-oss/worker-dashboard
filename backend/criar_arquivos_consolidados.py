@@ -64,9 +64,9 @@ def build_projetos():
                 merged.at[idx, "empresa"] = rac_emp[key]
 
     # receita final: preferência ao rac; fallback ao sap
-    merged["receita"] = merged["receita_rac"].where(
-        merged["receita_rac"].notna(), merged["receita"]
-    )
+    # Threshold de R$1 para ignorar floating-point lixo do SAP (ex: 8.14e-10)
+    rac_valido = merged["receita_rac"].notna() & (merged["receita_rac"].abs() >= 1)
+    merged["receita"] = merged["receita_rac"].where(rac_valido, merged["receita"])
 
     # usa pep_base como pep no csv final (forma canônica)
     merged["pep"] = merged["pep_base"].where(
