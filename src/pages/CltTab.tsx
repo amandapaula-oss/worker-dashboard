@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table, Spin } from "antd";
+import { Select, Table } from "antd";
+import TableSkeleton from "../components/TableSkeleton";
 import { getCltData } from "../api";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
@@ -69,7 +70,7 @@ export default function CltTab() {
         </div>
       </div>
 
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+      {loading ? <TableSkeleton rows={8} /> : (
         <Table
           dataSource={data.map((d, i) => ({ ...d, key: i }))}
           columns={columns}

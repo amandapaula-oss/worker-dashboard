@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Select, Table, Spin, message } from "antd";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Select, Table, message } from "antd";
 import { getSapFilters, getSapData } from "../api";
 import { theme } from "../theme";
-
+import TableSkeleton from "../components/TableSkeleton";
+import ErrorState from "../components/ErrorState";
 
 export default function SapTab() {
   const [filters, setFilters] = useState<{ companies: string[]; verticals: string[]; profit_centers: string[] }>({ companies: [], verticals: [], profit_centers: [] });
@@ -11,10 +12,13 @@ export default function SapTab() {
   const [selPC, setSelPC] = useState<string[]>([]);
   const [data, setData] = useState<{ columns: string[]; data: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
   const initialLoad = useRef(true);
 
-  useEffect(() => {
+  const loadInitial = useCallback(() => {
+    setLoading(true);
+    setError(false);
     Promise.all([getSapFilters(), getSapData({})])
       .then(([f, d]) => {
         setFilters(f);
@@ -23,12 +27,11 @@ export default function SapTab() {
         setFiltersReady(true);
         initialLoad.current = false;
       })
-      .catch(err => {
-        console.error("Sap Error:", err);
-        message.error("Erro ao carregar dados SAP");
-      })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadInitial(); }, [loadInitial]);
 
   useEffect(() => {
     if (!filtersReady || initialLoad.current) return;
@@ -39,16 +42,9 @@ export default function SapTab() {
     if (selVerticals.length) params.verticals = selVerticals.join(",");
     if (selPC.length) params.profit_centers = selPC.join(",");
     getSapData(params)
-      .then(d => {
-        setData(d);
-      })
-      .catch(err => {
-        console.error("Sap Data Error:", err);
-        message.error("Erro ao carregar dados SAP");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      .then(d => setData(d))
+      .catch(() => message.error("Erro ao carregar dados SAP"))
+      .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selCompanies, selVerticals, selPC]);
 
@@ -77,7 +73,7 @@ export default function SapTab() {
         </div>
       </div>
 
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+      {loading ? <TableSkeleton rows={10} /> : error ? <ErrorState onRetry={loadInitial} /> : (
         <Table
           dataSource={data?.data.map((d, i) => ({ ...d, key: i })) || []}
           columns={columns}

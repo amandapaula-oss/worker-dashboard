@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
-import { Select, Table, Spin, message, Typography, Card, Statistic } from "antd";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { Select, Table, message, Typography, Card, Statistic } from "antd";
+import TableSkeleton from "../components/TableSkeleton";
+import ErrorState from "../components/ErrorState";
 import { getMargemFilters, getResumo } from "../api";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
@@ -41,30 +43,27 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
   const [selCategoriasBu, setSelCategoriasBu] = useState<string[]>([]);
   const [rawData, setRawData]                 = useState<any[]>([]);
   const [loading, setLoading]                 = useState(true);
+  const [error, setError]                     = useState(false);
   const [filtersReady, setFiltersReady]       = useState(false);
   const initialLoad = useRef(true);
 
-  useEffect(() => {
+  const loadInitial = useCallback(() => {
+    setLoading(true); setError(false);
     const params: Record<string, string> = {};
     if (apenasAtribuidos) params.apenas_atribuidos = "true";
     Promise.all([getMargemFilters(), getResumo(params)])
       .then(([f, d]: [any, any]) => {
-        setPeriodos(f.periodos);
-        setSelPeriodos(f.periodos);
-        setEmpresas(f.empresas);
-        setSelEmpresas(f.empresas);
-        if (f.categorias_bu?.length) {
-          setCategoriasBu(f.categorias_bu);
-          setSelCategoriasBu(f.categorias_bu);
-        }
-        setRawData(d);
-        setFiltersReady(true);
-        initialLoad.current = false;
+        setPeriodos(f.periodos); setSelPeriodos(f.periodos);
+        setEmpresas(f.empresas); setSelEmpresas(f.empresas);
+        if (f.categorias_bu?.length) { setCategoriasBu(f.categorias_bu); setSelCategoriasBu(f.categorias_bu); }
+        setRawData(d); setFiltersReady(true); initialLoad.current = false;
       })
-      .catch(() => { message.error("Erro ao carregar dados"); })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { loadInitial(); }, [loadInitial]);
 
   useEffect(() => {
     if (!filtersReady || initialLoad.current) return;
@@ -258,9 +257,7 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
         ))}
       </div>
 
-      {loading ? (
-        <Spin style={{ display: "block", margin: "3rem auto" }} />
-      ) : (
+      {loading ? <TableSkeleton rows={10} /> : error ? <ErrorState onRetry={loadInitial} /> : (
         <Table
           dataSource={tableData}
           columns={columns}
@@ -274,3 +271,4 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
     </div>
   );
 }
+

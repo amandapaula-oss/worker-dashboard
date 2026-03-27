@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Select, Spin, Table, message } from "antd";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Select, Table, message } from "antd";
 import { getNexusFilters, getDre, getStreams, getMatricial } from "../api";
 import PLTable from "../components/PLTable";
+import TableSkeleton from "../components/TableSkeleton";
+import ErrorState from "../components/ErrorState";
 import { theme } from "../theme";
 
 
@@ -24,26 +26,23 @@ export function DreTab() {
   const [tipo, setTipo] = useState("Actual");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
   const initialLoad = useRef(true);
 
-  useEffect(() => {
+  const loadInitial = useCallback(() => {
+    setLoading(true); setError(false);
     Promise.all([getNexusFilters(), getDre({ tipo })])
       .then(([f, d]) => {
-        setFilters(f);
-        setSelAnos(f.anos);
-        setSelEmpresas(f.empresas);
-        setData(d);
-        setFiltersReady(true);
-        initialLoad.current = false;
+        setFilters(f); setSelAnos(f.anos); setSelEmpresas(f.empresas); setData(d);
+        setFiltersReady(true); initialLoad.current = false;
       })
-      .catch(err => {
-        console.error("DRE Error:", err);
-        message.error("Erro ao carregar dados da DRE");
-      })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { loadInitial(); }, [loadInitial]);
 
   useEffect(() => {
     if (!filtersReady || initialLoad.current) return;
@@ -52,13 +51,7 @@ export function DreTab() {
     const params: Record<string, string> = { tipo };
     if (selAnos.length) params.anos = selAnos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
-    getDre(params)
-      .then(d => { setData(d); })
-      .catch(err => {
-        console.error("DRE Data Error:", err);
-        message.error("Erro ao carregar dados da DRE");
-      })
-      .finally(() => { setLoading(false); });
+    getDre(params).then(d => setData(d)).catch(() => message.error("Erro ao carregar DRE")).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selAnos, selEmpresas, tipo]);
 
@@ -81,7 +74,7 @@ export function DreTab() {
             options={filters.empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
         </div>
       </div>
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+      {loading ? <TableSkeleton rows={12} /> : error ? <ErrorState onRetry={loadInitial} /> : (
         <PLTable rows={data?.rows || []} columns={data?.columns || []} />
       )}
     </div>
@@ -98,27 +91,23 @@ export function StreamsTab() {
   const [tipo, setTipo] = useState("Actual");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
   const initialLoad = useRef(true);
 
-  useEffect(() => {
+  const loadInitial = useCallback(() => {
+    setLoading(true); setError(false);
     Promise.all([getNexusFilters(), getStreams({ tipo })])
       .then(([f, d]) => {
-        setFilters(f);
-        setSelAnos(f.anos);
-        setSelEmpresas(f.empresas);
-        setSelStreams(f.streams);
-        setData(d);
-        setFiltersReady(true);
-        initialLoad.current = false;
+        setFilters(f); setSelAnos(f.anos); setSelEmpresas(f.empresas); setSelStreams(f.streams); setData(d);
+        setFiltersReady(true); initialLoad.current = false;
       })
-      .catch(err => {
-        console.error("Streams Error:", err);
-        message.error("Erro ao carregar dados por Stream");
-      })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { loadInitial(); }, [loadInitial]);
 
   useEffect(() => {
     if (!filtersReady || initialLoad.current) return;
@@ -128,13 +117,7 @@ export function StreamsTab() {
     if (selAnos.length) params.anos = selAnos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selStreams.length) params.streams = selStreams.join(",");
-    getStreams(params)
-      .then(d => { setData(d); })
-      .catch(err => {
-        console.error("Streams Data Error:", err);
-        message.error("Erro ao carregar dados por Stream");
-      })
-      .finally(() => { setLoading(false); });
+    getStreams(params).then(d => setData(d)).catch(() => message.error("Erro ao carregar Streams")).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selAnos, selEmpresas, selStreams, tipo]);
 
@@ -162,7 +145,7 @@ export function StreamsTab() {
             options={filters.streams.map(s => ({ label: s, value: s }))} maxTagCount="responsive" />
         </div>
       </div>
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+      {loading ? <TableSkeleton rows={12} /> : error ? <ErrorState onRetry={loadInitial} /> : (
         <PLTable rows={data?.rows || []} columns={data?.columns || []} />
       )}
     </div>
@@ -177,25 +160,23 @@ export function MatricialTab() {
   const [tipo, setTipo] = useState("Actual");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
   const initialLoad = useRef(true);
 
-  useEffect(() => {
+  const loadInitial = useCallback(() => {
+    setLoading(true); setError(false);
     Promise.all([getNexusFilters(), getMatricial({ tipo })])
       .then(([f, d]) => {
-        setFilters(f);
-        setSelAnos(f.anos);
-        setData(d);
-        setFiltersReady(true);
-        initialLoad.current = false;
+        setFilters(f); setSelAnos(f.anos); setData(d);
+        setFiltersReady(true); initialLoad.current = false;
       })
-      .catch(err => {
-        console.error("Matricial Error:", err);
-        message.error("Erro ao carregar dados de P&L Matricial");
-      })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { loadInitial(); }, [loadInitial]);
 
   useEffect(() => {
     if (!filtersReady || initialLoad.current) return;
@@ -203,13 +184,7 @@ export function MatricialTab() {
     setLoading(true);
     const params: Record<string, string> = { tipo };
     if (selAnos.length) params.anos = selAnos.join(",");
-    getMatricial(params)
-      .then(d => { setData(d); })
-      .catch(err => {
-        console.error("Matricial Data Error:", err);
-        message.error("Erro ao carregar dados de P&L Matricial");
-      })
-      .finally(() => { setLoading(false); });
+    getMatricial(params).then(d => setData(d)).catch(() => message.error("Erro ao carregar Matricial")).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selAnos, tipo]);
 
@@ -243,7 +218,7 @@ export function MatricialTab() {
             options={[{ label: "Actual", value: "Actual" }, { label: "Budget", value: "Budget" }]} />
         </div>
       </div>
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+      {loading ? <TableSkeleton rows={8} /> : error ? <ErrorState onRetry={loadInitial} /> : (
         <Table
           dataSource={(data?.data || []).map((d: any, i: number) => ({ ...d, key: i }))}
           columns={columns}

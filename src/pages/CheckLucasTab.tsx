@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table, Spin, message, Card, Statistic } from "antd";
+import { Select, Table, message, Card, Statistic } from "antd";
+import TableSkeleton from "../components/TableSkeleton";
+import ErrorState from "../components/ErrorState";
 import { getRazaoFilters, getRazaoComparativo } from "../api";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
@@ -199,7 +201,7 @@ export default function CheckLucasTab() {
       </div>
 
       {/* Tabela */}
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+      {loading ? <TableSkeleton rows={10} /> : (
         <Table
           dataSource={[
             {

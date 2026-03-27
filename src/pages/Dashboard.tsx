@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, Spin, ConfigProvider, Tabs, Card, Switch } from "antd";
+import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Card, Switch } from "antd";
+import TableSkeleton from "../components/TableSkeleton";
 import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
@@ -124,7 +125,7 @@ function WorkerTab() {
       <Title level={5} style={{ color: theme.text, borderBottom: `2px solid ${theme.accent}`, paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
         Comparativo por Competência
       </Title>
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : <MonthlySection data={mensal} />}
+      {loading ? <TableSkeleton rows={6} /> : <MonthlySection data={mensal} />}
 
       <div style={{ height: 28 }} />
 
@@ -133,7 +134,7 @@ function WorkerTab() {
           <Title level={5} style={{ color: theme.text, borderBottom: `2px solid ${theme.accent}`, paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
             Visão por {LEVEL_LABELS[currentLevel]}
           </Title>
-          {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+          {loading ? <TableSkeleton rows={8} /> : (
             <MetricTable
               data={metricas}
               levelKey={currentLevel}
@@ -173,50 +174,25 @@ export default function Dashboard() {
 
         <Content style={{ padding: "1.5rem 2rem" }}>
           {section === null && (
-            <div style={{ display: "flex", gap: 32, justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
-              <Card
-                hoverable
-                onClick={() => setSection("worker")}
-                style={{ width: 280, textAlign: "center", border: "2px solid #dde3f0", cursor: "pointer" }}
-                styles={{ body: { padding: "2.5rem 2rem" } }}
-              >
-                <div style={{ fontSize: 52, marginBottom: 16 }}>👷</div>
-                <Title level={4} style={{ color: theme.text, marginBottom: 8 }}>Worker</Title>
-                <Text type="secondary">Base Worker, receitas e custos por colaborador</Text>
-              </Card>
-
-              <Card
-                hoverable
-                onClick={() => setSection("cockpit")}
-                style={{ width: 280, textAlign: "center", border: "2px solid #dde3f0", cursor: "pointer" }}
-                styles={{ body: { padding: "2.5rem 2rem" } }}
-              >
-                <div style={{ fontSize: 52, marginBottom: 16 }}>🏢</div>
-                <Title level={4} style={{ color: theme.text, marginBottom: 8 }}>Financeiro</Title>
-                <Text type="secondary">DRE, P&L por Stream, Matricial e Base SAP S4</Text>
-              </Card>
-
-              <Card
-                hoverable
-                onClick={() => setSection("metas")}
-                style={{ width: 280, textAlign: "center", border: "2px solid #dde3f0", cursor: "pointer" }}
-                styles={{ body: { padding: "2.5rem 2rem" } }}
-              >
-                <div style={{ fontSize: 52, marginBottom: 16 }}>🎯</div>
-                <Title level={4} style={{ color: theme.text, marginBottom: 8 }}>Apuração de Metas</Title>
-                <Text type="secondary">Acompanhamento e apuração de metas</Text>
-              </Card>
-
-              <Card
-                hoverable
-                onClick={() => setSection("pl")}
-                style={{ width: 280, textAlign: "center", border: "2px solid #dde3f0", cursor: "pointer" }}
-                styles={{ body: { padding: "2.5rem 2rem" } }}
-              >
-                <div style={{ fontSize: 52, marginBottom: 16 }}>📈</div>
-                <Title level={4} style={{ color: theme.text, marginBottom: 8 }}>P&L</Title>
-                <Text type="secondary">Resumo por empresa e margem por cliente</Text>
-              </Card>
+            <div style={{ display: "flex", gap: 24, justifyContent: "center", alignItems: "stretch", minHeight: "60vh", flexWrap: "wrap" }}>
+              {([
+                { key: "worker",  icon: "👷", title: "Worker",            desc: "Receitas e custos por colaborador",              sub: "Base Worker" },
+                { key: "cockpit", icon: "🏢", title: "Financeiro",        desc: "DRE, P&L por Stream e Matricial",               sub: "SAP S4 · Nexus" },
+                { key: "metas",   icon: "🎯", title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3",     sub: "Margem · Clientes · Check" },
+                { key: "pl",      icon: "📈", title: "P&L",               desc: "Resumo financeiro por empresa e cliente",       sub: "Margem · Resumo" },
+              ] as const).map(({ key, icon, title, desc, sub }) => (
+                <div
+                  key={key}
+                  onClick={() => setSection(key)}
+                  className="home-card"
+                  style={{ width: 240, cursor: "pointer", background: "#fff", borderRadius: 14, border: "1.5px solid #dde3f0", padding: "2rem 1.5rem", textAlign: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s" }}
+                >
+                  <div style={{ fontSize: 44, marginBottom: 14, lineHeight: 1 }}>{icon}</div>
+                  <div style={{ color: theme.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 6 }}>{title}</div>
+                  <div style={{ color: "#6b7fa3", fontSize: "0.82rem", lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
+                  <div style={{ display: "inline-block", background: "#f4f6fb", color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 600, padding: "2px 10px", borderRadius: 20, letterSpacing: 0.3 }}>{sub}</div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -299,6 +275,9 @@ export default function Dashboard() {
         .ant-table-row:hover > td { background: #f0f4ff !important; }
         .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active { background: ${theme.accent} !important; border-color: ${theme.accent} !important; }
         .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn { color: #fff !important; }
+        .clickable-row { cursor: pointer; }
+        .clickable-row:hover > td { background: #eef2ff !important; }
+        .home-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important; transform: translateY(-2px); border-color: ${theme.accent} !important; }
       `}</style>
     </ConfigProvider>
   );

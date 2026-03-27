@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Button, Typography, Breadcrumb, Card, Statistic, Input, Segmented } from "antd";
 import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined } from "@ant-design/icons";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import * as XLSX from "xlsx";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas, getMargemPessoaProjetos } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
@@ -1057,24 +1058,59 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
           );
         })()
       ) : (
-        <Table
-          dataSource={(() => {
-            const rec = clientesData.reduce((s,r)=>s+r.receita,0);
-            const cus = clientesData.reduce((s,r)=>s+r.custo_rateado,0);
-            const mar = clientesData.reduce((s,r)=>s+r.margem,0);
-            const pct = rec!==0 ? mar/rec : null;
-            return [{ key:"__t__", nome_cliente:"TOTAL", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, num_projetos: clientesData.reduce((s,r)=>s+r.num_projetos,0), _isTotal:true }, ...clientesData.map((d,i)=>({...d,key:i}))];
-          })()}
-          columns={draggableClientes}
-          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
-          size="small"
-          scroll={{ x: "max-content" }}
-          style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-          onRow={row => ({
-            onClick: () => !(row as any)._isTotal && setSelectedCliente(row.nome_cliente),
-            style: (row as any)._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
-          })}
-        />
+        <>
+          {clientesData.length > 0 && !searchCliente.trim() && (
+            <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #dde3f0", padding: "1.2rem 1.2rem 0.5rem", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+              <div style={{ color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>
+                Top clientes por receita — clique para detalhar
+              </div>
+              <ResponsiveContainer width="100%" height={Math.min(clientesData.length, 15) * 28 + 8}>
+                <BarChart
+                  data={clientesData.slice(0, 15).sort((a, b) => b.receita - a.receita)}
+                  layout="vertical"
+                  margin={{ top: 0, right: 80, bottom: 0, left: 130 }}
+                  onClick={(e: any) => { if (e?.activePayload?.[0]?.payload?.nome_cliente) setSelectedCliente(e.activePayload[0].payload.nome_cliente); }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="nome_cliente" tick={{ fontSize: 11, fill: theme.text }} width={128} tickFormatter={(v: string) => toTitleCase(v) || v} />
+                  <Tooltip
+                    formatter={(v: any, _: any, p: any) => {
+                      const r = p?.payload;
+                      const val = Number(v) || 0;
+                      return [`Receita: R$ ${val.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} | Margem: ${r?.margem_pct != null ? (r.margem_pct * 100).toFixed(1) + "%" : "—"}`];
+                    }}
+                    labelFormatter={(l: any) => toTitleCase(String(l || "")) || String(l || "")}
+                  />
+                  <Bar dataKey="receita" radius={[0, 4, 4, 0]} cursor="pointer">
+                    {clientesData.slice(0, 15).sort((a, b) => b.receita - a.receita).map((_, i) => (
+                      <Cell key={i} fill={i === 0 ? theme.accent : i < 3 ? theme.cat1.bg : "#dde3f0"} stroke={i < 3 ? theme.accent : "#c8cfe0"} strokeWidth={1} />
+                    ))}
+                    <LabelList dataKey="receita" position="right" style={{ fontSize: 10, fill: "#6b7fa3" }}
+                      formatter={(v: any) => `R$ ${(Number(v || 0) / 1000).toFixed(0)}k`} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <Table
+            dataSource={(() => {
+              const rec = clientesData.reduce((s,r)=>s+r.receita,0);
+              const cus = clientesData.reduce((s,r)=>s+r.custo_rateado,0);
+              const mar = clientesData.reduce((s,r)=>s+r.margem,0);
+              const pct = rec!==0 ? mar/rec : null;
+              return [{ key:"__t__", nome_cliente:"TOTAL", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, num_projetos: clientesData.reduce((s,r)=>s+r.num_projetos,0), _isTotal:true }, ...clientesData.map((d,i)=>({...d,key:i}))];
+            })()}
+            columns={draggableClientes}
+            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+            size="small"
+            scroll={{ x: "max-content" }}
+            style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+            onRow={row => ({
+              onClick: () => !(row as any)._isTotal && setSelectedCliente(row.nome_cliente),
+              style: (row as any)._isTotal ? { background: "#dce6f7", fontWeight: 700 } : { cursor: "pointer" },
+            })}
+          />
+        </>
       )}
     </div>
   );

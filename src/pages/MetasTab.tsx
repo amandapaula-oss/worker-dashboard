@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Select, Table, Spin, message, Input } from "antd";
+import { Select, Table, message, Input } from "antd";
+import TableSkeleton from "../components/TableSkeleton";
 import { SearchOutlined } from "@ant-design/icons";
 import { getMetasFilters, getMetasCustoPessoal } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
@@ -103,7 +104,7 @@ export default function MetasTab() {
         </div>
       </div>
 
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+      {loading ? <TableSkeleton rows={10} /> : (
         <Table
           dataSource={(() => {
             const total = filteredData.reduce((s, r) => s + (Number(r.custo) || 0), 0);
