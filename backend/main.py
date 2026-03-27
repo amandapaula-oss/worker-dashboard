@@ -863,7 +863,7 @@ def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", 
 def read_clientes_csv() -> pd.DataFrame:
     path = "clientes.csv"
     if os.path.exists(path):
-        df = pd.read_csv(path, dtype=str).fillna("")
+        df = pd.read_csv(path, encoding="utf-8-sig", dtype=str).fillna("")
         return df
     return pd.DataFrame(columns=["nome_cliente","bu","ae"])
 
