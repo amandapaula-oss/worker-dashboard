@@ -1,17 +1,12 @@
-name: Keep Alive
+name: Keep Render Alive
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # a cada 10 minutos
-  workflow_dispatch:          # permite rodar manualmente
+    - cron: "*/5 * * * *"
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping API
-        run: |
-          curl -sf https://worker-dashboard-api.onrender.com/health \
-            --max-time 30 \
-            --retry 2 \
-            || echo "Ping falhou (normal se o serviço estava hibernando)"
+      - name: Ping backend
+        run: curl -sf https://worker-dashboard-api.onrender.com/health || true
