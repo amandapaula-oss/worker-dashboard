@@ -31,19 +31,21 @@ def norm(s: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_all():
-    pessoas   = pd.read_csv(os.path.join(DIR, "premissas_pessoas.csv"),   encoding="utf-8-sig")
-    pesos_m   = pd.read_csv(os.path.join(DIR, "premissas_pesos_meta.csv"),encoding="utf-8-sig")
-    pesos_ws  = pd.read_csv(os.path.join(DIR, "premissas_pesos_ws.csv"),  encoding="utf-8-sig")
-    triggers  = pd.read_csv(os.path.join(DIR, "premissas_triggers.csv"),  encoding="utf-8-sig")
-    bgt_rec   = pd.read_csv(os.path.join(DIR, "budget_receita.csv"),      encoding="utf-8-sig")
-    bgt_lb    = pd.read_csv(os.path.join(DIR, "budget_lb.csv"),           encoding="utf-8-sig")
+    _prem     = pd.ExcelFile(os.path.join(DIR, "premissas.xlsx"))
+    pessoas   = _prem.parse("pessoas")
+    pesos_m   = _prem.parse("pesos_meta")
+    pesos_ws  = _prem.parse("pesos_ws")
+    triggers  = _prem.parse("triggers")
+    _budget   = pd.read_csv(os.path.join(DIR, "budget.csv"),              encoding="utf-8-sig")
+    bgt_rec   = _budget[_budget["tipo"] == "Receita"].copy()
+    bgt_lb    = _budget[_budget["tipo"] == "Margem"].copy()
     bgt_tcv   = pd.read_csv(os.path.join(DIR, "budget_tcv.csv"),          encoding="utf-8-sig")
     _real_df = pd.read_csv(os.path.join(DIR, "realizados_manual.csv"), encoding="utf-8-sig")
     tcv_real_map    = dict(zip(_real_df[_real_df["tipo"] == "TCV_Q4"]["ae_ou_vertical"],
                                _real_df[_real_df["tipo"] == "TCV_Q4"]["receita"].astype(float)))
     tcv_real_q3_map = dict(zip(_real_df[_real_df["tipo"] == "TCV_Q3"]["ae_ou_vertical"],
                                _real_df[_real_df["tipo"] == "TCV_Q3"]["receita"].astype(float)))
-    pesos_ws_df = pd.read_csv(os.path.join(DIR, "premissas_pesos_ws_pessoa.csv"), encoding="utf-8-sig")
+    pesos_ws_df = _prem.parse("pesos_ws_pessoa")
     pesos_ws_df["nome_norm"] = pesos_ws_df["nome"].apply(norm)
     # dict: nome_norm → {ws_key: peso}  (Q4)
     pesos_ws_pessoa = {
@@ -78,19 +80,18 @@ def _load_all():
     _cl_path = os.path.join(DIR, "classificacao_pessoas.csv")
     margem_pess = pd.read_csv(_mp_path, encoding="utf-8-sig", dtype={"cpf": str}) if os.path.exists(_mp_path) else pd.DataFrame()
     class_pess  = pd.read_csv(_cl_path, encoding="utf-8-sig", dtype={"cpf_brcpf": str}) if os.path.exists(_cl_path) else pd.DataFrame()
-    lb_trigger_df = pd.read_csv(os.path.join(DIR, "premissas_lb_trigger.csv"), encoding="utf-8-sig")
+    lb_trigger_df = _prem.parse("lb_trigger")
     lb_trigger_df["nome_norm"] = lb_trigger_df["nome"].apply(norm)
     # dict: nome_norm → {meta_lb, trigger_lb}
     lb_trigger_map = {
         row["nome_norm"]: {"meta_lb": float(row["meta_lb"] or 0), "trigger_lb": float(row["trigger_lb"] or 0)}
         for _, row in lb_trigger_df.iterrows()
     }
-    _mc_metas_path = os.path.join(DIR, "metas_mc_dir.csv")
     mc_metas_dir: dict = {}
-    if os.path.exists(_mc_metas_path):
-        _mc_df = pd.read_csv(_mc_metas_path, encoding="utf-8-sig")
-        for _, _row in _mc_df.iterrows():
-            mc_metas_dir[norm(str(_row["nome"]))] = float(_row["meta_mc_abs"])
+    _metas_xl = pd.ExcelFile(os.path.join(DIR, "metas.xlsx"))
+    _mc_df = _metas_xl.parse("mc_dir")
+    for _, _row in _mc_df.iterrows():
+        mc_metas_dir[norm(str(_row["nome"]))] = float(_row["meta_mc_abs"])
 
     pessoas["nome_norm"] = pessoas["Nome"].apply(norm)
     bgt_rec["cliente_norm"] = bgt_rec["cliente"].apply(norm)
@@ -1789,7 +1790,7 @@ def _resolve_vertical_for_ae(nome: str, lookup: dict) -> str:
 
 # ─── Metas Anuais ────────────────────────────────────────────────────────────
 
-_METAS_ANUAIS_PATH = os.path.join(DIR, "metas_anuais.csv")
+_METAS_XLSX_PATH   = os.path.join(DIR, "metas.xlsx")
 _PERIODOS_ANUAIS   = ["Q1Y25", "Q2Y25", "Q3Y25"]  # Q4 calculado pelo engine
 
 # Tipos de margem por grupo
@@ -1798,9 +1799,9 @@ _TIPOS_MC  = {"mc", "mc%"}   # Diretores e Retail
 
 @lru_cache(maxsize=1)
 def _load_metas_anuais() -> pd.DataFrame:
-    if not os.path.exists(_METAS_ANUAIS_PATH):
+    if not os.path.exists(_METAS_XLSX_PATH):
         return pd.DataFrame()
-    df = pd.read_csv(_METAS_ANUAIS_PATH, encoding="utf-8-sig")
+    df = pd.ExcelFile(_METAS_XLSX_PATH).parse("anuais")
     df["nome_norm"]   = df["nome"].apply(norm)
     df["periodo"]     = df["periodo"].str.upper().str.strip()
     df["meta_tipo_n"] = df["meta_tipo"].str.lower().str.strip()
@@ -1820,8 +1821,7 @@ def _safe_float(v, default=0.0) -> float:
 @lru_cache(maxsize=1)
 def _pesos_anuais() -> dict:
     """Retorna dict posicao_upper → {rec, lb_mb, tcv} para período Anual."""
-    path = os.path.join(DIR, "premissas_pesos_meta.csv")
-    df = pd.read_csv(path, encoding="utf-8-sig")
+    df = pd.ExcelFile(os.path.join(DIR, "premissas.xlsx")).parse("pesos_meta")
     anual = df[df["Periodo"].str.lower() == "anual"]
     result = {}
     for _, row in anual.iterrows():
