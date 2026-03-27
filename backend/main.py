@@ -72,7 +72,7 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 
 # ── Cache em memória ───────────────────────────────────────────────────────────
 
-_cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None, "clt": None}
+_cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None, "clt": None, "financeiro": None}
 _ready: dict = {"sap": False, "nexus": False}
 
 CLT_FOLDER_ID = "1aEHQAARXkf_BZbc5j0Z8Tt0s5Fmk6tSu"
@@ -117,40 +117,58 @@ def get_df() -> pd.DataFrame:
         _cache["df"] = df
     return _cache["df"]
 
+def _get_financeiro() -> pd.DataFrame:
+    """Carrega financeiro.csv com cache baseado em mtime."""
+    mtime = os.path.getmtime("financeiro.csv")
+    if _cache["financeiro"] is None or _cache.get("financeiro_mtime") != mtime:
+        print("Carregando financeiro.csv...")
+        df = pd.read_csv("financeiro.csv", encoding="utf-8-sig", dtype=str)
+        df["valor"] = pd.to_numeric(df["valor"], errors="coerce").astype("float32")
+        df["ano"]   = pd.to_numeric(df["ano"],   errors="coerce").astype("Int16")
+        _cache["financeiro"]      = df
+        _cache["financeiro_mtime"] = mtime
+        print(f"financeiro.csv carregado: {len(df)} linhas")
+    return _cache["financeiro"]
+
 def get_sap() -> pd.DataFrame:
-    mtime = os.path.getmtime("sap_agg.csv")
-    if _cache["sap"] is None or _cache.get("sap_mtime") != mtime:
-        print("Carregando sap_agg.csv...")
-        df = pd.read_csv("sap_agg.csv")
-        df["CompanyCode"] = df["CompanyCode"].map(COMPANY_NAMES).fillna(df["CompanyCode"])
-        for col in ["CompanyCode", "agrupador_fpa", "vertical", "ProfitCenter"]:
-            if col in df.columns:
-                df[col] = df[col].astype("category")
-        df["AmountInCompanyCodeCurrency"] = df["AmountInCompanyCodeCurrency"].astype("float32")
-        print(f"SAP carregado: {len(df)} linhas")
-        _cache["sap"] = df
-        _cache["sap_mtime"] = mtime
-    return _cache["sap"]
+    fin = _get_financeiro()
+    df  = fin[fin["fonte"] == "SAP"].copy()
+    df  = df.rename(columns={
+        "empresa":   "CompanyCode",
+        "agrupador": "agrupador_fpa",
+        "valor":     "AmountInCompanyCodeCurrency",
+        "profit_center": "ProfitCenter",
+    })
+    df["FiscalPeriod"] = df["periodo"].str[5:7].astype(int)
+    df["CompanyCode"]  = df["CompanyCode"].map(COMPANY_NAMES).fillna(df["CompanyCode"])
+    for col in ["CompanyCode", "agrupador_fpa", "vertical", "ProfitCenter"]:
+        if col in df.columns:
+            df[col] = df[col].astype("category")
+    if not _ready["sap"]:
+        _ready["sap"] = True
+    return df
 
 def get_nexus() -> pd.DataFrame:
-    mtime = os.path.getmtime("nexus_agg.csv")
-    if _cache["nexus"] is None or _cache.get("nexus_mtime") != mtime:
-        print("Carregando nexus_agg.csv...")
-        df = pd.read_csv("nexus_agg.csv")
-        df = df.rename(columns={"Agrupador": "[Agrupador FP&A - COA]", "Periodo": "Período"})
-        if "Ano" in df.columns:
-            df["Ano"] = pd.to_numeric(df["Ano"], errors="coerce").astype("Int16")
-        df["[Valor]"] = df["[Valor]"].astype("float32")
-        for col in ["[Tipo]", "[Moeda]", "[Empresa]", "[Vertical]", "[Stream]",
-                    "[Agrupador FP&A - COA]", "Período"]:
-            if col in df.columns:
-                df[col] = df[col].astype("category")
-        print(f"Nexus carregado: {len(df)} linhas")
-        print(f"  Tipos: {df['[Tipo]'].dropna().unique().tolist()}")
-        print(f"  Moedas: {df['[Moeda]'].dropna().unique().tolist()}")
-        _cache["nexus"] = df
-        _cache["nexus_mtime"] = mtime
-    return _cache["nexus"]
+    fin = _get_financeiro()
+    df  = fin[fin["fonte"] == "Nexus"].copy()
+    df  = df.rename(columns={
+        "empresa":          "[Empresa]",
+        "vertical":         "[Vertical]",
+        "agrupador":        "[Agrupador FP&A - COA]",
+        "valor":            "[Valor]",
+        "tipo_financeiro":  "[Tipo]",
+        "moeda":            "[Moeda]",
+        "stream":           "[Stream]",
+        "periodo":          "Período",
+    })
+    df["Ano"] = df["ano"].astype("Int16")
+    for col in ["[Tipo]", "[Moeda]", "[Empresa]", "[Vertical]", "[Stream]",
+                "[Agrupador FP&A - COA]", "Período"]:
+        if col in df.columns:
+            df[col] = df[col].astype("category")
+    if not _ready["nexus"]:
+        _ready["nexus"] = True
+    return df
 
 def get_clt() -> dict:
     """Returns {mes_label: {empresa: total_totalizador}}"""
@@ -192,28 +210,22 @@ def get_clt() -> dict:
 
 def _preload_heavy():
     try:
-        print("Carregando SAP...")
-        get_sap()
-        _ready["sap"] = True
+        print("Carregando financeiro.csv (SAP + Nexus + Razão)...")
+        _get_financeiro()
         sap = get_sap()
-        print(f"SAP carregado. Rows={len(sap)}, agrupadores={sap['agrupador_fpa'].dropna().unique().tolist()[:5]}")
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        print(f"Erro ao carregar SAP: {e}")
-    try:
-        print("Carregando Nexus...")
-        get_nexus()
-        _ready["nexus"] = True
+        _ready["sap"] = True
+        print(f"SAP: {len(sap)} linhas, agrupadores={sap['agrupador_fpa'].dropna().unique().tolist()[:5]}")
         nx = get_nexus()
-        print(f"Nexus carregado. Rows={len(nx)}, cols={list(nx.columns)}")
-        print(f"  Tipos: {nx['[Tipo]'].dropna().unique().tolist()}")
-        print(f"  Moedas: {nx['[Moeda]'].dropna().unique().tolist()}")
-        print(f"  Empresas: {nx['[Empresa]'].dropna().unique().tolist()}")
-        print(f"  Anos: {sorted(nx['Ano'].dropna().unique().tolist())}")
+        _ready["nexus"] = True
+        print(f"Nexus: {len(nx)} linhas")
+        print(f"  Tipos: {nx['[Tipo]'].dropna().astype(str).unique().tolist()}")
+        print(f"  Moedas: {nx['[Moeda]'].dropna().astype(str).unique().tolist()}")
+        print(f"  Empresas: {nx['[Empresa]'].dropna().astype(str).unique().tolist()}")
+        print(f"  Anos: {sorted(nx['Ano'].dropna().astype(int).unique().tolist())}")
         print("Servidor pronto.")
     except Exception as e:
         import traceback; traceback.print_exc()
-        print(f"Erro ao carregar Nexus: {e}")
+        print(f"Erro ao carregar financeiro.csv: {e}")
 
 @app.get("/")
 @app.head("/")
@@ -1071,8 +1083,14 @@ def get_margem_pessoa_projetos(
 # ── Razão / Check Lucas endpoints ─────────────────────────────────────────────
 
 def get_razao() -> pd.DataFrame:
-    df = read_csv_cached("razao_agg.csv").copy()
-    df["periodo"] = df["FiscalYear"].astype(int).astype(str) + "-" + df["FiscalPeriod"].astype(int).apply(lambda x: f"{x:02d}")
+    fin = _get_financeiro()
+    df  = fin[fin["fonte"] == "Razao"].copy()
+    df  = df.rename(columns={
+        "agrupador": "agrupador_fpa",
+        "valor":     "AmountInCompanyCodeCurrency",
+    })
+    df["FiscalYear"]   = df["ano"].astype("Int16")
+    df["FiscalPeriod"] = df["periodo"].str[5:7].astype(int)
     return df
 
 @app.get("/api/razao/filters")

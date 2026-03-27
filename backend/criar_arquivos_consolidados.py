@@ -2,8 +2,10 @@
 Gera os arquivos consolidados a partir dos arquivos existentes.
 
 Arquivos de entrada (legados):
-  rac_projetos.csv    +  margem_projetos.csv  →  projetos.csv
-  tcv_realizado.csv   +  q3_realizados_gm.csv →  realizados_manual.csv
+  rac_projetos.csv    +  margem_projetos.csv    →  projetos.csv
+  tcv_realizado.csv   +  q3_realizados_gm.csv   →  realizados_manual.csv
+  sap_agg.csv         +  nexus_agg.csv
+                      +  razao_agg.csv           →  financeiro.csv
 
 Uso:
     cd backend
@@ -139,9 +141,78 @@ def build_realizados():
     return out
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. financeiro.csv
+#    Consolida sap_agg + nexus_agg + razao_agg
+#    Schema: periodo, fonte, empresa, vertical, agrupador, valor,
+#            profit_center, tipo_financeiro, moeda, stream, ano
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_financeiro(sap_ano: int = 2025):
+    sap = pd.read_csv(p("sap_agg.csv"),   encoding="utf-8-sig")
+    nex = pd.read_csv(p("nexus_agg.csv"), encoding="utf-8-sig")
+    raz = pd.read_csv(p("razao_agg.csv"), encoding="utf-8-sig")
+
+    # ── SAP ──────────────────────────────────────────────────────────────────
+    sap_rows = pd.DataFrame({
+        "periodo":        sap["FiscalPeriod"].apply(lambda m: f"{sap_ano}-{int(m):02d}"),
+        "fonte":          "SAP",
+        "empresa":        sap["CompanyCode"],
+        "vertical":       sap["vertical"],
+        "agrupador":      sap["agrupador_fpa"],
+        "valor":          sap["AmountInCompanyCodeCurrency"],
+        "profit_center":  sap["ProfitCenter"],
+        "tipo_financeiro": None,
+        "moeda":          None,
+        "stream":         None,
+        "ano":            sap_ano,
+    })
+
+    # ── Nexus ─────────────────────────────────────────────────────────────────
+    nex_rows = pd.DataFrame({
+        "periodo":        nex["Periodo"],
+        "fonte":          "Nexus",
+        "empresa":        nex["[Empresa]"],
+        "vertical":       nex["[Vertical]"],
+        "agrupador":      nex["Agrupador"],
+        "valor":          nex["[Valor]"],
+        "profit_center":  None,
+        "tipo_financeiro": nex["[Tipo]"],
+        "moeda":          nex["[Moeda]"],
+        "stream":         nex["[Stream]"],
+        "ano":            nex["Ano"],
+    })
+
+    # ── Razão ─────────────────────────────────────────────────────────────────
+    raz_rows = pd.DataFrame({
+        "periodo":        raz.apply(lambda r: f"{int(r['FiscalYear'])}-{int(r['FiscalPeriod']):02d}", axis=1),
+        "fonte":          "Razao",
+        "empresa":        raz["empresa"],
+        "vertical":       None,
+        "agrupador":      raz["agrupador_fpa"],
+        "valor":          raz["AmountInCompanyCodeCurrency"],
+        "profit_center":  None,
+        "tipo_financeiro": None,
+        "moeda":          None,
+        "stream":         None,
+        "ano":            raz["FiscalYear"],
+    })
+
+    out = pd.concat([sap_rows, nex_rows, raz_rows], ignore_index=True)
+    out = out.sort_values(["fonte", "periodo", "empresa"])
+    out.to_csv(p("financeiro.csv"), index=False, encoding="utf-8-sig")
+    print(f"financeiro.csv gerado: {len(out)} linhas")
+    print(f"  SAP:   {len(sap_rows)}")
+    print(f"  Nexus: {len(nex_rows)}")
+    print(f"  Razão: {len(raz_rows)}")
+    return out
+
+
 if __name__ == "__main__":
     print("=== Criando arquivos consolidados ===\n")
     build_projetos()
     print()
     build_realizados()
+    print()
+    build_financeiro()
     print("\nConcluído.")
