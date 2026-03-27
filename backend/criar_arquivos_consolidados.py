@@ -1,0 +1,147 @@
+"""
+Gera os arquivos consolidados a partir dos arquivos existentes.
+
+Arquivos de entrada (legados):
+  rac_projetos.csv    +  margem_projetos.csv  →  projetos.csv
+  tcv_realizado.csv   +  q3_realizados_gm.csv →  realizados_manual.csv
+
+Uso:
+    cd backend
+    python criar_arquivos_consolidados.py
+"""
+import os
+import pandas as pd
+
+DIR = os.path.dirname(__file__)
+
+def p(name):
+    return os.path.join(DIR, name)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. projetos.csv
+#    Consolida rac_projetos + margem_projetos
+#    Schema: periodo, empresa, pep, nome_cliente, tipos, centro_lucro,
+#            no_hierarquia, categoria_bu, receita, custo_rateado, horas
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_projetos():
+    rac  = pd.read_csv(p("rac_projetos.csv"),  encoding="utf-8-sig", dtype={"pep": str})
+    marg = pd.read_csv(p("margem_projetos.csv"), encoding="utf-8-sig", dtype={"pep": str})
+
+    # normaliza pep para a base (BR02CLP00050.0.1 → BR02CLP00050)
+    rac["pep_base"]  = rac["pep"].str.split(".").str[0].str.strip()
+    marg["pep_base"] = marg["pep"].str.split(".").str[0].str.strip()
+
+    # agrega rac por periodo+pep_base+nome_cliente → receita_rac + tipos (csv)
+    rac_agg = (
+        rac.groupby(["periodo", "pep_base", "nome_cliente", "empresa"])
+        .agg(
+            receita_rac=("valor_liquido", "sum"),
+            tipos=("tipo", lambda x: ",".join(sorted(set(x.dropna().astype(str))))),
+        )
+        .reset_index()
+    )
+
+    # merge outer: começa por marg (tem custo/horas), traz rac por cima
+    merged = marg.merge(
+        rac_agg[["periodo", "pep_base", "nome_cliente", "receita_rac", "tipos"]],
+        on=["periodo", "pep_base", "nome_cliente"],
+        how="outer",
+    )
+
+    # para linhas só do rac (sem dados no marg), preenche empresa a partir do rac
+    rac_only_mask = merged["receita"].isna()
+    if rac_only_mask.any():
+        rac_emp = rac_agg.set_index(["periodo", "pep_base", "nome_cliente"])["empresa"]
+        for idx in merged[rac_only_mask].index:
+            key = (merged.at[idx, "periodo"],
+                   merged.at[idx, "pep_base"],
+                   merged.at[idx, "nome_cliente"])
+            if key in rac_emp.index:
+                merged.at[idx, "empresa"] = rac_emp[key]
+
+    # receita final: preferência ao rac; fallback ao sap
+    merged["receita"] = merged["receita_rac"].where(
+        merged["receita_rac"].notna(), merged["receita"]
+    )
+
+    # usa pep_base como pep no csv final (forma canônica)
+    merged["pep"] = merged["pep_base"].where(
+        merged["pep_base"].notna(), merged["pep"]
+    )
+
+    cols = [
+        "periodo", "empresa", "pep", "nome_cliente",
+        "tipos", "centro_lucro", "no_hierarquia", "categoria_bu",
+        "receita", "custo_rateado", "horas_total",
+    ]
+    # garante que todas as colunas existam
+    for c in cols:
+        if c not in merged.columns:
+            merged[c] = None
+
+    out = merged[cols].rename(columns={"horas_total": "horas"})
+    out = out.sort_values(["periodo", "empresa", "pep", "nome_cliente"])
+    out.to_csv(p("projetos.csv"), index=False, encoding="utf-8-sig")
+    print(f"projetos.csv gerado: {len(out)} linhas")
+    print(f"  com receita_rac: {out['receita'].notna().sum()}")
+    print(f"  com custo:       {out['custo_rateado'].notna().sum()}")
+    return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. realizados_manual.csv
+#    Consolida tcv_realizado + q3_realizados_gm
+#    Schema: tipo, ae_ou_vertical, cliente, receita, lb
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_realizados():
+    tcv = pd.read_csv(p("tcv_realizado.csv"),     encoding="utf-8-sig")
+    q3  = pd.read_csv(p("q3_realizados_gm.csv"),  encoding="utf-8-sig")
+
+    rows = []
+
+    # TCV Q4 e Q3 por vertical
+    for _, row in tcv.iterrows():
+        rows.append({
+            "tipo":          "TCV_Q4",
+            "ae_ou_vertical": row["vertical"],
+            "cliente":        "",
+            "receita":        float(row.get("tcv_realizado", 0) or 0),
+            "lb":             None,
+        })
+        if "tcv_q3" in tcv.columns:
+            rows.append({
+                "tipo":          "TCV_Q3",
+                "ae_ou_vertical": row["vertical"],
+                "cliente":        "",
+                "receita":        float(row.get("tcv_q3", 0) or 0),
+                "lb":             None,
+            })
+
+    # Realizados Q3 Grupo Mult (por cliente)
+    for _, row in q3.iterrows():
+        rows.append({
+            "tipo":          "Q3_GM",
+            "ae_ou_vertical": row["farmer"],
+            "cliente":        row["cliente"],
+            "receita":        float(row.get("receita", 0) or 0),
+            "lb":             float(row.get("lb", 0) or 0),
+        })
+
+    out = pd.DataFrame(rows, columns=["tipo", "ae_ou_vertical", "cliente", "receita", "lb"])
+    out.to_csv(p("realizados_manual.csv"), index=False, encoding="utf-8-sig")
+    print(f"realizados_manual.csv gerado: {len(out)} linhas")
+    print(f"  TCV_Q4: {len(out[out['tipo']=='TCV_Q4'])}")
+    print(f"  TCV_Q3: {len(out[out['tipo']=='TCV_Q3'])}")
+    print(f"  Q3_GM:  {len(out[out['tipo']=='Q3_GM'])}")
+    return out
+
+
+if __name__ == "__main__":
+    print("=== Criando arquivos consolidados ===\n")
+    build_projetos()
+    print()
+    build_realizados()
+    print("\nConcluído.")

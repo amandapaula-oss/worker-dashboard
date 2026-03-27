@@ -38,9 +38,11 @@ def _load_all():
     bgt_rec   = pd.read_csv(os.path.join(DIR, "budget_receita.csv"),      encoding="utf-8-sig")
     bgt_lb    = pd.read_csv(os.path.join(DIR, "budget_lb.csv"),           encoding="utf-8-sig")
     bgt_tcv   = pd.read_csv(os.path.join(DIR, "budget_tcv.csv"),          encoding="utf-8-sig")
-    tcv_real_df = pd.read_csv(os.path.join(DIR, "tcv_realizado.csv"),     encoding="utf-8-sig")
-    tcv_real_map = dict(zip(tcv_real_df["vertical"], tcv_real_df["tcv_realizado"].astype(float)))
-    tcv_real_q3_map = dict(zip(tcv_real_df["vertical"], tcv_real_df["tcv_q3"].astype(float))) if "tcv_q3" in tcv_real_df.columns else {}
+    _real_df = pd.read_csv(os.path.join(DIR, "realizados_manual.csv"), encoding="utf-8-sig")
+    tcv_real_map    = dict(zip(_real_df[_real_df["tipo"] == "TCV_Q4"]["ae_ou_vertical"],
+                               _real_df[_real_df["tipo"] == "TCV_Q4"]["receita"].astype(float)))
+    tcv_real_q3_map = dict(zip(_real_df[_real_df["tipo"] == "TCV_Q3"]["ae_ou_vertical"],
+                               _real_df[_real_df["tipo"] == "TCV_Q3"]["receita"].astype(float)))
     pesos_ws_df = pd.read_csv(os.path.join(DIR, "premissas_pesos_ws_pessoa.csv"), encoding="utf-8-sig")
     pesos_ws_df["nome_norm"] = pesos_ws_df["nome"].apply(norm)
     # dict: nome_norm → {ws_key: peso}  (Q4)
@@ -61,8 +63,15 @@ def _load_all():
         row["nome_norm"]: {ws_k: _ws_peso_q3(row, ws_k) for ws_k in WS_PESOS_Q4}
         for _, row in pesos_ws_df.iterrows()
     }
-    rac       = pd.read_csv(os.path.join(DIR, "rac_projetos.csv"),        encoding="utf-8-sig")
-    margem    = pd.read_csv(os.path.join(DIR, "margem_projetos.csv"),     encoding="utf-8-sig")
+    # projetos.csv consolida rac_projetos + margem_projetos
+    _proj     = pd.read_csv(os.path.join(DIR, "projetos.csv"),            encoding="utf-8-sig")
+    # monta rac (explodindo tipos) e margem a partir do arquivo unificado
+    _proj_rac  = _proj[_proj["tipos"].notna() & (_proj["tipos"] != "")].copy()
+    _proj_rac  = _proj_rac.assign(tipo=_proj_rac["tipos"].str.split(",")).explode("tipo")
+    _proj_rac["tipo"] = _proj_rac["tipo"].str.strip()
+    _proj_rac  = _proj_rac.rename(columns={"receita": "valor_liquido"})
+    rac        = _proj_rac
+    margem     = _proj.rename(columns={"horas": "horas_total"})
     nexus     = pd.read_csv(os.path.join(DIR, "nexus_agg.csv"),           encoding="utf-8-sig")
     # Pessoas — para custos reais de projetos Apps e para despesas (Opção C)
     _mp_path = os.path.join(DIR, "margem_pessoas.csv")
@@ -850,8 +859,13 @@ def calc_bonus_ae(nome: str) -> dict:
 @lru_cache(maxsize=1)
 def _load_q3_realized():
     """Carrega e processa dados SAP Q3. Retorna dicts de lookups (vazios se sem dados Q3)."""
-    rac    = pd.read_csv(os.path.join(DIR, "rac_projetos.csv"),    encoding="utf-8-sig")
-    margem = pd.read_csv(os.path.join(DIR, "margem_projetos.csv"), encoding="utf-8-sig")
+    _proj  = pd.read_csv(os.path.join(DIR, "projetos.csv"), encoding="utf-8-sig")
+    _proj_rac = _proj[_proj["tipos"].notna() & (_proj["tipos"] != "")].copy()
+    _proj_rac = _proj_rac.assign(tipo=_proj_rac["tipos"].str.split(",")).explode("tipo")
+    _proj_rac["tipo"] = _proj_rac["tipo"].str.strip()
+    _proj_rac = _proj_rac.rename(columns={"receita": "valor_liquido"})
+    rac    = _proj_rac
+    margem = _proj.rename(columns={"horas": "horas_total"})
 
     rac_q3  = rac[rac["periodo"].isin(Q3_PERIODOS)].copy()
     marg_q3 = margem[margem["periodo"].isin(Q3_PERIODOS)].copy()
@@ -982,11 +996,14 @@ def _load_q3_realized():
         except Exception:
             pass
 
-    # Override com dados validados de q3_realizados_gm.csv (source of truth por cliente)
-    _ov_path = os.path.join(DIR, "q3_realizados_gm.csv")
+    # Override com dados validados de realizados_manual.csv (source of truth por cliente)
+    _ov_path = os.path.join(DIR, "realizados_manual.csv")
     if os.path.exists(_ov_path):
         try:
-            ov = pd.read_csv(_ov_path, encoding="utf-8-sig")
+            _ov_all = pd.read_csv(_ov_path, encoding="utf-8-sig")
+            ov = _ov_all[_ov_all["tipo"] == "Q3_GM"].rename(
+                columns={"ae_ou_vertical": "farmer"}
+            )
             for _, row in ov.iterrows():
                 cli_n = norm(str(row["cliente"]))
                 rec   = float(row["receita"])

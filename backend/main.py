@@ -594,22 +594,35 @@ def get_metas_custo_pessoal(
 # ── RAC Financial ──────────────────────────────────────────────────────────────
 
 def get_rac_proj() -> pd.DataFrame:
-    df = read_csv_cached("rac_projetos.csv", dtype={"pep": str}).copy()
+    """Lê projetos.csv e adapta para o formato legado de rac_projetos."""
+    df = read_csv_cached("projetos.csv", dtype={"pep": str}).copy()
     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    # expande a coluna 'tipos' (csv) em linhas individuais para manter compatibilidade
+    if "tipos" in df.columns:
+        df = df[df["tipos"].notna() & (df["tipos"] != "")]
+        df = df.assign(tipo=df["tipos"].str.split(",")).explode("tipo")
+        df["tipo"] = df["tipo"].str.strip()
+    df = df.rename(columns={"receita": "valor_liquido"})
     return df
 
 def get_rac_pess() -> pd.DataFrame:
-    df = read_csv_cached("rac_pessoas.csv", dtype={"pep": str, "cpf": str}).copy()
+    df = read_csv_cached("rac_pessoas.csv", dtype={"pep": str, "numero_pessoal": str}).copy()
     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    if "cpf" not in df.columns:
+        df["cpf"] = ""
     return df
 
 @app.get("/api/rac/filters")
 def get_rac_filters(user=Depends(get_current_user)):
-    df = get_rac_proj()
+    df = read_csv_cached("projetos.csv", dtype={"pep": str}).copy()
+    df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+    # extrai todos os tipos únicos do campo csv
+    tipos_raw = df["tipos"].dropna().str.split(",").explode().str.strip()
+    tipos = sorted(tipos_raw[tipos_raw != ""].unique().tolist())
     return {
         "periodos": sorted(df["periodo"].dropna().unique().tolist()),
         "empresas": sorted(df["empresa"].dropna().unique().tolist()),
-        "tipos":    sorted(df["tipo"].dropna().unique().tolist()),
+        "tipos":    tipos,
     }
 
 @app.get("/api/rac/projetos")
@@ -623,7 +636,8 @@ def get_rac_projetos(
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
     if tipos:
-        df = df[df["tipo"].isin(tipos.split(","))]
+        sel = set(tipos.split(","))
+        df = df[df["tipo"].isin(sel)]
     df["pep"] = df["pep"].str.split(".").str[0]
     agg = df.groupby(["pep", "nome_cliente", "empresa"], as_index=False)["valor_liquido"].sum()
     agg = agg.sort_values("valor_liquido", ascending=False)
@@ -641,9 +655,10 @@ def get_rac_pessoas(
         df = df[df["periodo"].isin(periodos.split(","))]
     if empresas:
         df = df[df["empresa"].isin(empresas.split(","))]
-    df["cpf"] = df["cpf"].str.replace(r"^BRCPF", "", regex=True).fillna("")
-    df["numero_pessoal"] = df["numero_pessoal"].fillna("")
-    agg = df.groupby(["cpf", "numero_pessoal", "nome", "empresa"], as_index=False)["valor_liquido"].sum()
+    df["cpf"] = df["cpf"].astype(str).str.replace(r"^BRCPF", "", regex=True).fillna("")
+    df["numero_pessoal"] = df["numero_pessoal"].fillna("").astype(str)
+    agg = df.groupby(["numero_pessoal", "nome", "empresa"], as_index=False)["valor_liquido"].sum()
+    agg["cpf"] = ""
     agg = agg.sort_values("valor_liquido", ascending=False)
     return agg.fillna("").to_dict(orient="records")
 
@@ -681,18 +696,12 @@ WS_MB_BENCHMARK = {
 }
 
 def get_margem_proj() -> pd.DataFrame:
-    df = read_csv_cached("margem_projetos.csv", dtype={"pep": str}).copy()
+    # projetos.csv já traz receita com valor RAC onde disponível (pré-mesclado)
+    df = read_csv_cached("projetos.csv", dtype={"pep": str}).copy()
     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
-
-    # Substitui receita pelo valor do RAC (fonte primária correta)
-    rac = read_csv_cached("rac_projetos.csv", dtype={"pep": str})
-    rac["pep"] = rac["pep"].str.split(".").str[0]
-    rac_receita = rac.groupby(["periodo", "pep", "nome_cliente"])["valor_liquido"].sum().reset_index()
-    rac_receita = rac_receita.rename(columns={"valor_liquido": "receita_rac"})
-    df["pep_base"] = df["pep"].str.split(".").str[0]
-    df = df.merge(rac_receita, left_on=["periodo", "pep_base", "nome_cliente"],
-                  right_on=["periodo", "pep", "nome_cliente"], how="left", suffixes=("", "_rac_key"))
-    df["receita"] = df["receita_rac"].where(df["receita_rac"].notna(), df["receita"])
+    # renomeia horas para horas_total para compatibilidade
+    if "horas" in df.columns and "horas_total" not in df.columns:
+        df = df.rename(columns={"horas": "horas_total"})
 
     # Custos reais de pessoas para Apps com custo_rateado=0 no SAP
     try:
@@ -708,7 +717,8 @@ def get_margem_proj() -> pd.DataFrame:
     # Simula custo/margem usando benchmark para WS com margem definida
     # Alinhado com apuracao_engine.py: categoria vazia/Vazio → tratada como "Demais"
     def _apply_benchmark(row, field):
-        cat = row.get("categoria_bu", "") or ""
+        _cat_raw = row.get("categoria_bu", "")
+        cat = str(_cat_raw).strip() if pd.notna(_cat_raw) else ""
         rec = row["receita"] if pd.notna(row["receita"]) else 0.0
         existing_custo = row["custo_rateado"] if pd.notna(row.get("custo_rateado")) else 0.0
         # Categoria explícita com benchmark definido — sempre sobrescreve SAP
@@ -719,7 +729,7 @@ def get_margem_proj() -> pd.DataFrame:
                 return -rec * (1 - WS_MB_BENCHMARK[cat])
         # Apps com custo=0: usa custo real de pessoas; fallback benchmark 35%
         if cat == "Apps" and rec != 0 and existing_custo == 0:
-            _pep_b = str(row.get("pep_base", row.get("pep", ""))).split(".")[0]
+            _pep_b = str(row.get("pep", "")).split(".")[0]
             _per   = str(row.get("periodo", ""))
             _custo = _pep_period_custo.get((_pep_b, _per), None)
             if _custo is not None and _custo != 0:
