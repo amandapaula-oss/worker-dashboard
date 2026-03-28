@@ -33,8 +33,8 @@ export default function Login() {
         styles={{ body: { padding: "2rem" } }}
       >
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>👷</div>
-          <Title level={3} style={{ color: theme.text, margin: 0 }}>Worker Dashboard</Title>
+          <img src="/logo-fcamara.png" alt="FCamara" style={{ height: 48, width: "auto", marginBottom: 12 }} />
+          <Title level={3} style={{ color: theme.text, margin: 0 }}>FP&A Dashboard</Title>
           <Text type="secondary">Faça login para continuar</Text>
         </div>
 
