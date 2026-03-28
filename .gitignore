@@ -25,3 +25,7 @@ yarn-error.log*
 .env
 
 .vercel
+
+# Arquivos legados e fonte — não fazem parte do deploy
+backend/old/
+backend/nexus.xlsx
