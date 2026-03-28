@@ -102,9 +102,9 @@ SAP_NAMES = {"BR02": "FCamara", "BR07": "Hyper", "BR09": "NextGen"}
 
 def get_nomes() -> dict:
     if _cache["nomes"] is None:
-        if not os.path.exists("personaldata.xlsx"):
-            gdown.download(id=PERSONAL_ID, output="personaldata.xlsx", quiet=True)
-        df = pd.read_excel("personaldata.xlsx", sheet_name="YY1_FCTEAM5_PERSONEW",
+        if not os.path.exists("pessoas.xlsx"):
+            gdown.download(id=PERSONAL_ID, output="pessoas.xlsx", quiet=True)
+        df = pd.read_excel("pessoas.xlsx", sheet_name="personal_data",
                            usecols=["ID Number", "Full Name"])
         df = df.dropna(subset=["ID Number"]).drop_duplicates("ID Number")
         _cache["nomes"] = dict(zip(df["ID Number"].astype(str), df["Full Name"]))
@@ -112,24 +112,24 @@ def get_nomes() -> dict:
 
 def get_df() -> pd.DataFrame:
     if _cache["df"] is None:
-        if not os.path.exists("worker.xlsx"):
-            gdown.download(id=WORKER_ID, output="worker.xlsx", quiet=True)
-        df = pd.read_excel("worker.xlsx", sheet_name="receita_worker")
+        if not os.path.exists("pessoas.xlsx"):
+            gdown.download(id=WORKER_ID, output="pessoas.xlsx", quiet=True)
+        df = pd.read_excel("pessoas.xlsx", sheet_name="receita_worker")
         df["lucro_bruto"] = df["receita_liquida"] - df["cost"]
         _cache["df"] = df
     return _cache["df"]
 
 def _get_financeiro() -> pd.DataFrame:
-    """Carrega financeiro.csv com cache baseado em mtime."""
-    mtime = os.path.getmtime("financeiro.csv")
+    """Carrega aba financeiro de operacional.xlsx com cache baseado em mtime."""
+    mtime = os.path.getmtime("operacional.xlsx")
     if _cache["financeiro"] is None or _cache.get("financeiro_mtime") != mtime:
-        print("Carregando financeiro.csv...")
-        df = pd.read_csv("financeiro.csv", encoding="utf-8-sig", dtype=str)
+        print("Carregando operacional.xlsx/financeiro...")
+        df = pd.read_excel("operacional.xlsx", sheet_name="financeiro", dtype=str)
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce").astype("float32")
         df["ano"]   = pd.to_numeric(df["ano"],   errors="coerce").astype("Int16")
         _cache["financeiro"]      = df
         _cache["financeiro_mtime"] = mtime
-        print(f"financeiro.csv carregado: {len(df)} linhas")
+        print(f"operacional.xlsx/financeiro carregado: {len(df)} linhas")
     return _cache["financeiro"]
 
 def get_sap() -> pd.DataFrame:
@@ -566,12 +566,29 @@ def get_matricial(anos="", tipo="Actual", user=Depends(get_current_user)):
 
 _file_cache: dict = {}
 
-def read_csv_cached(path: str, **kwargs) -> pd.DataFrame:
+_SHEET_FILE = {
+    "projetos":              "operacional.xlsx",
+    "rac_pessoas":           "operacional.xlsx",
+    "margem_pessoas":        "operacional.xlsx",
+    "metas_custo":           "parametros.xlsx",
+    "classificacao_pessoas": "pessoas.xlsx",
+    "pep_vertical":          "parametros.xlsx",
+    "clientes":              "parametros.xlsx",
+}
+
+def read_sheet_cached(sheet: str, **kwargs) -> pd.DataFrame:
+    path = _SHEET_FILE[sheet]
     mtime = os.path.getmtime(path)
-    entry = _file_cache.get(path)
+    key = (path, sheet)
+    entry = _file_cache.get(key)
     if entry is None or entry["mtime"] != mtime:
-        _file_cache[path] = {"df": pd.read_csv(path, **kwargs), "mtime": mtime}
-    return _file_cache[path]["df"]
+        _file_cache[key] = {"df": pd.read_excel(path, sheet_name=sheet, **kwargs), "mtime": mtime}
+    return _file_cache[key]["df"]
+
+# compat alias
+def read_csv_cached(path: str, **kwargs) -> pd.DataFrame:
+    sheet = path.replace(".csv", "")
+    return read_sheet_cached(sheet, **kwargs)
 
 # ── Metas endpoints ────────────────────────────────────────────────────────────
 
@@ -794,15 +811,13 @@ def get_margem_proj() -> pd.DataFrame:
     # Regra: pep_vertical.csv sempre prevalece — inclusive "Others".
     # Se o pep está mapeado no arquivo, esse valor é usado independente do vlookup do cliente.
     # Isso garante que clientes Finance/Retail/etc. com pep=Others não contaminem a vertical errada.
-    _pv_path = "pep_vertical.csv"
-    if os.path.exists(_pv_path):
-        try:
-            pv = pd.read_csv(_pv_path, encoding="utf-8-sig", dtype=str).dropna(subset=["pep", "vertical"])
-            pv_map = dict(zip(pv["pep"].str.strip(), pv["vertical"].str.strip()))
-            pep_override = df["pep"].str.strip().map(pv_map)
-            df.loc[pep_override.notna(), "vertical"] = pep_override[pep_override.notna()]
-        except Exception:
-            pass
+    try:
+        pv = read_sheet_cached("pep_vertical", dtype=str).dropna(subset=["pep", "vertical"])
+        pv_map = dict(zip(pv["pep"].str.strip(), pv["vertical"].str.strip()))
+        pep_override = df["pep"].str.strip().map(pv_map)
+        df.loc[pep_override.notna(), "vertical"] = pep_override[pep_override.notna()]
+    except Exception:
+        pass
 
     df["vertical"] = df["vertical"].replace("", "Others").fillna("Others")
 
@@ -867,14 +882,17 @@ def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", 
 # ── Clientes endpoints ──────────────────────────────────────────────────────
 
 def read_clientes_csv() -> pd.DataFrame:
-    path = "clientes.csv"
+    path = "parametros.xlsx"
     if os.path.exists(path):
-        df = pd.read_csv(path, encoding="utf-8-sig", dtype=str).fillna("")
+        df = pd.read_excel(path, sheet_name="clientes", dtype=str).fillna("")
         return df
     return pd.DataFrame(columns=["nome_cliente","bu","ae"])
 
 def write_clientes_csv(df: pd.DataFrame):
-    df.to_csv("clientes.csv", index=False)
+    path = "parametros.xlsx"
+    with pd.ExcelWriter(path, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+        df.to_excel(writer, sheet_name="clientes", index=False)
+    _file_cache.pop(("parametros.xlsx", "clientes"), None)
 
 @app.get("/api/clientes")
 def get_clientes_list(search: str = "", user=Depends(get_current_user)):
@@ -1020,12 +1038,14 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", br
     # build cpf→ID lookup from relacao_pessoas.xlsx, then nome fallback via rac_pessoas
     # (rac_pessoas.csv has numero_pessoal+nome but no cpf column)
     cpf_to_id: dict = {}
-    if os.path.exists("relacao_pessoas.xlsx"):
-        xl = pd.read_excel("relacao_pessoas.xlsx", dtype=str)
+    try:
+        xl = pd.read_excel("pessoas.xlsx", sheet_name="relacao_pessoas", dtype=str)
         xl["cpf_c"] = xl["CPF / Worker ID"].str.replace(r"^BRCPF", "", regex=True).fillna("")
         xl["id_sap"] = xl["ID SAP"].fillna("")
         for _, row in xl[(xl["cpf_c"] != "") & (xl["id_sap"] != "")].drop_duplicates("cpf_c").iterrows():
             cpf_to_id[row["cpf_c"]] = row["id_sap"]
+    except Exception:
+        pass
     rp = get_rac_pess()[["numero_pessoal","nome"]].copy()
     rp["numero_pessoal"] = rp["numero_pessoal"].fillna("")
     nome_to_id = (rp[rp["numero_pessoal"] != ""]

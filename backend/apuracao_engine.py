@@ -31,21 +31,21 @@ def norm(s: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_all():
-    _prem     = pd.ExcelFile(os.path.join(DIR, "premissas.xlsx"))
-    pessoas   = _prem.parse("pessoas")
-    pesos_m   = _prem.parse("pesos_meta")
-    pesos_ws  = _prem.parse("pesos_ws")
-    triggers  = _prem.parse("triggers")
-    _budget   = pd.read_csv(os.path.join(DIR, "budget.csv"),              encoding="utf-8-sig")
+    _param    = pd.ExcelFile(os.path.join(DIR, "parametros.xlsx"))
+    pessoas   = _param.parse("pessoas")
+    pesos_m   = _param.parse("pesos_meta")
+    pesos_ws  = _param.parse("pesos_ws")
+    triggers  = _param.parse("triggers")
+    _budget   = _param.parse("budget")
     bgt_rec   = _budget[_budget["tipo"] == "Receita"].copy()
     bgt_lb    = _budget[_budget["tipo"] == "Margem"].copy()
-    bgt_tcv   = pd.read_csv(os.path.join(DIR, "budget_tcv.csv"),          encoding="utf-8-sig")
-    _real_df = pd.read_csv(os.path.join(DIR, "realizados_manual.csv"), encoding="utf-8-sig")
+    bgt_tcv   = _param.parse("budget_tcv")
+    _real_df  = _param.parse("realizados_manual")
     tcv_real_map    = dict(zip(_real_df[_real_df["tipo"] == "TCV_Q4"]["ae_ou_vertical"],
                                _real_df[_real_df["tipo"] == "TCV_Q4"]["receita"].astype(float)))
     tcv_real_q3_map = dict(zip(_real_df[_real_df["tipo"] == "TCV_Q3"]["ae_ou_vertical"],
                                _real_df[_real_df["tipo"] == "TCV_Q3"]["receita"].astype(float)))
-    pesos_ws_df = _prem.parse("pesos_ws_pessoa")
+    pesos_ws_df = _param.parse("pesos_ws_pessoa")
     pesos_ws_df["nome_norm"] = pesos_ws_df["nome"].apply(norm)
     # dict: nome_norm → {ws_key: peso}  (Q4)
     pesos_ws_pessoa = {
@@ -65,8 +65,9 @@ def _load_all():
         row["nome_norm"]: {ws_k: _ws_peso_q3(row, ws_k) for ws_k in WS_PESOS_Q4}
         for _, row in pesos_ws_df.iterrows()
     }
-    # projetos.csv consolida rac_projetos + margem_projetos
-    _proj     = pd.read_csv(os.path.join(DIR, "projetos.csv"),            encoding="utf-8-sig")
+    # operacional.xlsx/projetos consolida rac_projetos + margem_projetos
+    _oper     = pd.ExcelFile(os.path.join(DIR, "operacional.xlsx"))
+    _proj     = _oper.parse("projetos")
     # monta rac (explodindo tipos) e margem a partir do arquivo unificado
     _proj_rac  = _proj[_proj["tipos"].notna() & (_proj["tipos"] != "")].copy()
     _proj_rac  = _proj_rac.assign(tipo=_proj_rac["tipos"].str.split(",")).explode("tipo")
@@ -74,13 +75,12 @@ def _load_all():
     _proj_rac  = _proj_rac.rename(columns={"receita": "valor_liquido"})
     rac        = _proj_rac
     margem     = _proj.rename(columns={"horas": "horas_total"})
-    nexus     = pd.read_csv(os.path.join(DIR, "nexus_agg.csv"),           encoding="utf-8-sig")
+    nexus     = _oper.parse("nexus_agg")
     # Pessoas — para custos reais de projetos Apps e para despesas (Opção C)
-    _mp_path = os.path.join(DIR, "margem_pessoas.csv")
-    _cl_path = os.path.join(DIR, "classificacao_pessoas.csv")
-    margem_pess = pd.read_csv(_mp_path, encoding="utf-8-sig", dtype={"cpf": str}) if os.path.exists(_mp_path) else pd.DataFrame()
-    class_pess  = pd.read_csv(_cl_path, encoding="utf-8-sig", dtype={"cpf_brcpf": str}) if os.path.exists(_cl_path) else pd.DataFrame()
-    lb_trigger_df = _prem.parse("lb_trigger")
+    _pess_xl  = pd.ExcelFile(os.path.join(DIR, "pessoas.xlsx"))
+    margem_pess = _oper.parse("margem_pessoas").astype({"cpf": str})
+    class_pess  = _pess_xl.parse("classificacao_pessoas").astype({"cpf_brcpf": str})
+    lb_trigger_df = _param.parse("lb_trigger")
     lb_trigger_df["nome_norm"] = lb_trigger_df["nome"].apply(norm)
     # dict: nome_norm → {meta_lb, trigger_lb}
     lb_trigger_map = {
@@ -88,8 +88,7 @@ def _load_all():
         for _, row in lb_trigger_df.iterrows()
     }
     mc_metas_dir: dict = {}
-    _metas_xl = pd.ExcelFile(os.path.join(DIR, "metas.xlsx"))
-    _mc_df = _metas_xl.parse("mc_dir")
+    _mc_df = _param.parse("mc_dir")
     for _, _row in _mc_df.iterrows():
         mc_metas_dir[norm(str(_row["nome"]))] = float(_row["meta_mc_abs"])
 
@@ -191,10 +190,10 @@ def _load_all():
     # Pre-normalize SAP variant names → canonical budget names using clientes.csv aliases.
     # Rows with nome_base set define: canonical=nome_cliente, SAP-variant=nome_base.
     # Renaming SAP-variant → canonical BEFORE groupby merges all entries for that client.
-    _cli_path = os.path.join(DIR, "clientes.csv")
+    _cli_path = os.path.join(DIR, "parametros.xlsx")
     if os.path.exists(_cli_path):
         try:
-            _cli_df = pd.read_csv(_cli_path, encoding="utf-8-sig")
+            _cli_df = pd.read_excel(_cli_path, sheet_name="clientes")
             if "nome_base" in _cli_df.columns:
                 _alias_pre: dict[str, str] = {}
                 for _, _row in _cli_df.iterrows():
@@ -251,10 +250,10 @@ def _load_all():
 
     # Add aliases: nome_cliente → nome_base (e.g. "C6 BANK" → "BANCO C6 S.A.")
     # so budget entries keyed by friendly name can find the SAP name in the lookup
-    clientes_path = os.path.join(DIR, "clientes.csv")
+    clientes_path = os.path.join(DIR, "parametros.xlsx")
     if os.path.exists(clientes_path):
         try:
-            clientes_df = pd.read_csv(clientes_path, encoding="utf-8-sig")
+            clientes_df = pd.read_excel(clientes_path, sheet_name="clientes")
             if "nome_base" in clientes_df.columns:
                 for _, row in clientes_df.iterrows():
                     nc = str(row.get("nome_cliente", "") or "").strip()
@@ -293,19 +292,17 @@ def _load_all():
     total_dir_rac_q4 = 0.0
 
     # ─ Pep-level lookups for director vertical scope ─────────────────────────────
-    _pv_path_e = os.path.join(DIR, "pep_vertical.csv")
     _pep_vert_e: dict = {}
-    if os.path.exists(_pv_path_e):
-        try:
-            _pv_e = pd.read_csv(_pv_path_e, encoding="utf-8-sig", dtype=str).dropna(subset=["pep", "vertical"])
-            _pep_vert_e = dict(zip(_pv_e["pep"].str.strip(), _pv_e["vertical"].str.strip()))
-        except Exception:
-            pass
+    try:
+        _pv_e = pd.read_excel(clientes_path, sheet_name="pep_vertical", dtype=str).dropna(subset=["pep", "vertical"])
+        _pep_vert_e = dict(zip(_pv_e["pep"].str.strip(), _pv_e["vertical"].str.strip()))
+    except Exception:
+        pass
 
     _cli_bu: dict = {}
     if os.path.exists(clientes_path):
         try:
-            _cdf_b = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
+            _cdf_b = pd.read_excel(clientes_path, sheet_name="clientes", dtype=str).fillna("")
             for _, _r in _cdf_b.iterrows():
                 _nc = str(_r.get("nome_cliente", "") or "").strip()
                 _nb = str(_r.get("nome_base", "") or "").strip()
@@ -860,7 +857,7 @@ def calc_bonus_ae(nome: str) -> dict:
 @lru_cache(maxsize=1)
 def _load_q3_realized():
     """Carrega e processa dados SAP Q3. Retorna dicts de lookups (vazios se sem dados Q3)."""
-    _proj  = pd.read_csv(os.path.join(DIR, "projetos.csv"), encoding="utf-8-sig")
+    _proj  = pd.read_excel(os.path.join(DIR, "operacional.xlsx"), sheet_name="projetos")
     _proj_rac = _proj[_proj["tipos"].notna() & (_proj["tipos"] != "")].copy()
     _proj_rac = _proj_rac.assign(tipo=_proj_rac["tipos"].str.split(",")).explode("tipo")
     _proj_rac["tipo"] = _proj_rac["tipo"].str.strip()
@@ -940,11 +937,11 @@ def _load_q3_realized():
         return re.sub(r'\s+RECORRENCIA\s*$', '', n).strip()
     marg_q3["nome_norm"] = marg_q3["nome_norm"].apply(_clean)
 
-    # Alias SAP → canonical usando clientes.csv
-    _cli_path = os.path.join(DIR, "clientes.csv")
+    # Alias SAP → canonical usando parametros.xlsx/clientes
+    _cli_path = os.path.join(DIR, "parametros.xlsx")
     if os.path.exists(_cli_path):
         try:
-            _cdf = pd.read_csv(_cli_path, encoding="utf-8-sig")
+            _cdf = pd.read_excel(_cli_path, sheet_name="clientes")
             if "nome_base" in _cdf.columns:
                 _alias: dict[str, str] = {}
                 for _, _r in _cdf.iterrows():
@@ -979,7 +976,7 @@ def _load_q3_realized():
     # Adiciona aliases canonical → base para lookups
     if os.path.exists(_cli_path):
         try:
-            _cdf2 = pd.read_csv(_cli_path, encoding="utf-8-sig")
+            _cdf2 = pd.read_excel(_cli_path, sheet_name="clientes")
             if "nome_base" in _cdf2.columns:
                 for _, _r in _cdf2.iterrows():
                     nc = str(_r.get("nome_cliente", "") or "").strip()
@@ -997,11 +994,11 @@ def _load_q3_realized():
         except Exception:
             pass
 
-    # Override com dados validados de realizados_manual.csv (source of truth por cliente)
-    _ov_path = os.path.join(DIR, "realizados_manual.csv")
+    # Override com dados validados de parametros.xlsx/realizados_manual
+    _ov_path = os.path.join(DIR, "parametros.xlsx")
     if os.path.exists(_ov_path):
         try:
-            _ov_all = pd.read_csv(_ov_path, encoding="utf-8-sig")
+            _ov_all = pd.read_excel(_ov_path, sheet_name="realizados_manual")
             ov = _ov_all[_ov_all["tipo"] == "Q3_GM"].rename(
                 columns={"ae_ou_vertical": "farmer"}
             )
@@ -1458,12 +1455,12 @@ def calc_bonus_diretor(nome: str) -> dict:
                 continue
             cli_budget[k] = (r["cliente"], float(r["q4"]))
 
-    # Complementa com clientes.csv (todos da BU, com ou sem AE)
-    clientes_path = os.path.join(DIR, "clientes.csv")
+    # Complementa com parametros.xlsx/clientes (todos da BU, com ou sem AE)
+    clientes_path = os.path.join(DIR, "parametros.xlsx")
     bu_key = bs_key or (vertical or "")
     if os.path.exists(clientes_path) and bu_key:
         try:
-            cdf = pd.read_csv(clientes_path, encoding="utf-8-sig", dtype=str).fillna("")
+            cdf = pd.read_excel(clientes_path, sheet_name="clientes", dtype=str).fillna("")
             for _, row in cdf[cdf["bu"].str.lower() == bu_key.lower()].iterrows():
                 nc = str(row["nome_cliente"]).strip()
                 if nc:
@@ -1750,14 +1747,14 @@ def calc_bonus_diretor(nome: str) -> dict:
 
 def _ae_vertical_lookup() -> dict:
     """
-    Builds {norm(ae_name): 'vertical1/vertical2'} from clientes.csv.
+    Builds {norm(ae_name): 'vertical1/vertical2'} from parametros.xlsx/clientes.
     Also indexes by first word (nickname) for partial matching.
     """
-    path = os.path.join(DIR, "clientes.csv")
+    path = os.path.join(DIR, "parametros.xlsx")
     if not os.path.exists(path):
         return {}
     try:
-        df = pd.read_csv(path, dtype=str).fillna("")
+        df = pd.read_excel(path, sheet_name="clientes", dtype=str).fillna("")
         lookup: dict[str, set] = {}
         for _, row in df.iterrows():
             ae  = str(row.get("ae", "")).strip()
@@ -1790,7 +1787,7 @@ def _resolve_vertical_for_ae(nome: str, lookup: dict) -> str:
 
 # ─── Metas Anuais ────────────────────────────────────────────────────────────
 
-_METAS_XLSX_PATH   = os.path.join(DIR, "metas.xlsx")
+_METAS_XLSX_PATH   = os.path.join(DIR, "parametros.xlsx")
 _PERIODOS_ANUAIS   = ["Q1Y25", "Q2Y25", "Q3Y25"]  # Q4 calculado pelo engine
 
 # Tipos de margem por grupo
@@ -1821,7 +1818,7 @@ def _safe_float(v, default=0.0) -> float:
 @lru_cache(maxsize=1)
 def _pesos_anuais() -> dict:
     """Retorna dict posicao_upper → {rec, lb_mb, tcv} para período Anual."""
-    df = pd.ExcelFile(os.path.join(DIR, "premissas.xlsx")).parse("pesos_meta")
+    df = pd.ExcelFile(os.path.join(DIR, "parametros.xlsx")).parse("pesos_meta")
     anual = df[df["Periodo"].str.lower() == "anual"]
     result = {}
     for _, row in anual.iterrows():

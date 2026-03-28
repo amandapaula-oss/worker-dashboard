@@ -18,7 +18,7 @@ def p(name):
 
 def main():
     # ── Clientes Health ──────────────────────────────────────────────────
-    clientes_df = pd.read_csv(p("clientes.csv"), encoding="utf-8-sig", dtype=str)
+    clientes_df = pd.read_excel(p("parametros.xlsx"), sheet_name="clientes", dtype=str)
     gm = clientes_df[clientes_df["bu"].str.strip() == "Health"].copy()
 
     # nomes canônicos + aliases SAP
@@ -35,7 +35,7 @@ def main():
             base_to_canonical[nb] = nc
 
     # ── Projetos Q4 ─────────────────────────────────────────────────────────
-    proj = pd.read_csv(p("projetos.csv"), encoding="utf-8-sig", dtype={"pep": str})
+    proj = pd.read_excel(p("operacional.xlsx"), sheet_name="projetos", dtype={"pep": str})
     proj["periodo"] = proj["periodo"].astype(str).str.strip()
     proj["nome_cliente"] = proj["nome_cliente"].astype(str).str.strip()
 
@@ -66,7 +66,7 @@ def main():
     sheet1 = sheet1.sort_values(["nome_cliente", "pep", "periodo"])
 
     # ── Pessoas por PEP (margem_pessoas) ────────────────────────────────────
-    pess = pd.read_csv(p("margem_pessoas.csv"), encoding="utf-8-sig", dtype={"pep": str})
+    pess = pd.read_excel(p("operacional.xlsx"), sheet_name="margem_pessoas", dtype={"pep": str})
     pess["periodo"]      = pess["periodo"].astype(str).str.strip()
     pess["pep"]          = pess["pep"].astype(str).str.strip()
     pess["pep_base"]     = pess["pep"].str.split(".").str[0].str.strip()

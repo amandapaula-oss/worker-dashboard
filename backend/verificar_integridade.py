@@ -22,7 +22,7 @@ def calcular_totais() -> dict:
     totais = {}
 
     # ── projetos.csv ─────────────────────────────────────────────────────────
-    proj = pd.read_csv(os.path.join(DIR, "projetos.csv"), encoding="utf-8-sig", dtype={"pep": str})
+    proj = pd.read_excel(os.path.join(DIR, "operacional.xlsx"), sheet_name="projetos", dtype={"pep": str})
     proj["receita"]       = pd.to_numeric(proj["receita"],       errors="coerce").fillna(0)
     proj["custo_rateado"] = pd.to_numeric(proj["custo_rateado"], errors="coerce").fillna(0)
 
@@ -34,7 +34,7 @@ def calcular_totais() -> dict:
     totais["projetos_linhas_q4"]        = int(len(proj_q4))
 
     # ── financeiro.csv (Nexus Q4) ─────────────────────────────────────────────
-    fin = pd.read_csv(os.path.join(DIR, "financeiro.csv"), encoding="utf-8-sig")
+    fin = pd.read_excel(os.path.join(DIR, "operacional.xlsx"), sheet_name="financeiro")
     fin["valor"] = pd.to_numeric(fin["valor"], errors="coerce").fillna(0)
 
     nexus_q4 = fin[(fin["fonte"] == "Nexus") & (fin["periodo"].str.startswith("2025-1"))]

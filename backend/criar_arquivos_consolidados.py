@@ -1,11 +1,12 @@
 """
-Gera os arquivos consolidados a partir dos arquivos existentes.
+Gera os arquivos consolidados a partir dos arquivos de entrada.
 
 Arquivos de entrada (legados):
-  rac_projetos.csv    +  margem_projetos.csv    →  projetos.csv
-  tcv_realizado.csv   +  q3_realizados_gm.csv   →  realizados_manual.csv
-  sap_agg.csv         +  nexus_agg.csv
-                      +  razao_agg.csv           →  financeiro.csv
+  rac_projetos.csv    +  margem_projetos.csv    →  operacional.xlsx / projetos
+  tcv_realizado.csv   +  q3_realizados_gm.csv   →  parametros.xlsx / realizados_manual
+  sap_agg.csv         +  nexus_agg.csv (raw)
+                      +  razao_agg.csv           →  operacional.xlsx / financeiro
+  nexus_agg.csv (raw)                            →  operacional.xlsx / nexus_agg
 
 Uso:
     cd backend
@@ -85,8 +86,9 @@ def build_projetos():
 
     out = merged[cols].rename(columns={"horas_total": "horas"})
     out = out.sort_values(["periodo", "empresa", "pep", "nome_cliente"])
-    out.to_csv(p("projetos.csv"), index=False, encoding="utf-8-sig")
-    print(f"projetos.csv gerado: {len(out)} linhas")
+    with pd.ExcelWriter(p("operacional.xlsx"), engine="openpyxl", mode="a", if_sheet_exists="replace") as w:
+        out.to_excel(w, sheet_name="projetos", index=False)
+    print(f"operacional.xlsx/projetos gerado: {len(out)} linhas")
     print(f"  com receita_rac: {out['receita'].notna().sum()}")
     print(f"  com custo:       {out['custo_rateado'].notna().sum()}")
     return out
@@ -133,8 +135,9 @@ def build_realizados():
         })
 
     out = pd.DataFrame(rows, columns=["tipo", "ae_ou_vertical", "cliente", "receita", "lb"])
-    out.to_csv(p("realizados_manual.csv"), index=False, encoding="utf-8-sig")
-    print(f"realizados_manual.csv gerado: {len(out)} linhas")
+    with pd.ExcelWriter(p("parametros.xlsx"), engine="openpyxl", mode="a", if_sheet_exists="replace") as w:
+        out.to_excel(w, sheet_name="realizados_manual", index=False)
+    print(f"parametros.xlsx/realizados_manual gerado: {len(out)} linhas")
     print(f"  TCV_Q4: {len(out[out['tipo']=='TCV_Q4'])}")
     print(f"  TCV_Q3: {len(out[out['tipo']=='TCV_Q3'])}")
     print(f"  Q3_GM:  {len(out[out['tipo']=='Q3_GM'])}")
@@ -150,7 +153,7 @@ def build_realizados():
 
 def build_financeiro(sap_ano: int = 2025):
     sap = pd.read_csv(p("sap_agg.csv"),   encoding="utf-8-sig")
-    nex = pd.read_csv(p("nexus_agg.csv"), encoding="utf-8-sig")
+    nex = pd.read_csv(p("nexus_agg.csv"), encoding="utf-8-sig")  # arquivo raw de entrada
     raz = pd.read_csv(p("razao_agg.csv"), encoding="utf-8-sig")
 
     # ── SAP ──────────────────────────────────────────────────────────────────
@@ -200,8 +203,10 @@ def build_financeiro(sap_ano: int = 2025):
 
     out = pd.concat([sap_rows, nex_rows, raz_rows], ignore_index=True)
     out = out.sort_values(["fonte", "periodo", "empresa"])
-    out.to_csv(p("financeiro.csv"), index=False, encoding="utf-8-sig")
-    print(f"financeiro.csv gerado: {len(out)} linhas")
+    with pd.ExcelWriter(p("operacional.xlsx"), engine="openpyxl", mode="a", if_sheet_exists="replace") as w:
+        out.to_excel(w, sheet_name="financeiro", index=False)
+        nex.to_excel(w, sheet_name="nexus_agg", index=False)
+    print(f"operacional.xlsx/financeiro gerado: {len(out)} linhas")
     print(f"  SAP:   {len(sap_rows)}")
     print(f"  Nexus: {len(nex_rows)}")
     print(f"  Razão: {len(raz_rows)}")
@@ -209,7 +214,7 @@ def build_financeiro(sap_ano: int = 2025):
 
 
 if __name__ == "__main__":
-    print("=== Criando arquivos consolidados ===\n")
+    print("=== Atualizando arquivos consolidados ===\n")
     build_projetos()
     print()
     build_realizados()
