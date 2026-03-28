@@ -171,10 +171,36 @@ NÃO FORAM ZERADOS (já são somente Q4 por design):
   - parametros.xlsx/metas_custo
   - parametros.xlsx/budget e budget_tcv  (estrutura de orçamento anual, formato diferente)
 
-IMPORTANTE
-----------
-As linhas não foram removidas, apenas zeradas. Isso mantém a estrutura dos
-arquivos intacta e facilita a futura adição de dados de outros períodos.
+SEGUNDA LIMPEZA — exclusão das linhas zeradas (2026-03-28, commit 6d1216d)
+--------------------------------------------------------------------------
+Após a zeragem, as linhas com valor=0 foram excluídas para reduzir o tamanho:
+  - dados_sap.xlsx:          592k → 148k linhas (63MB → 15.7MB)
+  - operacional.xlsx/financeiro:  14k → 2.7k linhas
+  - operacional.xlsx/nexus_agg:   10k → 1.4k linhas
+
+IMPACTO DA EXCLUSÃO
+--------------------
+- financeiro e nexus_agg: SEM perda de informação. São agregações puras
+  (valor por período/empresa/categoria) — não há relacionamentos nessas linhas.
+
+- dados_sap.xlsx: PERDA PARCIAL de dados históricos. Cada linha excluída era
+  um lançamento contábil real de períodos fora do Q4 2025, contendo:
+  WBSElementInternalID (projeto), CustomerName, ProfitCenter, CostCenter, etc.
+  Ou seja: relacionamentos de projetos/clientes de jan–set 2025 e anos anteriores
+  não estão mais acessíveis neste arquivo.
+
+  ISSO NÃO AFETA O SISTEMA ATUAL porque:
+  → O engine e cálculos usam operacional.xlsx/projetos para relacionamentos,
+    não dados_sap diretamente
+  → A aba SAP do Cockpit só exibe Q4 de qualquer forma
+  → clientes, pep_vertical e projetos estão intactos
+
+RECUPERAÇÃO SE NECESSÁRIO
+--------------------------
+Os dados originais existem no histórico do git:
+  - Dados completos (antes de qualquer zeragem): git show antes do commit b0c6ff4
+  - Dados zerados (antes da exclusão das linhas): commits b0c6ff4 e 0415245
+  Para restaurar: git checkout <commit> -- backend/dados_sap.xlsx
 
 ================================================================================
 REGRAS DE NEGÓCIO — BÔNUS Q4 2025
