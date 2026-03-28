@@ -679,17 +679,18 @@ def get_rac_pessoas(
 # ── Margem por Projeto ─────────────────────────────────────────────────────────
 
 def _clientes_lookup() -> tuple[dict, dict]:
-    """Returns ({nome_upper: vertical/bu}, {nome_upper: ae}) using nome_base when available"""
+    """Returns ({nome_upper: vertical/bu}, {nome_upper: ae}) using nome_base (pipe-separated aliases) when available"""
     try:
         cli = read_clientes_csv()
         vertical_map: dict = {}
         ae_map: dict = {}
         for _, row in cli.iterrows():
-            bu       = str(row.get("bu",  "") or "")
-            ae       = str(row.get("ae",  "") or "")
+            bu        = str(row.get("bu",  "") or "")
+            ae        = str(row.get("ae",  "") or "")
             nome_base = str(row.get("nome_base", "") or "").strip()
             nome_cli  = str(row.get("nome_cliente", "") or "").strip()
-            for key in ([nome_base.upper()] if nome_base else []) + ([nome_cli.upper()] if nome_cli else []):
+            aliases   = [a.strip().upper() for a in nome_base.split("|") if a.strip()]
+            for key in aliases + ([nome_cli.upper()] if nome_cli else []):
                 vertical_map[key] = bu
                 if ae:
                     ae_map[key] = ae
@@ -830,11 +831,14 @@ def get_margem_filters(user=Depends(get_current_user)):
 
 def _clientes_nomes_upper() -> set:
     df = read_clientes_csv()
-    # Use nome_base when available, otherwise nome_cliente
-    match_col = df["nome_base"].str.strip() if "nome_base" in df.columns else df["nome_cliente"].str.strip()
-    base_names = match_col[match_col != ""].str.upper()
-    fallback = df.loc[match_col == "", "nome_cliente"].str.upper().str.strip()
-    return set(base_names.tolist()) | set(fallback.tolist())
+    nomes: set = set()
+    for _, row in df.iterrows():
+        nomes.add(str(row["nome_cliente"]).upper().strip())
+        if "nome_base" in df.columns:
+            nb = str(row.get("nome_base", "") or "")
+            for alias in [a.strip().upper() for a in nb.split("|") if a.strip()]:
+                nomes.add(alias)
+    return nomes
 
 @app.get("/api/resumo")
 def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", verticais: str = "", apenas_atribuidos: bool = False, user=Depends(get_current_user)):
@@ -876,33 +880,46 @@ def write_clientes_csv(df: pd.DataFrame):
 def get_clientes_list(search: str = "", user=Depends(get_current_user)):
     clientes = read_clientes_csv()
     proj = get_margem_proj()
-    proj["nome_upper"] = proj["nome_cliente"].str.upper().str.strip()
-    
-    if "nome_base" in clientes.columns:
-        clientes["nome_upper"] = clientes.apply(
-            lambda r: str(r.get("nome_base", "")).upper().strip() if str(r.get("nome_base", "")).strip() else str(r.get("nome_cliente", "")).upper().strip(), axis=1
-        )
-    else:
-        clientes["nome_upper"] = clientes.get("nome_cliente", pd.Series(dtype=str)).astype(str).str.upper().str.strip()
-        
-    missing_mask = ~proj["nome_upper"].isin(clientes["nome_upper"])
-    missing_clientes = proj.loc[missing_mask, ["nome_cliente", "nome_upper"]].drop_duplicates("nome_upper").copy()
-    
-    if not missing_clientes.empty:
-        missing_clientes["bu"] = ""
-        missing_clientes["ae"] = ""
-        clientes = pd.concat([clientes, missing_clientes], ignore_index=True)
 
-    totais = proj.groupby("nome_upper", as_index=False).agg(
+    # Build alias → canonical nome_cliente map (handles pipe-separated aliases)
+    alias_to_canonical: dict = {}
+    for _, row in clientes.iterrows():
+        canonical = str(row["nome_cliente"]).strip()
+        alias_to_canonical[canonical.upper()] = canonical
+        if "nome_base" in clientes.columns:
+            nb = str(row.get("nome_base", "") or "")
+            for alias in [a.strip() for a in nb.split("|") if a.strip()]:
+                alias_to_canonical[alias.upper()] = canonical
+
+    # Map each project to its canonical client name
+    proj_nc_upper = proj["nome_cliente"].str.upper().str.strip()
+    proj["nome_canonical"] = proj_nc_upper.map(alias_to_canonical).fillna(proj["nome_cliente"].str.strip())
+    proj["nome_canonical_upper"] = proj["nome_canonical"].str.upper().str.strip()
+
+    # Aggregate totals by canonical name (all aliases summed together)
+    totais = proj.groupby("nome_canonical_upper", as_index=False).agg(
         receita=("receita","sum"),
         custo_rateado=("custo_rateado","sum"),
         margem=("margem","sum"),
         num_projetos=("pep","nunique"),
     )
-    
     proj_ws = proj[~proj["categoria_bu"].isin(["", "Vazio"])].sort_values("receita", ascending=False)
-    ws_first = proj_ws.groupby("nome_upper")["categoria_bu"].first()
-    totais["ws"] = totais["nome_upper"].map(ws_first).fillna("")
+    ws_first = proj_ws.groupby("nome_canonical_upper")["categoria_bu"].first()
+    totais["ws"] = totais["nome_canonical_upper"].map(ws_first).fillna("")
+    totais = totais.rename(columns={"nome_canonical_upper": "nome_upper"})
+
+    # Add any clients present in projetos but not yet in clientes.csv
+    clientes["nome_upper"] = clientes["nome_cliente"].str.upper().str.strip()
+    missing_mask = ~totais["nome_upper"].isin(clientes["nome_upper"])
+    missing = totais.loc[missing_mask, ["nome_upper"]].copy()
+    missing["nome_cliente"] = missing["nome_upper"]
+    missing["bu"] = ""
+    missing["ae"] = ""
+    if "nome_base" in clientes.columns:
+        missing["nome_base"] = ""
+    if not missing.empty:
+        clientes = pd.concat([clientes, missing[clientes.columns]], ignore_index=True)
+        clientes["nome_upper"] = clientes["nome_cliente"].str.upper().str.strip()
 
     merged = clientes.merge(totais, on="nome_upper", how="left").drop(columns=["nome_upper"])
     if "nome_base" in merged.columns:
@@ -953,8 +970,8 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
                 row = clientes_df[clientes_df["nome_cliente"].str.upper().str.strip() == nc_upper]
                 if not row.empty:
                     nb = str(row.iloc[0].get("nome_base", "") or "").strip()
-                    if nb:
-                        match_names.add(nb.upper())
+                    for alias in [a.strip() for a in nb.split("|") if a.strip()]:
+                        match_names.add(alias.upper())
         except Exception:
             pass
         df = df[df["nome_cliente"].str.upper().str.strip().isin(match_names)]
