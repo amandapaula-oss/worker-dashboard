@@ -161,7 +161,7 @@ export default function Dashboard() {
             {section && (
               <Button icon={<ArrowLeftOutlined />} type="text" style={{ color: theme.link }} onClick={() => setSection(null)} />
             )}
-            <BarChartOutlined style={{ fontSize: 26, color: theme.accent }} />
+            <img src="/logo-fcamara.png" alt="FCamara" style={{ height: 32, width: "auto" }} />
             <div>
               <Title level={4} style={{ margin: 0, color: theme.text }}>Cockpit FP&A</Title>
               <Text type="secondary" style={{ fontSize: "0.8rem" }}>Visualização gerencial de resultados financeiros</Text>
