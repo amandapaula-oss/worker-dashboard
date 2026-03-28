@@ -1,22 +1,22 @@
-﻿periodo,empresa,pep,nome_cliente,tipos,centro_lucro,no_hierarquia,categoria_bu,receita,custo_rateado,horas
-2025-09,FCamara,BR02CLP000110,MRS,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,289489.41,-202312.4,0.0
-2025-09,FCamara,BR02CLP000114,ANGLO AMERICAN,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,1264139.19,-831570.62,0.0
-2025-09,FCamara,BR02CLP00028,Nagem,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,201296.43,-142108.32,0.0
-2025-09,FCamara,BR02CLP00029,DIRECIONAL,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,43398.18,-29240.0,0.0
-2025-09,FCamara,BR02CLP00030,MRV,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,3262070.55,-2224607.29,0.0
-2025-09,FCamara,BR02CLP00032,RUMO,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,712511.39,-508650.4,0.0
-2025-09,FCamara,BR02CLP00033,UNIMED CURITIBA,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,208382.22,-136694.19,0.0
-2025-09,FCamara,BR02CLP00035,KLABIN,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,1305793.22,-664445.62,0.0
-2025-09,FCamara,BR02CLP00036,CBMM,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,249678.59,-122970.0,0.0
-2025-09,FCamara,BR02CLP00037,SADA,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,175703.83,-124380.16,0.0
-2025-09,FCamara,BR02CLP00045,BANCO INTER,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,1629860.49,-983263.52,0.0
-2025-09,FCamara,BR02CLP00048,JEITTO,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,52252.75,-35640.0,0.0
-2025-09,FCamara,BR02CLP00051,UNIMED BH,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,341981.4,-229810.0,0.0
-2025-09,FCamara,BR02CLP00053,VLI,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,540147.39,-392137.51,0.0
-2025-09,FCamara,BR02CLP00056,POLIEDRO,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,636115.65,-403405.85,0.0
-2025-09,FCamara,BR02CLP00106,CCPR,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,582650.28,-391803.23,0.0
-2025-09,FCamara,BR02CLP00108,BBCE,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,39695.94,-27832.45,0.0
-2025-09,FCamara,BR02CLP00136,LOJA ELETRICA,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,64994.7,-35552.0,0.0
+periodo,empresa,pep,nome_cliente,tipos,centro_lucro,no_hierarquia,categoria_bu,receita,custo_rateado,horas
+2025-09,FCamara,BR02CLP000110,MRS,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP000114,ANGLO AMERICAN,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00028,Nagem,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00029,DIRECIONAL,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00030,MRV,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00032,RUMO,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00033,UNIMED CURITIBA,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00035,KLABIN,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00036,CBMM,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00037,SADA,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00045,BANCO INTER,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00048,JEITTO,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00051,UNIMED BH,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00053,VLI,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00056,POLIEDRO,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00106,CCPR,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00108,BBCE,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
+2025-09,FCamara,BR02CLP00136,LOJA ELETRICA,Taxa hora - Time and Expenses,DC002 (Dedicated Teams),SQUAD_DT,Apps,0.0,0.0,0.0
 2025-10,FCamara,BR02CLP000100,INTELIPOST CONSULTORIA E TECNOLOGIA,Fee,DC001 (Squads),SQUAD_DT,Apps,92110.81,0.0,0.0
 2025-10,FCamara,BR02CLP000101,AMBIPAR PARTICIPACOES E EMPREENDIME,Fee,DC001 (Squads),SQUAD_DT,Apps,109520.6,0.0,0.0
 2025-10,FCamara,BR02CLP000110,MRS LOGISTICA S/A,"Fee,Taxa hora - Time and Expenses",DC002 (Dedicated Teams),SQUAD_DT,Apps,250603.15,0.0,0.0
