@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Card, Switch } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, BarChartOutlined, AimOutlined, LineChartOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, TableOutlined, SlidersOutlined, UserOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
@@ -161,7 +161,7 @@ export default function Dashboard() {
             {section && (
               <Button icon={<ArrowLeftOutlined />} type="text" style={{ color: theme.link }} onClick={() => setSection(null)} />
             )}
-            <span style={{ fontSize: 28 }}>📊</span>
+            <BarChartOutlined style={{ fontSize: 26, color: theme.accent }} />
             <div>
               <Title level={4} style={{ margin: 0, color: theme.text }}>Cockpit FP&A</Title>
               <Text type="secondary" style={{ fontSize: "0.8rem" }}>Visualização gerencial de resultados financeiros</Text>
@@ -176,10 +176,10 @@ export default function Dashboard() {
           {section === null && (
             <div style={{ display: "flex", gap: 24, justifyContent: "center", alignItems: "stretch", minHeight: "60vh", flexWrap: "wrap" }}>
               {([
-                { key: "worker",  icon: "👷", title: "Worker",            desc: "Receitas e custos por colaborador",              sub: "Base Worker" },
-                { key: "cockpit", icon: "🏢", title: "Financeiro",        desc: "DRE, P&L por Stream e Matricial",               sub: "SAP S4 · Nexus" },
-                { key: "metas",   icon: "🎯", title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3",     sub: "Margem · Clientes · Check" },
-                { key: "pl",      icon: "📈", title: "P&L",               desc: "Resumo financeiro por empresa e cliente",       sub: "Margem · Resumo" },
+                { key: "worker",  icon: <UserOutlined />,      title: "Worker",            desc: "Receitas e custos por colaborador",              sub: "Base Worker" },
+                { key: "cockpit", icon: <BankOutlined />,       title: "Financeiro",        desc: "DRE, P&L por Stream e Matricial",               sub: "SAP S4 · Nexus" },
+                { key: "metas",   icon: <AimOutlined />,        title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3",     sub: "Margem · Clientes · Check" },
+                { key: "pl",      icon: <LineChartOutlined />,  title: "P&L",               desc: "Resumo financeiro por empresa e cliente",       sub: "Margem · Resumo" },
               ] as const).map(({ key, icon, title, desc, sub }) => (
                 <div
                   key={key}
@@ -187,7 +187,7 @@ export default function Dashboard() {
                   className="home-card"
                   style={{ width: 240, cursor: "pointer", background: "#fff", borderRadius: 14, border: "1.5px solid #dde3f0", padding: "2rem 1.5rem", textAlign: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s" }}
                 >
-                  <div style={{ fontSize: 44, marginBottom: 14, lineHeight: 1 }}>{icon}</div>
+                  <div style={{ fontSize: 40, marginBottom: 14, lineHeight: 1, color: theme.accent }}>{icon}</div>
                   <div style={{ color: theme.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 6 }}>{title}</div>
                   <div style={{ color: "#6b7fa3", fontSize: "0.82rem", lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
                   <div style={{ display: "inline-block", background: "#f4f6fb", color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 600, padding: "2px 10px", borderRadius: 20, letterSpacing: 0.3 }}>{sub}</div>
@@ -202,7 +202,7 @@ export default function Dashboard() {
               type="card"
               size="large"
               items={[
-                { key: "worker", label: "👷 Worker", children: <WorkerTab /> },
+                { key: "worker", label: <span><UserOutlined /> Worker</span>, children: <WorkerTab /> },
               ]}
             />
           )}
@@ -229,12 +229,12 @@ export default function Dashboard() {
                 type="card"
                 size="large"
                 items={[
-                  { key: "resumo",       label: "📋 Resumo por Empresa", children: <ResumoTab apenasAtribuidos={apenasAtribuidos} /> },
-                  { key: "visao-master", label: "🎯 Apuração Q4",    children: <VistaMasterTab /> },
-                  { key: "visao-master-q3", label: "🎯 Apuração Q3",  children: <VistaMasterTabQ3 /> },
-                  { key: "margem",       label: "📊 Margem por Cliente",  children: <MargemTab apenasAtribuidos={apenasAtribuidos} /> },
-                  { key: "check",        label: "🔍 Check Lucas",         children: <CheckLucasTab /> },
-                  { key: "clientes",     label: "👥 Clientes",            children: <ClientesTab /> },
+                  { key: "resumo",          label: <span><FileTextOutlined /> Resumo por Empresa</span>,  children: <ResumoTab apenasAtribuidos={apenasAtribuidos} /> },
+                  { key: "visao-master",    label: <span><AimOutlined /> Apuração Q4</span>,              children: <VistaMasterTab /> },
+                  { key: "visao-master-q3", label: <span><AimOutlined /> Apuração Q3</span>,              children: <VistaMasterTabQ3 /> },
+                  { key: "margem",          label: <span><FundOutlined /> Margem por Cliente</span>,      children: <MargemTab apenasAtribuidos={apenasAtribuidos} /> },
+                  { key: "check",           label: <span><AuditOutlined /> Check Lucas</span>,            children: <CheckLucasTab /> },
+                  { key: "clientes",        label: <span><TeamOutlined /> Clientes</span>,                children: <ClientesTab /> },
                 ]}
               />
             </>
@@ -246,8 +246,8 @@ export default function Dashboard() {
               type="card"
               size="large"
               items={[
-                { key: "resumo", label: "📋 Resumo por Empresa",  children: <ResumoTab /> },
-                { key: "margem", label: "📊 Margem por Cliente",  children: <MargemTab /> },
+                { key: "resumo", label: <span><FileTextOutlined /> Resumo por Empresa</span>, children: <ResumoTab /> },
+                { key: "margem", label: <span><FundOutlined /> Margem por Cliente</span>,   children: <MargemTab /> },
               ]}
             />
           )}
@@ -258,10 +258,10 @@ export default function Dashboard() {
               type="card"
               size="large"
               items={[
-                { key: "dre",       label: "🏢 DRE por Empresa", children: <DreTab /> },
-                { key: "streams",   label: "🌊 P&L por Stream",  children: <StreamsTab /> },
-                { key: "matricial", label: "📐 P&L Matricial",   children: <MatricialTab /> },
-                { key: "sap",       label: "📋 Base SAP S4",     children: <SapTab /> },
+                { key: "dre",       label: <span><BankOutlined /> DRE por Empresa</span>,  children: <DreTab /> },
+                { key: "streams",   label: <span><HeatMapOutlined /> P&L por Stream</span>, children: <StreamsTab /> },
+                { key: "matricial", label: <span><SlidersOutlined /> P&L Matricial</span>,  children: <MatricialTab /> },
+                { key: "sap",       label: <span><DatabaseOutlined /> Base SAP S4</span>,   children: <SapTab /> },
               ]}
             />
           )}

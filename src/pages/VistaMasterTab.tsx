@@ -603,8 +603,8 @@ function DetalheAE({ d, periodoLabel = "Q4" }: { d: DetalheCalculo; periodoLabel
           <strong>Fórmula:</strong> Bônus = Salário × Peso Métrica × Peso WS × Atingimento
         </div>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 6 }}>
-          <span>🎯 <strong>Trigger Receita:</strong> {(triggerRec * 100).toFixed(0)}% da meta — abaixo disso = 0</span>
-          <span>🎯 <strong>Gatilho Mestre:</strong> Lucro Bruto ≥ mínimo da planilha — abaixo disso = 0</span>
+          <span><strong>Trigger Receita:</strong> {(triggerRec * 100).toFixed(0)}% da meta — abaixo disso = 0</span>
+          <span><strong>Gatilho Mestre:</strong> Lucro Bruto ≥ mínimo da planilha — abaixo disso = 0</span>
         </div>
         <div style={{ color: "#555", marginBottom: 6 }}>
           Atingimento entre trigger e meta: escala linear de 50% a 100%. Acima da meta: 100%.
@@ -931,9 +931,9 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
           <strong>Fórmula:</strong> Bônus = Salário × Peso Métrica × Atingimento
         </div>
         <div style={{ marginBottom: 6 }}>
-          🎯 <strong>Trigger Receita/TCV:</strong> 85% da meta — abaixo disso = 0
+          <strong>Trigger Receita/TCV:</strong> 85% da meta — abaixo disso = 0
           &nbsp;&nbsp;|&nbsp;&nbsp;
-          🎯 <strong>Trigger MC:</strong> 85% da meta absoluta — abaixo disso = 0 (Gatilho Mestre)
+          <strong>Trigger MC:</strong> 85% da meta absoluta — abaixo disso = 0 (Gatilho Mestre)
         </div>
         <div>
           <strong>Pesos:</strong>&nbsp;
