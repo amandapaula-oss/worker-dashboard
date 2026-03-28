@@ -16,12 +16,165 @@ C:/Users/amanda.paula/worker-dashboard/
   backend/               ← FastAPI (Python)
     main.py              ← Endpoints da API
     apuracao_engine.py   ← Engine de cálculo de bônus (ARQUIVO CENTRAL)
-    *.csv                ← Dados/premissas (28 arquivos)
+    dados_sap.xlsx       ← Base SAP S4 (~593k linhas — arquivo separado por tamanho)
+    operacional.xlsx     ← Dados operacionais (5 abas — ver seção BASES DE DADOS)
+    pessoas.xlsx         ← Dados de pessoas/workers (4 abas)
+    parametros.xlsx      ← Parâmetros e configurações (14 abas)
+    old/                 ← Arquivos legados antes da consolidação (não usar)
+    criar_arquivos_consolidados.py  ← ETL: gera operacional.xlsx a partir de CSVs brutos
   src/
     pages/
+      Dashboard.tsx      ← Tela inicial (seleção de módulo) — usa ícones Ant Design
       VistaMasterTab.tsx ← Painel principal de apuração (ARQUIVO CENTRAL FRONTEND)
       MargemTab.tsx, RacTab.tsx, etc.
     api.ts               ← Funções de fetch para o backend
+  public/
+    logo-fcamara.png     ← Logo da FCamara exibido no header
+
+================================================================================
+BASES DE DADOS — ESTRUTURA CONSOLIDADA
+================================================================================
+
+Em 2026-03-28 os arquivos foram consolidados de ~17 arquivos soltos para 4 xlsx.
+Os arquivos antigos estão em backend/old/ para referência histórica.
+
+ARQUIVOS ATIVOS
+---------------
+
+dados_sap.xlsx
+  → Única aba (Base): lançamentos contábeis do SAP S4 (~593k linhas, ~63MB)
+  → Colunas principais: FiscalYear, FiscalPeriod, CompanyCode, GLAccount,
+    agrupador_fpa, AmountInCompanyCodeCurrency, ProfitCenter, vertical, WBSElementInternalID
+  → Todos os valores fora do Q4 2025 (FiscalPeriod 10/11/12) foram ZERADOS
+    (AmountInCompanyCodeCurrency=0). Linhas preservadas, apenas valores zerados.
+
+operacional.xlsx  — dados financeiros e de projetos
+  aba "projetos"       → periodo, empresa, pep, nome_cliente, tipos, centro_lucro,
+                         no_hierarquia, categoria_bu, receita, custo_rateado, horas
+                         Gerado por criar_arquivos_consolidados.py (consolida
+                         rac_projetos.csv + margem_projetos.csv)
+  aba "nexus_agg"      → [Tipo], [Moeda], [Empresa], [Vertical], [Stream],
+                         Agrupador, Periodo, Ano, [Valor]
+  aba "financeiro"     → periodo, fonte, empresa, vertical, agrupador, valor,
+                         profit_center, tipo_financeiro, moeda, stream, ano
+                         fonte = "SAP" | "Nexus" | "Razao"
+                         Valores fora do Q4 2025 ZERADOS (mesmo critério do dados_sap.xlsx)
+  aba "rac_pessoas"    → periodo, empresa, pep, numero_pessoal, nome, valor_liquido
+  aba "margem_pessoas" → periodo, pep, cpf, nome, empresa, receita, custo_rateado,
+                         horas, margem
+                         Somente Q4 2025 por design (não precisa de limpeza)
+
+pessoas.xlsx  — dados de colaboradores
+  aba "receita_worker"        → receita por worker (origem: sistema Worker interno)
+  aba "personal_data"         → dados pessoais SAP (ID Number, Full Name, etc.)
+  aba "relacao_pessoas"       → Tipo, Nome, ID SAP, CPF / Worker ID, Empresa
+  aba "classificacao_pessoas" → cpf_brcpf, nome_norm, billable_category, classificacao
+                                classificacao = "custo" | "despesa"
+
+parametros.xlsx  — metas, budget, premissas, cadastros
+  aba "anuais"           → metas anuais por pessoa (nome, bu, posicao, periodo,
+                           meta_tipo, ws, peso_ws, realizado, meta, trigger,
+                           atingimento, salario, apuracao)
+  aba "mc_dir"           → nome, meta_mc_abs (meta MC absoluta para diretores)
+  aba "pessoas"          → Nome, Posicao, Contrato, Sal_Q1, Sal_Q2, Sal_Q3, Sal_Q4
+  aba "pesos_meta"       → Periodo, Posicao, TCV, Receita, MB_pct, MC_pct, ENPS, NPS
+  aba "pesos_ws"         → pesos padrão por WS
+  aba "pesos_ws_pessoa"  → pesos customizados por pessoa (sobrescreve pesos_ws)
+  aba "triggers"         → Meta, Q1, Q2, Q3, Q4, FY — percentuais de trigger
+  aba "lb_trigger"       → nome, meta_lb, trigger_lb (valores anuais)
+  aba "metas_custo"      → tipo, competencia, numero_pessoal, nome, empresa, custo, categoria
+                           Somente Q4 2025 por design
+  aba "budget"           → tipo, bs, ae_q1..ae_q4, ws, cliente, q1, q2, q3, q4, fy
+                           tipo = "Receita" | "Margem"
+  aba "budget_tcv"       → ae, descricao, q1, q2, q3, q4, fy
+  aba "clientes"         → nome_cliente, bu, ae, nome_base  (VER SEÇÃO ABAIXO)
+  aba "pep_vertical"     → pep, vertical
+  aba "realizados_manual"→ tipo, ae_ou_vertical, cliente, receita, lb
+
+COMO ATUALIZAR AS BASES
+-----------------------
+Para atualizar projetos/financeiro/nexus: rodar criar_arquivos_consolidados.py
+  Entradas (CSVs brutos, colocar na pasta backend/):
+    rac_projetos.csv, margem_projetos.csv  → gera operacional.xlsx/projetos
+    sap_agg.csv, nexus_agg.csv, razao_agg.csv → gera operacional.xlsx/financeiro + nexus_agg
+    tcv_realizado.csv, q3_realizados_gm.csv → gera parametros.xlsx/realizados_manual
+
+Para atualizar pessoas: substituir as abas em pessoas.xlsx diretamente.
+Para atualizar parâmetros (budget, metas, etc.): editar as abas em parametros.xlsx.
+
+================================================================================
+SISTEMA DE ALIASES — NOMES DIFERENTES DO MESMO CLIENTE/PESSOA
+================================================================================
+
+PROBLEMA
+--------
+O SAP registra nomes de clientes que podem ser diferentes dos nomes usados no
+budget (ex: "BANCO BMG S.A." no SAP vs "BMG" no budget). Antes da correção,
+isso criava linhas duplicadas em branco na aba Clientes do dashboard.
+
+SOLUÇÃO — campo nome_base em parametros.xlsx/clientes
+------------------------------------------------------
+Cada linha em "clientes" representa um cliente canônico com:
+  - nome_cliente: nome exibido no dashboard (nome oficial)
+  - nome_base:    nome(s) como aparecem no SAP, separados por | quando múltiplos
+  - bu:           vertical/BU (ex: "Grupo Mult", "Health", "Finance")
+  - ae:           nome do AE responsável
+
+Exemplos:
+  nome_cliente="SADA"    nome_base="SADA TRANSPORTES|SADA TRANSPORTES E ARMAZENAGENS LTD"
+  nome_cliente="C6 BANK" nome_base="BANCO C6 S.A."
+
+COMPORTAMENTO NO CÓDIGO
+-----------------------
+- main.py: read_clientes_csv() lê parametros.xlsx/clientes
+           write_clientes_csv() salva de volta em parametros.xlsx/clientes
+           (endpoint /api/clientes/ae escreve nessa aba)
+- apuracao_engine.py: usa nome_base para normalizar nomes SAP antes dos lookups
+  → _alias_pre[norm(nome_base)] = norm(nome_cliente)  — SAP → canônico
+  → aliases adicionados nos lookups de receita/margem/custo após o groupby
+- main.py get_clientes_list(): constrói alias_to_canonical map e agrega receita
+  de TODOS os aliases em uma única linha na aba Clientes
+
+REGRA IMPORTANTE
+----------------
+Nunca criar nova linha em clientes para um alias do mesmo cliente.
+Sempre adicionar o alias no campo nome_base, separado por |.
+Exceção: KLABIN aparece em 2 linhas porque tem BU diferente (Multisector + Grupo Mult).
+
+ERROS CORRIGIDOS RELACIONADOS
+------------------------------
+- BMG tinha 3 linhas (1 principal + 2 aliases GRUPO BMG/Grupo BMG obsoletos).
+  Após projetos.csv ser migrado para usar "BANCO BMG S.A.", os aliases ficaram
+  sem correspondência. Resultado: 2 linhas em branco na aba Clientes, a linha
+  com dados caía na posição ~50 (limite da página 1), usuário via só os em branco.
+  FIX: removidas as 2 linhas alias obsoletas (commit 1a04e81).
+
+================================================================================
+LIMPEZA DE DADOS — ZERAGEM DE VALORES FORA DO Q4 2025
+================================================================================
+
+EM QUE CONSISTIU
+----------------
+Os arquivos de dados contêm lançamentos históricos de vários períodos, mas o
+sistema atualmente só suporta análise do Q4 2025 (out/nov/dez 2025).
+Para evitar que dados de outros períodos contaminem os cálculos:
+
+Todos os valores numéricos fora do Q4 2025 foram ZERADOS nos arquivos:
+  - dados_sap.xlsx:     AmountInCompanyCodeCurrency = 0 para FiscalPeriod ∉ {10,11,12}
+                        ou FiscalYear ≠ 2025  (~436k linhas zeradas, ~157k Q4 intactas)
+  - operacional.xlsx/financeiro: valor = 0 para periodo ∉ {"2025-10","2025-11","2025-12"}
+  - operacional.xlsx/nexus_agg: [Valor] = 0 para Periodo ∉ Q4 2025
+  - operacional.xlsx/projetos: receita/custo_rateado = 0 para periodo ∉ Q4 2025
+
+NÃO FORAM ZERADOS (já são somente Q4 por design):
+  - operacional.xlsx/margem_pessoas
+  - parametros.xlsx/metas_custo
+  - parametros.xlsx/budget e budget_tcv  (estrutura de orçamento anual, formato diferente)
+
+IMPORTANTE
+----------
+As linhas não foram removidas, apenas zeradas. Isso mantém a estrutura dos
+arquivos intacta e facilita a futura adição de dados de outros períodos.
 
 ================================================================================
 REGRAS DE NEGÓCIO — BÔNUS Q4 2025
@@ -47,7 +200,7 @@ WORK STREAMS (WS) — pesos padrão Q4
 -------------------------------------
 apps: 70%, cloud: 8%, dados: 8%, hyper: 8%, demais: 6%
 Danilo (AE_GM) tem pesos customizados: apps=72%, cloud=10%, dados=0%, hyper=10%, demais=8%
-(definido em premissas_pesos_ws_pessoa.csv)
+(definido em parametros.xlsx/pesos_ws_pessoa)
 
 TRIGGERS Q4
 -----------
@@ -74,53 +227,6 @@ Cloud: 34%, Dados: 35%, Hyper: 35%, Demais: 37%
 Apps: calculado de verdade (custo real ou benchmark 35% se sem custo)
 
 ================================================================================
-ARQUIVOS CSV IMPORTANTES
-================================================================================
-
-premissas_pessoas.csv
-  → Nome, Posicao, Contrato, Sal_Q1, Sal_Q2, Sal_Q3, Sal_Q4
-  → Posicoes: AE, AE_GM, DIRETOR, HUNTER, Estrategistas, CS, Socio
-  → AE_GM: Edmilson, Guilherme, DANILO DE SOUZA MACIEIRA
-
-premissas_pesos_meta.csv
-  → Periodo (Quarter/Anual), Posicao, TCV, Receita, MB_pct, MC_pct, ENPS, NPS
-  → Quarter AE_GM: TCV=0.2, Receita=0.3, MB_pct=0.5
-
-premissas_pesos_ws.csv / premissas_pesos_ws_pessoa.csv
-  → Pesos por WS. premissas_pesos_ws_pessoa.csv sobrescreve para pessoas específicas
-
-premissas_lb_trigger.csv
-  → nome, meta_lb, trigger_lb (valores anuais)
-  → Usado para calcular trigger_ratio = trigger_lb / meta_lb (~85%)
-
-premissas_triggers.csv
-  → Meta, Q1, Q2, Q3, Q4, FY — triggers percentuais por período
-  → Q3: TCV/Rec=0.90, MB%=-1.0pp | Q4: TCV/Rec=0.85, MB%=-1.5pp
-
-budget_receita.csv
-  → tipo, bs, ae_q1..ae_q4, ws, cliente, q1, q2, q3, q4, fy
-  → Budget de receita por cliente/WS/trimestre
-
-budget_lb.csv
-  → tipo, bs, ae_q1..ae_q4, ws, cliente, q1, q2, q3, q4, fy
-  → Budget de Lucro Bruto (Margem Bruta) por cliente/WS/trimestre
-
-budget_tcv.csv
-  → ae, descricao, q1, q2, q3, q4, fy
-  → Budget TCV por vertical. AE_GM usa ae="Grupo Mult", descricao="Receita"
-
-tcv_realizado.csv
-  → vertical, tcv_realizado (valores Q4 apenas, sem Q3 ainda)
-
-clientes.csv
-  → nome_cliente, bu, ae, nome_base
-  → nome_base = nome no SAP (alias para match com budget)
-
-margem_projetos.csv / rac_projetos.csv
-  → Dados SAP reais. Atualmente apenas Q4 (2025-10, 2025-11, 2025-12)
-  → Q3 (2025-07, 2025-08, 2025-09) ainda NÃO existe → bônus Q3 = 0 enquanto não carregado
-
-================================================================================
 ENGINE — apuracao_engine.py
 ================================================================================
 
@@ -140,6 +246,7 @@ calc_bonus_diretor(nome: str) → dict
 
 _load_all() → dict (cached com lru_cache)
   → Carrega TODOS os dados Q4 (budget, SAP, lookups, etc.)
+  → Lê de: parametros.xlsx (múltiplas abas), operacional.xlsx, pessoas.xlsx
 
 _load_q3_realized() → dict (cached com lru_cache)
   → Carrega dados SAP Q3 (vazio até dados serem adicionados)
@@ -223,6 +330,14 @@ Aplica lb_gate_ws ao recalcular:
   const gate = w.aplica_gate_mb ? (w.mb_gate ?? 1) : 1;
   const bMb  = sal * pMb  * w.peso_ws * (w.ating_mb ?? 0) * gate * lbGate;
 
+ÍCONES
+------
+Todos os ícones do dashboard usam @ant-design/icons (sem emojis).
+Dashboard.tsx importa: UserOutlined, BankOutlined, AimOutlined, LineChartOutlined,
+FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined,
+HeatMapOutlined, SlidersOutlined, ArrowLeftOutlined, LogoutOutlined, HomeOutlined.
+Header usa o logo da FCamara: <img src="/logo-fcamara.png" />.
+
 ================================================================================
 VALORES ATUAIS Q4 (referência, estado em 2026-03-26)
 ================================================================================
@@ -247,26 +362,24 @@ Os itens abaixo estão hardcoded no engine e precisarão de atenção quando
 os dados reais estiverem disponíveis:
 
 1. real_tcv_q3_ae = 0.0  (linha em calc_bonus_ae_q3, após bloco "if peso_tcv > 0")
-   MOTIVO: tcv_realizado.csv só tem coluna "tcv_realizado" com valores Q4.
+   MOTIVO: parametros.xlsx/realizados_manual só tem TCV Q4 (tipo="TCV_Q4").
    Não existe dado de TCV realizado Q3 ainda.
-   QUANDO TIVER DADO: adicionar coluna "tcv_q3" em tcv_realizado.csv e atualizar
+   QUANDO TIVER DADO: adicionar linhas tipo="TCV_Q3" em realizados_manual e atualizar
    essa linha para: real_tcv_q3_ae = float(d["tcv_real_q3"].get("Grupo Mult", 0.0))
-   (vai precisar de novo campo no _load_all() ou _load_q3_realized())
 
 2. Benchmark Apps = 35% (fallback)  (linha: marg_q4.at[_idx, "margem_pct"] = 0.35)
    MOTIVO: quando um projeto Apps não tem custo_rateado no SAP e não tem dados
-   de margem_pessoas.csv para aquele PEP+período, usa 35% de MB% como fallback.
-   Está presente tanto em _load_all() (Q4) quanto em _load_q3_realized() (Q3).
+   de margem_pessoas para aquele PEP+período, usa 35% de MB% como fallback.
    NÃO MUDA com os dados Q3 — é um fallback de segurança, não um dado faltante.
 
 3. Override OpenX = 45% MB  (linhas com "openx_mask" em _load_all e _load_q3_realized)
    MOTIVO: projetos com no_hierarquia="OPENX" usam MB% fixo de 45% independente
    do SAP. Decisão de negócio, não um dado faltante.
 
-4. _trigger_ratio para Q3 usa mesma tabela anual de premissas_lb_trigger.csv
+4. _trigger_ratio para Q3 usa mesma tabela anual de parametros.xlsx/lb_trigger
    MOTIVO: essa tabela só tem valores anuais (meta_lb, trigger_lb). O ratio
    trigger/meta (~85%) é aplicado proporcionalmente ao budget Q3 de cada WS.
-   Se as metas anuais mudarem para Q3, atualizar premissas_lb_trigger.csv.
+   Se as metas anuais mudarem para Q3, atualizar a aba lb_trigger.
 
 5. WS_MB_BENCHMARK_Q4 usado também no Q3  (em _load_q3_realized e calc_bonus_ae_q3)
    MOTIVO: os benchmarks de MB% por WS (cloud=34%, dados=35%, etc.) são os mesmos
@@ -278,28 +391,24 @@ COMO ADICIONAR DADOS SAP Q3 (passo a passo)
 
 Quando o usuário fornecer os dados SAP Q3, o agente deve:
 
-PASSO 1 — margem_projetos.csv
+PASSO 1 — operacional.xlsx / projetos
   Adicionar linhas com periodo="2025-07", "2025-08" ou "2025-09".
   Colunas obrigatórias:
     periodo, pep, nome_cliente, empresa, centro_lucro, no_hierarquia,
-    categoria_bu, receita, custo_rateado, horas_total, margem, margem_pct
+    categoria_bu, receita, custo_rateado, horas, tipos
   categoria_bu deve usar os valores: Apps, Cloud, Cyber, Dados, Hyper, Demais
   (o engine normaliza para minúsculas internamente via _norm_ws())
+  OBS: pode usar criar_arquivos_consolidados.py se os CSVs brutos estiverem disponíveis.
 
-PASSO 2 — rac_projetos.csv
-  Adicionar linhas com periodo="2025-07", "2025-08" ou "2025-09".
-  Colunas obrigatórias:
-    periodo, empresa, pep, nome_cliente, tipo, centro_lucro,
-    no_hierarquia, categoria_bu, valor_liquido
-  valor_liquido = receita RAC (substitui receita do SAP quando há match por PEP+periodo+cliente)
+PASSO 2 — operacional.xlsx / projetos (RAC)
+  As linhas com RAC devem ter o campo "tipos" preenchido (ex: "MapaReceita").
+  O engine explode o campo tipos e usa valor_liquido como receita RAC.
 
-PASSO 3 — tcv_realizado.csv (se TCV Q3 estiver disponível)
-  Atualmente: vertical, tcv_realizado  (apenas Q4)
-  Adicionar coluna "tcv_q3" com o TCV realizado Q3 por vertical.
+PASSO 3 — parametros.xlsx / realizados_manual (TCV Q3, se disponível)
+  Adicionar linhas com tipo="TCV_Q3", ae_ou_vertical=vertical, receita=valor.
   Depois atualizar a linha hardcoded em calc_bonus_ae_q3():
     Trocar: real_tcv_q3_ae = 0.0
-    Por:    real_tcv_q3_ae = float(d["tcv_real"].get("Grupo Mult_q3", 0.0))
-    (ou ajustar conforme estrutura do arquivo atualizado)
+    Por:    real_tcv_q3_ae = float(d["tcv_real_q3"].get("Grupo Mult", 0.0))
 
 PASSO 4 — Invalidar cache do engine (se servidor estiver rodando)
   O engine usa @lru_cache. Em produção no Render, o deploy automático reinicia
@@ -314,12 +423,12 @@ TAREFAS PENDENTES / POSSÍVEIS PRÓXIMOS PASSOS
 
 1. DADOS SAP Q3 (main pendente):
    Usuário vai fornecer arquivo com dados SAP Q3. Seguir passo a passo acima.
-   Estrutura esperada: igual a margem_projetos.csv e rac_projetos.csv atuais,
+   Estrutura esperada: igual às abas de operacional.xlsx/projetos atuais,
    com periodo = "2025-07", "2025-08" ou "2025-09".
 
 2. TCV REALIZADO Q3 (hardcoded como 0.0):
    Ver seção "VALORES HARDCODED" acima. Quando o usuário fornecer o número,
-   atualizar tcv_realizado.csv e a linha hardcoded em calc_bonus_ae_q3().
+   adicionar em parametros.xlsx/realizados_manual e atualizar linha hardcoded.
 
 3. BÔNUS ANUAL (Q1 a Q4):
    Existe endpoint /api/apuracao/bonus-anual/{nome} mas não foi validado
@@ -329,8 +438,20 @@ TAREFAS PENDENTES / POSSÍVEIS PRÓXIMOS PASSOS
 BUGS RESOLVIDOS RECENTEMENTE (histórico para evitar regressão)
 ================================================================================
 
-- Nicolly: R$312 bonus_mb Demais → causado por lb_gate_ws não aplicado no frontend
-  FIX: aplicar lb_gate_ws no recalculo local do frontend
+- BMG aparecia 3 vezes (2 em branco) na aba Clientes:
+  CAUSA: clientes tinha 3 linhas para BMG — 1 principal + 2 aliases (GRUPO BMG/Grupo BMG).
+  Após projetos.csv migrar para "BANCO BMG S.A.", os aliases ficaram sem correspondência.
+  FIX: removidas as 2 linhas alias obsoletas. Se BMG voltar em branco, verificar
+  se projetos voltou a usar "GRUPO BMG" como nome_cliente (commit 1a04e81).
+
+- Aliases de cliente geravam linhas duplicadas em branco na aba Clientes:
+  CAUSA: cada alias era uma linha separada em clientes.csv.
+  FIX: campo nome_base com múltiplos aliases separados por | em uma única linha.
+  O backend agrega receita de todos os aliases no mesmo cliente canônico (commit 1b5ec38).
+
+- Nicolly: R$312 bonus_mb Demais inesperado:
+  CAUSA: lb_gate_ws não aplicado no recalculo local do frontend
+  FIX: aplicar lb_gate_ws no recalculo local
 
 - José Eduardo R$5.077 bonus apps: OURIBANK tinha LB realizado sem budget apps
   FIX: realized_lb_gate_ws só acumula clientes com bgt_lb > 0 naquela WS
@@ -339,13 +460,10 @@ BUGS RESOLVIDOS RECENTEMENTE (histórico para evitar regressão)
   FIX: elif bgt_lb_ == 0: ating_mb = 0.0
 
 - José Eduardo Demais: R$290,12 correto (40%×6%×66.7%×18.132,80)
-  FIX: adicionar OURIBANK Demais q4=93.480 em budget_lb.csv
+  FIX: adicionar OURIBANK Demais q4=93.480 em budget_lb (agora em parametros.xlsx/budget)
 
 - Fabio: Honda/RiminiStreet/Waycarbon/Bauducco/SortenaBet/Falconi faltando
-  FIX: adicionados em budget_receita.csv (ws=Demais, q4=0) e clientes.csv
-
-- AE_GM: TCV da área não exibido no frontend
-  FIX: MetaRealRow TCV adicionado em VistaMasterTab, calc TCV no engine
+  FIX: adicionados em budget/ws=Demais/q4=0 e em clientes
 
 ================================================================================
 COMANDOS ÚTEIS
