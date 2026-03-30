@@ -1216,10 +1216,10 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
 
     # Custos RAC: PJ e CLT de margem_pessoas
     # Classificacao: billable/nao_classificado -> custo (entra na MB); non-billable -> despesa
-    metas = read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str})
+    metas = read_csv_cached("metas_custo.csv", dtype={"cpf": str, "id_sap": str})
     pj_cpfs = set(
         metas[(metas["tipo"] == "PJ") & (metas["categoria"] == "PJs - Core")]
-        ["numero_pessoal"].dropna().unique()
+        ["cpf"].dropna().unique()
     )
 
     classif = read_csv_cached("relacao_pessoas.csv")
