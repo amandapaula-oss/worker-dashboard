@@ -79,7 +79,7 @@ def _load_all():
     # Pessoas — para custos reais de projetos Apps e para despesas (Opção C)
     _pess_xl  = pd.ExcelFile(os.path.join(DIR, "pessoas.xlsx"))
     margem_pess = _oper.parse("margem_pessoas").astype({"cpf": str})
-    class_pess  = _pess_xl.parse("classificacao_pessoas").astype({"cpf_brcpf": str})
+    class_pess  = _pess_xl.parse("relacao_pessoas").astype({"CPF / Worker ID": str}).rename(columns={"CPF / Worker ID": "cpf_brcpf"})
     lb_trigger_df = _param.parse("lb_trigger")
     lb_trigger_df["nome_norm"] = lb_trigger_df["nome"].apply(norm)
     # dict: nome_norm → {meta_lb, trigger_lb}
