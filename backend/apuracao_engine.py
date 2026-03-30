@@ -200,7 +200,9 @@ def _load_all():
                     _nc = str(_row.get("nome_cliente", "") or "").strip()
                     _nb = str(_row.get("nome_base", "") or "").strip()
                     if _nc and _nb:
-                        _alias_pre[norm(_nb)] = norm(_nc)  # SAP → canonical
+                        _nc_n = norm(_nc)
+                        for _alias in [a.strip() for a in _nb.split("|") if a.strip()]:
+                            _alias_pre[norm(_alias)] = _nc_n  # each SAP alias → canonical
                 if _alias_pre:
                     rac_q4["nome_norm"]  = rac_q4["nome_norm"].map(
                         lambda x: _alias_pre.get(x, x))
@@ -259,21 +261,23 @@ def _load_all():
                     nc = str(row.get("nome_cliente", "") or "").strip()
                     nb = str(row.get("nome_base", "") or "").strip()
                     if nc and nb:
-                        nc_n, nb_n = norm(nc), norm(nb)
-                        for lookup in [rac_by_client, marg_by_client, rec_by_client, custo_by_client,
-                                       rac_by_client_nh, marg_by_client_nh, rec_by_client_nh, custo_by_client_nh]:
-                            if nb_n in lookup and nc_n not in lookup:
-                                lookup[nc_n] = lookup[nb_n]
-                        # Alias WS lookups: (nc_n, ws) → (nb_n, ws)
-                        for ws_k in WS_PESOS_Q4:
-                            if (nb_n, ws_k) in rec_by_client_ws and (nc_n, ws_k) not in rec_by_client_ws:
-                                rec_by_client_ws[(nc_n, ws_k)]  = rec_by_client_ws[(nb_n, ws_k)]
-                            if (nb_n, ws_k) in marg_by_client_ws and (nc_n, ws_k) not in marg_by_client_ws:
-                                marg_by_client_ws[(nc_n, ws_k)] = marg_by_client_ws[(nb_n, ws_k)]
-                            if (nb_n, ws_k) in rec_by_client_ws_nh and (nc_n, ws_k) not in rec_by_client_ws_nh:
-                                rec_by_client_ws_nh[(nc_n, ws_k)]  = rec_by_client_ws_nh[(nb_n, ws_k)]
-                            if (nb_n, ws_k) in marg_by_client_ws_nh and (nc_n, ws_k) not in marg_by_client_ws_nh:
-                                marg_by_client_ws_nh[(nc_n, ws_k)] = marg_by_client_ws_nh[(nb_n, ws_k)]
+                        nc_n = norm(nc)
+                        for alias in [a.strip() for a in nb.split("|") if a.strip()]:
+                            nb_n = norm(alias)
+                            for lookup in [rac_by_client, marg_by_client, rec_by_client, custo_by_client,
+                                           rac_by_client_nh, marg_by_client_nh, rec_by_client_nh, custo_by_client_nh]:
+                                if nb_n in lookup and nc_n not in lookup:
+                                    lookup[nc_n] = lookup[nb_n]
+                            # Alias WS lookups: (nc_n, ws) → (nb_n, ws)
+                            for ws_k in WS_PESOS_Q4:
+                                if (nb_n, ws_k) in rec_by_client_ws and (nc_n, ws_k) not in rec_by_client_ws:
+                                    rec_by_client_ws[(nc_n, ws_k)]  = rec_by_client_ws[(nb_n, ws_k)]
+                                if (nb_n, ws_k) in marg_by_client_ws and (nc_n, ws_k) not in marg_by_client_ws:
+                                    marg_by_client_ws[(nc_n, ws_k)] = marg_by_client_ws[(nb_n, ws_k)]
+                                if (nb_n, ws_k) in rec_by_client_ws_nh and (nc_n, ws_k) not in rec_by_client_ws_nh:
+                                    rec_by_client_ws_nh[(nc_n, ws_k)]  = rec_by_client_ws_nh[(nb_n, ws_k)]
+                                if (nb_n, ws_k) in marg_by_client_ws_nh and (nc_n, ws_k) not in marg_by_client_ws_nh:
+                                    marg_by_client_ws_nh[(nc_n, ws_k)] = marg_by_client_ws_nh[(nb_n, ws_k)]
         except Exception:
             pass
 
