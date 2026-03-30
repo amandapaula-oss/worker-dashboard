@@ -568,10 +568,12 @@ def calc_bonus_ae(nome: str) -> dict:
     cli_contrib: dict[str, list] = {}  # {ws_k: [{cliente, budget_rec, real_rec}]}
 
     for cli_n in clientes_ae:
-        real_rec  = _match_cliente(cli_n, d["rac_by_client_nh"])
-        # Fallback: se não há RAC para este cliente, usa receita SAP do projetos
-        if real_rec == 0:
-            real_rec = _match_cliente(cli_n, d["rec_by_client_nh"])
+        # Usa o maior entre RAC puro e receita do projetos (que já prioriza RAC onde existe).
+        # Necessário para clientes com tipos="" cujo revenue vem só do SAP/projetos.
+        real_rec  = max(
+            _match_cliente(cli_n, d["rac_by_client_nh"]),
+            _match_cliente(cli_n, d["rec_by_client_nh"]),
+        )
         real_lb   = _match_cliente(cli_n, d["marg_by_client_nh"])
         real_custo = _match_cliente(cli_n, d["custo_by_client_nh"])
         lb_visual  = real_rec - abs(real_custo)  # LB financeiro do cliente (mesma base da aba margem por cliente)
