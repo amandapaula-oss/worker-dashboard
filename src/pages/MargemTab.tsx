@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Button, Typography, Breadcrumb, Card, Statistic, Input, Segmented } from "antd";
-import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined } from "@ant-design/icons";
+import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined, FilterOutlined } from "@ant-design/icons";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import * as XLSX from "xlsx";
 import { getMargemFilters, getMargemProjetos, getMargemPessoas, getMargemPessoaProjetos } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
-import { toTitleCase } from "../utils/format";
+import { toTitleCase, periodoLabel } from "../utils/format";
 import { theme } from "../theme";
 
 const { Text } = Typography;
@@ -32,7 +32,6 @@ function MargemTag({ value }: { value: number | "" }) {
 
 export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuidos?: boolean }) {
   const [periodos, setPeriodos]             = useState<string[]>([]);
-  const [selPeriodos, setSelPeriodos]       = useState<string[]>([]);
   const [empresas, setEmpresas]             = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas]       = useState<string[]>([]);
   const [categoriasBu, setCategoriasBu]     = useState<string[]>([]);
@@ -41,6 +40,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
   const [selVerticais, setSelVerticais]     = useState<string[]>([]);
   const [aes, setAes]                       = useState<string[]>([]);
   const [selAes, setSelAes]                 = useState<string[]>([]);
+  const [centrosLucro, setCentrosLucro]     = useState<string[]>([]);
+  const [selCentrosLucro, setSelCentrosLucro] = useState<string[]>([]);
   const [filtersReady, setFiltersReady]     = useState(false);
 
   const [projetos, setProjetos]                     = useState<any[]>([]);
@@ -59,12 +60,12 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
   const [searchCliente, setSearchCliente] = useState<string>("");
   const [searchPep, setSearchPep]         = useState<string>("");
   const [searchPessoa, setSearchPessoa]   = useState<string>("");
+  const [showFilters, setShowFilters]     = useState(false);
 
   useEffect(() => {
     getMargemFilters()
       .then(f => {
         setPeriodos(f.periodos);
-        setSelPeriodos(f.periodos);
         setEmpresas(f.empresas);
         setSelEmpresas(f.empresas);
         if (f.categorias_bu?.length) {
@@ -79,6 +80,10 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
           setAes(f.aes);
           setSelAes(f.aes);
         }
+        if (f.centros_lucro?.length) {
+          setCentrosLucro(f.centros_lucro);
+          setSelCentrosLucro(f.centros_lucro);
+        }
         setFiltersReady(true);
       })
       .catch(() => { message.error("Erro ao carregar filtros"); setLoading(false); });
@@ -88,11 +93,11 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     if (!filtersReady || selectedPep) return;
     setLoading(true);
     const params: Record<string, string> = {};
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selCategoriasBu.length && selCategoriasBu.length < categoriasBu.length) params.categorias_bu = selCategoriasBu.join(",");
     if (selVerticais.length && selVerticais.length < verticais.length) params.verticais = selVerticais.join(",");
     if (selAes.length && selAes.length < aes.length) params.aes = selAes.join(",");
+    if (selCentrosLucro.length && selCentrosLucro.length < centrosLucro.length) params.centros_lucro = selCentrosLucro.join(",");
     if (apenasAtribuidos) params.apenas_atribuidos = "true";
     Promise.all([
       getMargemProjetos(params),
@@ -102,14 +107,13 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       .catch(() => message.error("Erro ao carregar projetos"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas, selCategoriasBu, selVerticais, selAes, selectedPep, apenasAtribuidos]);
+  }, [filtersReady, selEmpresas, selCategoriasBu, selVerticais, selAes, selCentrosLucro, selectedPep, apenasAtribuidos]);
 
   // load all pessoas (for global search) or specific PEP (for drill-down)
   useEffect(() => {
     if (!filtersReady) return;
     const params: Record<string, string> = {};
     if (selectedPep) params.pep = selectedPep.pep;
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (apenasAtribuidos) params.apenas_atribuidos = "true";
     Promise.all([
@@ -119,14 +123,13 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       .then(([total, mensal]) => { setPessoas(total); setPessoasMensal(mensal); })
       .catch(() => message.error("Erro ao carregar pessoas"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selectedPep, selPeriodos, selEmpresas, apenasAtribuidos]);
+  }, [filtersReady, selectedPep, selEmpresas, apenasAtribuidos]);
 
   // load projetos for selected pessoa
   useEffect(() => {
     if (!selectedPessoa) return;
     setLoadingPessoaProj(true);
     const params: Record<string, string> = { cpf: selectedPessoa.cpf };
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     Promise.all([
       getMargemPessoaProjetos(params),
@@ -136,7 +139,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       .catch(() => message.error("Erro ao carregar projetos da pessoa"))
       .finally(() => setLoadingPessoaProj(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPessoa, selPeriodos, selEmpresas]);
+  }, [selectedPessoa, selEmpresas]);
 
   // Pessoas filtradas por nome/CPF
   const filteredPessoas = useMemo(() => {
@@ -231,6 +234,11 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
     {
       title: "Nó Hierarquia", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 130,
       sorter: (a: any, b: any) => String(a.no_hierarquia || "").localeCompare(String(b.no_hierarquia || "")),
+    },
+    {
+      title: "Centro de Lucro", dataIndex: "centro_lucro", key: "centro_lucro", width: 190,
+      sorter: (a: any, b: any) => String(a.centro_lucro || "").localeCompare(String(b.centro_lucro || "")),
+      render: (v: string) => v || "—",
     },
     {
       title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110,
@@ -367,17 +375,17 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       e[`${r.periodo}_margem`]  = (e[`${r.periodo}_margem`]  || 0) + (Number(r.margem)        || 0);
     }
     return Array.from(map.values()).map(r => {
-      const tot_rec = selPeriodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
-      const tot_cus = selPeriodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
-      const tot_mar = selPeriodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
-      selPeriodos.forEach(p => {
+      const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
+      const tot_cus = periodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
+      const tot_mar = periodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
+      periodos.forEach(p => {
         const rec = r[`${p}_receita`] || 0;
         const mar = r[`${p}_margem`]  || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? mar / rec : null;
       });
       return { ...r, total_receita: tot_rec, total_custo: tot_cus, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
     }).sort((a, b) => b.total_receita - a.total_receita);
-  }, [projetosMensal, selPeriodos]);
+  }, [projetosMensal, periodos]);
 
   // Pivot: pessoas × períodos
   const pivotPessoas = useMemo(() => {
@@ -391,15 +399,15 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       e[`${r.periodo}_margem`]  = (e[`${r.periodo}_margem`]  || 0) + (Number(r.margem)  || 0);
     }
     return Array.from(map.values()).map(r => {
-      const tot_rec = selPeriodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
-      const tot_mar = selPeriodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
-      selPeriodos.forEach(p => {
+      const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
+      const tot_mar = periodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
+      periodos.forEach(p => {
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? (r[`${p}_margem`] || 0) / rec : null;
       });
       return { ...r, total_receita: tot_rec, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
     }).sort((a, b) => b.total_receita - a.total_receita);
-  }, [pessoasMensal, selPeriodos]);
+  }, [pessoasMensal, periodos]);
 
   // Pivot: projetos da pessoa × períodos
   const pivotPessoaProjetos = useMemo(() => {
@@ -414,22 +422,18 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       e[`${r.periodo}_margem`]  = (e[`${r.periodo}_margem`]  || 0) + (Number(r.margem)        || 0);
     }
     return Array.from(map.values()).map(r => {
-      const tot_rec = selPeriodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
-      const tot_cus = selPeriodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
-      const tot_mar = selPeriodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
-      selPeriodos.forEach(p => {
+      const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
+      const tot_cus = periodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
+      const tot_mar = periodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
+      periodos.forEach(p => {
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? (r[`${p}_margem`] || 0) / rec : null;
       });
       return { ...r, total_receita: tot_rec, total_custo: tot_cus, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null };
     }).sort((a, b) => b.total_receita - a.total_receita);
-  }, [pessoaProjetosMensal, selPeriodos]);
+  }, [pessoaProjetosMensal, periodos]);
 
   const colMensal = useMemo(() => {
-    const periodoLabel = (p: string) => {
-      const [y, m] = p.split("-");
-      return `${m}/${y.slice(2)}`;
-    };
     const numCol = (dataIndex: string, render?: (v: any) => React.ReactNode) => ({
       dataIndex, key: dataIndex,
       align: "right" as const,
@@ -437,7 +441,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       sorter: (a: any, b: any) => (Number(a[dataIndex]) || 0) - (Number(b[dataIndex]) || 0),
       render: render,
     });
-    const periodoCols = selPeriodos.map(p => ({
+    const periodoCols = periodos.map(p => ({
       title: periodoLabel(p),
       children: [
         { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
@@ -461,7 +465,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         ],
       },
     ];
-  }, [selPeriodos]);
+  }, [periodos]);
 
   // Pivot: clientes × períodos (para view mensal — nível superior)
   const pivotClientes = useMemo(() => {
@@ -470,7 +474,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       const key = r.nome_cliente || "";
       if (!map.has(key)) map.set(key, { key, nome_cliente: key, vertical: r.vertical || "", ae: r.ae || "" });
       const e = map.get(key)!;
-      selPeriodos.forEach(p => {
+      periodos.forEach(p => {
         e[`${p}_receita`] = (e[`${p}_receita`] || 0) + (r[`${p}_receita`] || 0);
         e[`${p}_custo`]   = (e[`${p}_custo`]   || 0) + (r[`${p}_custo`]   || 0);
         e[`${p}_margem`]  = (e[`${p}_margem`]  || 0) + (r[`${p}_margem`]  || 0);
@@ -480,23 +484,22 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       e.total_margem  = (e.total_margem  || 0) + (r.total_margem  || 0);
     }
     return Array.from(map.values()).map(r => {
-      selPeriodos.forEach(p => {
+      periodos.forEach(p => {
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? (r[`${p}_margem`] || 0) / rec : null;
       });
       r.total_margem_pct = r.total_receita !== 0 ? r.total_margem / r.total_receita : null;
       return r;
     }).sort((a, b) => b.total_receita - a.total_receita);
-  }, [pivotData, selPeriodos]);
+  }, [pivotData, periodos]);
 
   const colMensalClientes = useMemo(() => {
-    const periodoLabel = (p: string) => { const [y, m] = p.split("-"); return `${m}/${y.slice(2)}`; };
     const numCol = (dataIndex: string, render?: (v: any) => React.ReactNode) => ({
       dataIndex, key: dataIndex, align: "right" as const, width: 130,
       sorter: (a: any, b: any) => (Number(a[dataIndex]) || 0) - (Number(b[dataIndex]) || 0),
       render,
     });
-    const periodoCols = selPeriodos.map(p => ({
+    const periodoCols = periodos.map(p => ({
       title: periodoLabel(p),
       children: [
         { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
@@ -515,16 +518,15 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ]},
     ];
-  }, [selPeriodos]);
+  }, [periodos]);
 
   const colPessoasMensal = useMemo(() => {
-    const periodoLabel = (p: string) => { const [y, m] = p.split("-"); return `${m}/${y.slice(2)}`; };
     const numCol = (dataIndex: string, render?: (v: any) => React.ReactNode) => ({
       dataIndex, key: dataIndex, align: "right" as const, width: 130,
       sorter: (a: any, b: any) => (Number(a[dataIndex]) || 0) - (Number(b[dataIndex]) || 0),
       render,
     });
-    const periodoCols = selPeriodos.map(p => ({
+    const periodoCols = periodos.map(p => ({
       title: periodoLabel(p),
       children: [
         { ...numCol(`${p}_receita`), title: "Receita", render: (v: number) => v != null ? <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v || 0)}</span> : "—" },
@@ -542,7 +544,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         { ...numCol("total_margem_pct", (v: any) => <MargemTag value={v} />), title: "Mg%", width: 80 },
       ]},
     ];
-  }, [selPeriodos]);
+  }, [periodos]);
 
   // Colunas para busca direta por PEP (inclui Cliente)
   const colProjetosSearch = [
@@ -556,6 +558,9 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       render: (v: string) => toTitleCase(v) || "—" },
     { title: "Nó Hierarquia", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 130,
       sorter: (a: any, b: any) => String(a.no_hierarquia || "").localeCompare(String(b.no_hierarquia || "")) },
+    { title: "Centro de Lucro", dataIndex: "centro_lucro", key: "centro_lucro", width: 190,
+      sorter: (a: any, b: any) => String(a.centro_lucro || "").localeCompare(String(b.centro_lucro || "")),
+      render: (v: string) => v || "—" },
     { title: "BU", dataIndex: "categoria_bu", key: "categoria_bu", width: 110,
       sorter: (a: any, b: any) => String(a.categoria_bu || "").localeCompare(String(b.categoria_bu || "")) },
     { title: "Vertical", dataIndex: "vertical", key: "vertical", width: 110,
@@ -578,16 +583,15 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       render: (v: number) => v > 0 ? v.toLocaleString("pt-BR") : "—" },
   ];
 
-  const draggableClientes       = useDraggableColumns(colClientes);
-  const draggableProjetos       = useDraggableColumns(colProjetos);
-  const draggableProjetosSearch = useDraggableColumns(colProjetosSearch);
-  const draggablePessoas        = useDraggableColumns(colPessoas);
-  const draggablePessoaProj     = useDraggableColumns(colPessoaProjetos);
+  const [draggableClientes,       settingsClientes]       = useDraggableColumns(colClientes, "margem-clientes");
+  const [draggableProjetos,       settingsProjetos]       = useDraggableColumns(colProjetos, "margem-projetos");
+  const [draggableProjetosSearch, settingsProjetosSearch] = useDraggableColumns(colProjetosSearch, "margem-projetos-search");
+  const [draggablePessoas,        settingsPessoas]        = useDraggableColumns(colPessoas, "margem-pessoas");
+  const [draggablePessoaProj,     settingsPessoaProj]     = useDraggableColumns(colPessoaProjetos, "margem-pessoa-proj");
 
   function exportExcel() {
     const fmt = (v: any) => v == null ? "" : typeof v === "number" ? v : v;
     const pct = (v: any) => v == null || v === "" ? "" : `${(Number(v) * 100).toFixed(1)}%`;
-    const periodoLabel = (p: string) => { const [y, m] = p.split("-"); return `${m}/${y.slice(2)}`; };
 
     let rows: any[] = [];
     let filename = "margem";
@@ -597,7 +601,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       filename = `projetos_${selectedPessoa.nome.replace(/\s/g, "_")}`;
       if (viewMode === "mensal") {
         const header: any = { PEP: "", Cliente: "", Empresa: "" };
-        selPeriodos.forEach(p => {
+        periodos.forEach(p => {
           header[`Receita ${periodoLabel(p)}`] = "";
           header[`Custo ${periodoLabel(p)}`] = "";
           header[`Mg% ${periodoLabel(p)}`] = "";
@@ -605,7 +609,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         header["Total Receita"] = ""; header["Total Custo"] = ""; header["Total Mg%"] = "";
         rows = pivotPessoaProjetos.map(r => {
           const row: any = { PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa };
-          selPeriodos.forEach(p => {
+          periodos.forEach(p => {
             row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
             row[`Custo ${periodoLabel(p)}`]   = fmt(r[`${p}_custo`]);
             row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
@@ -625,7 +629,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         const filtered = pivotPessoas.filter(r => !q || String(r.nome||"").toLowerCase().includes(q) || (qDigits && String(r.cpf||"").replace(/\D/g,"").includes(qDigits)) || String(r.numero_pessoal||"").toLowerCase().includes(q));
         rows = filtered.map(r => {
           const row: any = { ID: r.numero_pessoal, Nome: r.nome, CPF: r.cpf, Empresa: r.empresa };
-          selPeriodos.forEach(p => {
+          periodos.forEach(p => {
             row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
             row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
           });
@@ -642,7 +646,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         const filtered = pivotData.filter(r => r.nome_cliente === selectedCliente);
         rows = filtered.map(r => {
           const row: any = { PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa };
-          selPeriodos.forEach(p => {
+          periodos.forEach(p => {
             row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
             row[`Custo ${periodoLabel(p)}`]   = fmt(r[`${p}_custo`]);
             row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
@@ -660,7 +664,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
         const filtered = pivotData.filter(r => String(r.pep||"").toLowerCase().includes(searchPep.trim().toLowerCase()));
         rows = filtered.map(r => {
           const row: any = { PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa };
-          selPeriodos.forEach(p => {
+          periodos.forEach(p => {
             row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
             row[`Custo ${periodoLabel(p)}`]   = fmt(r[`${p}_custo`]);
             row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
@@ -680,7 +684,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
       });
       rows = filtered.map(r => {
         const row: any = { PEP: r.pep, Cliente: r.nome_cliente, Empresa: r.empresa };
-        selPeriodos.forEach(p => {
+        periodos.forEach(p => {
           row[`Receita ${periodoLabel(p)}`] = fmt(r[`${p}_receita`]);
           row[`Custo ${periodoLabel(p)}`]   = fmt(r[`${p}_custo`]);
           row[`Mg% ${periodoLabel(p)}`]     = pct(r[`${p}_margem_pct`]);
@@ -766,90 +770,82 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
 
   return (
     <div>
-      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Período</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
-            onChange={v => { setSelPeriodos(v); setSelectedCliente(null); setSelectedPep(null); }}
-            options={periodos.map(p => ({ label: p, value: p }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Empresa</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas}
-            onChange={v => { setSelEmpresas(v); setSelectedCliente(null); setSelectedPep(null); }}
-            options={empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
-        </div>
-        {categoriasBu.length > 0 && (
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <div style={labelStyle}>BU / Categoria</div>
-            <Select mode="multiple" style={{ width: "100%" }} value={selCategoriasBu}
-              onChange={v => { setSelCategoriasBu(v); setSelectedCliente(null); setSelectedPep(null); }}
-              options={categoriasBu.map(c => ({ label: c, value: c }))} maxTagCount="responsive" />
-          </div>
-        )}
-        {verticais.length > 0 && (
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <div style={labelStyle}>Vertical</div>
-            <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
-              onChange={v => { setSelVerticais(v); setSelectedCliente(null); setSelectedPep(null); }}
-              options={verticais.map(v => ({ label: v, value: v }))} maxTagCount="responsive" />
-          </div>
-        )}
-        {aes.length > 0 && (
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <div style={labelStyle}>AE</div>
-            <Select mode="multiple" style={{ width: "100%" }} value={selAes}
-              onChange={v => { setSelAes(v); setSelectedCliente(null); setSelectedPep(null); }}
-              options={aes.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
-          </div>
-        )}
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Cliente</div>
-          <Input
-            allowClear
-            placeholder="Buscar cliente..."
-            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
-            value={searchCliente}
-            onChange={e => { setSearchCliente(e.target.value); setSelectedCliente(null); setSelectedPep(null); }}
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Projeto (PEP)</div>
-          <Input
-            allowClear
-            placeholder="Buscar PEP..."
-            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
-            value={searchPep}
-            onChange={e => { setSearchPep(e.target.value); setSelectedCliente(null); setSelectedPep(null); }}
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Pessoa (nome, CPF ou ID)</div>
-          <Input
-            allowClear
-            placeholder="Buscar pessoa..."
-            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
-            value={searchPessoa}
-            onChange={e => { setSearchPessoa(e.target.value); setSelectedPessoa(null); }}
-          />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "flex-end" }}>
-          <div style={labelStyle}>Visualização</div>
-          <Segmented
-            value={viewMode}
-            onChange={v => setViewMode(v as "total" | "mensal")}
-            options={[{ label: "Consolidado", value: "total" }, { label: "Por Mês", value: "mensal" }]}
-          />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "flex-end" }}>
-          <Button icon={<DownloadOutlined />} onClick={exportExcel} style={{ background: theme.accent, color: "#fff", border: "none" }}>
-            Exportar Excel
-          </Button>
-        </div>
-        <Text type="secondary" style={{ fontSize: "0.78rem", paddingBottom: 2 }}>
-          * Custo rateado disponível para out–dez/2025. Períodos sem custo exibem receita apenas.
-        </Text>
+      {/* Barra principal */}
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <Input allowClear placeholder="Buscar cliente..."
+          prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+          style={{ flex: 1, minWidth: 180 }}
+          value={searchCliente}
+          onChange={e => { setSearchCliente(e.target.value); setSelectedCliente(null); setSelectedPep(null); }} />
+        <Segmented value={viewMode} onChange={v => setViewMode(v as "total" | "mensal")}
+          options={[{ label: "Consolidado", value: "total" }, { label: "Por Mês", value: "mensal" }]} />
+        <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
+          type={selEmpresas.length < empresas.length || selCategoriasBu.length < categoriasBu.length || selVerticais.length < verticais.length || selAes.length < aes.length || selCentrosLucro.length < centrosLucro.length || searchPep.trim() || searchPessoa.trim() ? "primary" : "default"}>
+          Filtros{showFilters ? " ▲" : " ▼"}
+        </Button>
+        <Button icon={<DownloadOutlined />} onClick={exportExcel} style={{ background: theme.accent, color: "#fff", border: "none" }}>
+          Excel
+        </Button>
       </div>
+      {showFilters && (
+        <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Empresa</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas}
+              onChange={v => { setSelEmpresas(v); setSelectedCliente(null); setSelectedPep(null); }}
+              options={empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
+          </div>
+          {categoriasBu.length > 0 && (
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={labelStyle}>BU / Categoria</div>
+              <Select mode="multiple" style={{ width: "100%" }} value={selCategoriasBu}
+                onChange={v => { setSelCategoriasBu(v); setSelectedCliente(null); setSelectedPep(null); }}
+                options={categoriasBu.map(c => ({ label: c, value: c }))} maxTagCount="responsive" />
+            </div>
+          )}
+          {verticais.length > 0 && (
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={labelStyle}>Vertical</div>
+              <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
+                onChange={v => { setSelVerticais(v); setSelectedCliente(null); setSelectedPep(null); }}
+                options={verticais.map(v => ({ label: v, value: v }))} maxTagCount="responsive" />
+            </div>
+          )}
+          {aes.length > 0 && (
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={labelStyle}>AE</div>
+              <Select mode="multiple" style={{ width: "100%" }} value={selAes}
+                onChange={v => { setSelAes(v); setSelectedCliente(null); setSelectedPep(null); }}
+                options={aes.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
+            </div>
+          )}
+          {centrosLucro.length > 0 && (
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={labelStyle}>Centro de Lucro</div>
+              <Select mode="multiple" style={{ width: "100%" }} value={selCentrosLucro}
+                onChange={v => { setSelCentrosLucro(v); setSelectedCliente(null); setSelectedPep(null); }}
+                options={centrosLucro.map(c => ({ label: c, value: c }))} maxTagCount="responsive" />
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Projeto (PEP)</div>
+            <Input allowClear placeholder="Buscar PEP..."
+              prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+              value={searchPep}
+              onChange={e => { setSearchPep(e.target.value); setSelectedCliente(null); setSelectedPep(null); }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Pessoa (nome, CPF ou ID)</div>
+            <Input allowClear placeholder="Buscar pessoa..."
+              prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+              value={searchPessoa}
+              onChange={e => { setSearchPessoa(e.target.value); setSelectedPessoa(null); }} />
+          </div>
+          <Text type="secondary" style={{ fontSize: "0.78rem", paddingBottom: 2 }}>
+            * Custo rateado disponível para out–dez/2025.
+          </Text>
+        </div>
+      )}
 
       {kpiBlock}
 
@@ -862,11 +858,12 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
             Voltar para pessoas
           </Button>
           {loadingPessoaProj ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : viewMode === "mensal" ? (() => {
+
             const tot_rec = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_receita||0),0);
             const tot_cus = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_custo  ||0),0);
             const tot_mar = pivotPessoaProjetos.reduce((s,r)=>s+(r.total_margem ||0),0);
             const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_custo:tot_cus, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
-            selPeriodos.forEach(p => {
+            periodos.forEach(p => {
               totRow[`${p}_receita`]    = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
               totRow[`${p}_custo`]      = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_custo`]  ||0),0);
               totRow[`${p}_margem`]     = pivotPessoaProjetos.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
@@ -882,6 +879,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
                 return [{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", receita:rec, custo_rateado:cus, margem:mar, margem_pct: rec!==0?mar/rec:null, _isTotal:true }, ...pessoaProjetos.map((d,i)=>({...d,key:i}))];
               })()}
               columns={draggablePessoaProj}
+              title={() => <div style={{ textAlign: "right", padding: "0 0 4px" }}>{settingsPessoaProj}</div>}
               pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
               size="small"
               scroll={{ x: "max-content" }}
@@ -905,7 +903,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
             const tot_rec = filtered.reduce((s,r)=>s+(r.total_receita||0),0);
             const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem||0),0);
             const totRow: any = { key:"__t__", nome:"TOTAL", cpf:"", empresa:"", numero_pessoal:"", total_receita:tot_rec, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
-            selPeriodos.forEach(p => {
+            periodos.forEach(p => {
               totRow[`${p}_receita`] = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
               totRow[`${p}_margem`]  = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
               totRow[`${p}_margem_pct`] = totRow[`${p}_receita`]!==0 ? totRow[`${p}_margem`]/totRow[`${p}_receita`] : null;
@@ -920,6 +918,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               return [{ key:"__t__", nome:"TOTAL", cpf:"", empresa:"", horas:0, receita:rec, custo_rateado:cus, margem:mar, margem_pct: rec!==0?mar/rec:null, _isTotal:true }, ...filteredPessoas.map((d,i)=>({...d,key:i}))];
             })()}
             columns={draggablePessoas}
+            title={() => <div style={{ textAlign: "right", padding: "0 0 4px" }}>{settingsPessoas}</div>}
             pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
@@ -942,7 +941,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
             const tot_cus = filtered.reduce((s,r)=>s+(r.total_custo  ||0),0);
             const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem ||0),0);
             const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_custo:tot_cus, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
-            selPeriodos.forEach(p => {
+            periodos.forEach(p => {
               totRow[`${p}_receita`]    = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
               totRow[`${p}_custo`]      = filtered.reduce((s,r)=>s+(r[`${p}_custo`]  ||0),0);
               totRow[`${p}_margem`]     = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
@@ -959,6 +958,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               return [{ key:"__t__", pep:"TOTAL", empresa:"", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, horas_total:0, _isTotal:true }, ...projetosCliente.map((d,i)=>({...d,key:i}))];
             })()}
             columns={draggableProjetos}
+            title={() => <div style={{ textAlign: "right", padding: "0 0 4px" }}>{settingsProjetos}</div>}
             pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
@@ -979,7 +979,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
           const tot_cus = filtered.reduce((s,r)=>s+(r.total_custo  ||0),0);
           const tot_mar = filtered.reduce((s,r)=>s+(r.total_margem ||0),0);
           const totRow: any = { key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", total_receita:tot_rec, total_custo:tot_cus, total_margem:tot_mar, total_margem_pct:tot_rec!==0?tot_mar/tot_rec:null, _isTotal:true };
-          selPeriodos.forEach(p => {
+          periodos.forEach(p => {
             totRow[`${p}_receita`]    = filtered.reduce((s,r)=>s+(r[`${p}_receita`]||0),0);
             totRow[`${p}_custo`]      = filtered.reduce((s,r)=>s+(r[`${p}_custo`]  ||0),0);
             totRow[`${p}_margem`]     = filtered.reduce((s,r)=>s+(r[`${p}_margem`] ||0),0);
@@ -1013,6 +1013,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
             <Table
               dataSource={data}
               columns={draggableProjetosSearch}
+              title={() => <div style={{ textAlign: "right", padding: "0 0 4px" }}>{settingsProjetosSearch}</div>}
               pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
               size="small"
               scroll={{ x: "max-content" }}
@@ -1034,7 +1035,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
           const tot_cus = filtered.reduce((s, r) => s + (r.total_custo   || 0), 0);
           const tot_mar = filtered.reduce((s, r) => s + (r.total_margem  || 0), 0);
           const totRow: any = { key: "__t__", nome_cliente: "TOTAL", total_receita: tot_rec, total_custo: tot_cus, total_margem: tot_mar, total_margem_pct: tot_rec !== 0 ? tot_mar / tot_rec : null, _isTotal: true };
-          selPeriodos.forEach(p => {
+          periodos.forEach(p => {
             totRow[`${p}_receita`]    = filtered.reduce((s, r) => s + (r[`${p}_receita`] || 0), 0);
             totRow[`${p}_custo`]      = filtered.reduce((s, r) => s + (r[`${p}_custo`]   || 0), 0);
             totRow[`${p}_margem`]     = filtered.reduce((s, r) => s + (r[`${p}_margem`]  || 0), 0);
@@ -1064,32 +1065,33 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               <div style={{ color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>
                 Top clientes por receita — clique para detalhar
               </div>
-              <ResponsiveContainer width="100%" height={Math.min(clientesData.length, 15) * 28 + 8}>
-                <BarChart
-                  data={clientesData.slice(0, 15).sort((a, b) => b.receita - a.receita)}
-                  layout="vertical"
-                  margin={{ top: 0, right: 80, bottom: 0, left: 130 }}
-                  onClick={(e: any) => { if (e?.activePayload?.[0]?.payload?.nome_cliente) setSelectedCliente(e.activePayload[0].payload.nome_cliente); }}
-                >
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="nome_cliente" tick={{ fontSize: 11, fill: theme.text }} width={128} tickFormatter={(v: string) => toTitleCase(v) || v} />
-                  <Tooltip
-                    formatter={(v: any, _: any, p: any) => {
-                      const r = p?.payload;
-                      const val = Number(v) || 0;
-                      return [`Receita: R$ ${val.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} | Margem: ${r?.margem_pct != null ? (r.margem_pct * 100).toFixed(1) + "%" : "—"}`];
-                    }}
-                    labelFormatter={(l: any) => toTitleCase(String(l || "")) || String(l || "")}
-                  />
-                  <Bar dataKey="receita" radius={[0, 4, 4, 0]} cursor="pointer">
-                    {clientesData.slice(0, 15).sort((a, b) => b.receita - a.receita).map((_, i) => (
-                      <Cell key={i} fill={i === 0 ? theme.accent : i < 3 ? theme.cat1.bg : "#dde3f0"} stroke={i < 3 ? theme.accent : "#c8cfe0"} strokeWidth={1} />
-                    ))}
-                    <LabelList dataKey="receita" position="right" style={{ fontSize: 10, fill: "#6b7fa3" }}
-                      formatter={(v: any) => `R$ ${(Number(v || 0) / 1000).toFixed(0)}k`} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {(() => {
+                const top15 = [...clientesData].sort((a, b) => b.receita - a.receita).slice(0, 15);
+                return (
+                  <ResponsiveContainer width="100%" height={top15.length * 28 + 8}>
+                    <BarChart data={top15} layout="vertical" margin={{ top: 0, right: 80, bottom: 0, left: 130 }}>
+                      <XAxis type="number" hide />
+                      <YAxis type="category" dataKey="nome_cliente" tick={{ fontSize: 11, fill: theme.text }} width={128} tickFormatter={(v: string) => toTitleCase(v) || v} />
+                      <Tooltip
+                        formatter={(v: any, _: any, p: any) => {
+                          const r = p?.payload;
+                          const val = Number(v) || 0;
+                          return [`Receita: R$ ${val.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} | Margem: ${r?.margem_pct != null ? (r.margem_pct * 100).toFixed(1) + "%" : "—"}`];
+                        }}
+                        labelFormatter={(l: any) => toTitleCase(String(l || "")) || String(l || "")}
+                      />
+                      <Bar dataKey="receita" radius={[0, 4, 4, 0]} cursor="pointer"
+                        onClick={(data: any) => { if (data?.nome_cliente) setSelectedCliente(data.nome_cliente); }}>
+                        {top15.map((_, i) => (
+                          <Cell key={i} fill={i === 0 ? theme.accent : i < 3 ? theme.cat1.bg : "#dde3f0"} stroke={i < 3 ? theme.accent : "#c8cfe0"} strokeWidth={1} />
+                        ))}
+                        <LabelList dataKey="receita" position="right" style={{ fontSize: 10, fill: "#6b7fa3" }}
+                          formatter={(v: any) => `R$ ${(Number(v || 0) / 1000).toFixed(0)}k`} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
             </div>
           )}
           <Table
@@ -1101,6 +1103,7 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
               return [{ key:"__t__", nome_cliente:"TOTAL", receita:rec, custo_rateado:cus, margem:mar, margem_pct:pct, num_projetos: clientesData.reduce((s,r)=>s+r.num_projetos,0), _isTotal:true }, ...clientesData.map((d,i)=>({...d,key:i}))];
             })()}
             columns={draggableClientes}
+            title={() => <div style={{ textAlign: "right", padding: "0 0 4px" }}>{settingsClientes}</div>}
             pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}

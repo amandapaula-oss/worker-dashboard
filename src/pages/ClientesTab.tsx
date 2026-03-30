@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { Table, Input, Select, Spin, message, Button, Breadcrumb, Tag } from "antd";
-import { HomeOutlined, SearchOutlined, EditOutlined, CheckOutlined, CloseOutlined } from "@ant-design/icons";
+import { HomeOutlined, SearchOutlined, EditOutlined, CheckOutlined, CloseOutlined, DownloadOutlined } from "@ant-design/icons";
 import { getClientes, updateClienteAe, getMargemProjetos, getMargemPessoas } from "../api";
+import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { exportTableToExcel } from "../utils/exportExcel";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
 
@@ -139,7 +141,10 @@ export default function ClientesTab() {
     let rows = clientes;
     if (search.trim()) {
       const q = search.trim().toUpperCase();
-      rows = rows.filter(r => String(r.nome_cliente || "").toUpperCase().includes(q));
+      rows = rows.filter(r =>
+        String(r.nome_cliente || "").toUpperCase().includes(q) ||
+        String(r.nome_base || "").toUpperCase().includes(q)
+      );
     }
     if (selBu.length) rows = rows.filter(r => selBu.includes(r.bu));
     if (selAe.length) rows = rows.filter(r => selAe.includes(r.ae));
@@ -262,6 +267,10 @@ export default function ClientesTab() {
       render: (v: any) => <MargemTag value={v} /> },
   ];
 
+  const [colsClientes,  settingsClientes]  = useDraggableColumns(colClientes, "clientes-main");
+  const [colsProjetos,  settingsProjetos]  = useDraggableColumns(colProjetos, "clientes-projetos");
+  const [colsPessoas,   settingsPessoas]   = useDraggableColumns(colPessoas, "clientes-pessoas");
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const tableStyle = { borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" };
@@ -315,7 +324,14 @@ export default function ClientesTab() {
           {loadingPess ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
             <Table
               dataSource={pessoas.map((d, i) => ({ ...d, key: i }))}
-              columns={colPessoas}
+              columns={colsPessoas}
+              title={() => (
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+                  {settingsPessoas}
+                  <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                    onClick={() => exportTableToExcel(colsPessoas, pessoas, "pessoas")}>Excel</Button>
+                </div>
+              )}
               pagination={pagination}
               size="small"
               scroll={{ x: "max-content" }}
@@ -330,7 +346,14 @@ export default function ClientesTab() {
           {loadingProj ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
             <Table
               dataSource={projetos.map((d, i) => ({ ...d, key: i }))}
-              columns={colProjetos}
+              columns={colsProjetos}
+              title={() => (
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+                  {settingsProjetos}
+                  <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                    onClick={() => exportTableToExcel(colsProjetos, projetos, "projetos")}>Excel</Button>
+                </div>
+              )}
               pagination={pagination}
               size="small"
               scroll={{ x: "max-content" }}
@@ -345,7 +368,14 @@ export default function ClientesTab() {
       ) : (
         <Table
           dataSource={filtered.map((d, i) => ({ ...d, key: i }))}
-          columns={colClientes}
+          columns={colsClientes}
+          title={() => (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+              {settingsClientes}
+              <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                onClick={() => exportTableToExcel(colsClientes, filtered, "clientes")}>Excel</Button>
+            </div>
+          )}
           pagination={pagination}
           size="small"
           scroll={{ x: "max-content" }}

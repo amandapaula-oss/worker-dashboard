@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Select, Table, message } from "antd";
+import { Select, Table, message, Button } from "antd";
+import { DownloadOutlined, FilterOutlined } from "@ant-design/icons";
 import { getNexusFilters, getDre, getStreams, getMatricial } from "../api";
+import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { exportTableToExcel, exportPLTableToExcel } from "../utils/exportExcel";
 import PLTable from "../components/PLTable";
 import TableSkeleton from "../components/TableSkeleton";
 import ErrorState from "../components/ErrorState";
@@ -28,6 +31,7 @@ export function DreTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const initialLoad = useRef(true);
 
   const loadInitial = useCallback(() => {
@@ -57,25 +61,40 @@ export function DreTab() {
 
   return (
     <div>
-      <div style={filterBox}>
-        <div style={{ flex: 1, minWidth: 150 }}>
-          <div style={labelStyle}>Ano</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selAnos} onChange={setSelAnos}
-            options={filters.anos.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 1, minWidth: 150 }}>
-          <div style={labelStyle}>Tipo</div>
-          <Select style={{ width: "100%" }} value={tipo} onChange={setTipo}
-            options={[{ label: "Actual", value: "Actual" }, { label: "Budget", value: "Budget" }]} />
-        </div>
-        <div style={{ flex: 2, minWidth: 200 }}>
-          <div style={labelStyle}>Empresa</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas} onChange={setSelEmpresas}
-            options={filters.empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
-        </div>
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center" }}>
+        <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
+          type={selAnos.length < filters.anos.length || selEmpresas.length < filters.empresas.length || tipo !== "Actual" ? "primary" : "default"}
+          style={{ marginLeft: "auto" }}>
+          Filtros{showFilters ? " ▲" : " ▼"}
+        </Button>
       </div>
+      {showFilters && (
+        <div style={filterBox}>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Ano</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selAnos} onChange={setSelAnos}
+              options={filters.anos.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Tipo</div>
+            <Select style={{ width: "100%" }} value={tipo} onChange={setTipo}
+              options={[{ label: "Actual", value: "Actual" }, { label: "Budget", value: "Budget" }]} />
+          </div>
+          <div style={{ flex: 2, minWidth: 200 }}>
+            <div style={labelStyle}>Empresa</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas} onChange={setSelEmpresas}
+              options={filters.empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
+          </div>
+        </div>
+      )}
       {loading ? <TableSkeleton rows={12} /> : error ? <ErrorState onRetry={loadInitial} /> : (
-        <PLTable rows={data?.rows || []} columns={data?.columns || []} />
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+            <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+              onClick={() => exportPLTableToExcel(data?.rows || [], data?.columns || [], "dre")}>Excel</Button>
+          </div>
+          <PLTable rows={data?.rows || []} columns={data?.columns || []} />
+        </>
       )}
     </div>
   );
@@ -93,6 +112,7 @@ export function StreamsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const initialLoad = useRef(true);
 
   const loadInitial = useCallback(() => {
@@ -123,30 +143,45 @@ export function StreamsTab() {
 
   return (
     <div>
-      <div style={filterBox}>
-        <div style={{ flex: 1, minWidth: 120 }}>
-          <div style={labelStyle}>Ano</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selAnos} onChange={setSelAnos}
-            options={filters.anos.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 1, minWidth: 120 }}>
-          <div style={labelStyle}>Tipo</div>
-          <Select style={{ width: "100%" }} value={tipo} onChange={setTipo}
-            options={[{ label: "Actual", value: "Actual" }, { label: "Budget", value: "Budget" }]} />
-        </div>
-        <div style={{ flex: 1, minWidth: 150 }}>
-          <div style={labelStyle}>Empresa</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas} onChange={setSelEmpresas}
-            options={filters.empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 2, minWidth: 200 }}>
-          <div style={labelStyle}>Stream</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selStreams} onChange={setSelStreams}
-            options={filters.streams.map(s => ({ label: s, value: s }))} maxTagCount="responsive" />
-        </div>
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center" }}>
+        <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
+          type={selAnos.length < filters.anos.length || selEmpresas.length < filters.empresas.length || selStreams.length < filters.streams.length || tipo !== "Actual" ? "primary" : "default"}
+          style={{ marginLeft: "auto" }}>
+          Filtros{showFilters ? " ▲" : " ▼"}
+        </Button>
       </div>
+      {showFilters && (
+        <div style={filterBox}>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <div style={labelStyle}>Ano</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selAnos} onChange={setSelAnos}
+              options={filters.anos.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
+          </div>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <div style={labelStyle}>Tipo</div>
+            <Select style={{ width: "100%" }} value={tipo} onChange={setTipo}
+              options={[{ label: "Actual", value: "Actual" }, { label: "Budget", value: "Budget" }]} />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Empresa</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas} onChange={setSelEmpresas}
+              options={filters.empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
+          </div>
+          <div style={{ flex: 2, minWidth: 200 }}>
+            <div style={labelStyle}>Stream</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selStreams} onChange={setSelStreams}
+              options={filters.streams.map(s => ({ label: s, value: s }))} maxTagCount="responsive" />
+          </div>
+        </div>
+      )}
       {loading ? <TableSkeleton rows={12} /> : error ? <ErrorState onRetry={loadInitial} /> : (
-        <PLTable rows={data?.rows || []} columns={data?.columns || []} />
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+            <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+              onClick={() => exportPLTableToExcel(data?.rows || [], data?.columns || [], "streams")}>Excel</Button>
+          </div>
+          <PLTable rows={data?.rows || []} columns={data?.columns || []} />
+        </>
       )}
     </div>
   );
@@ -162,6 +197,7 @@ export function MatricialTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const initialLoad = useRef(true);
 
   const loadInitial = useCallback(() => {
@@ -190,7 +226,7 @@ export function MatricialTab() {
 
   const pctCols: string[] = data?.pct_cols || [];
 
-  const columns = (data?.columns || []).map((col: string) => ({
+  const columnsDef = (data?.columns || []).map((col: string) => ({
     title: col,
     dataIndex: col,
     key: col,
@@ -204,28 +240,46 @@ export function MatricialTab() {
     },
   }));
 
+  const [columns, colSettings] = useDraggableColumns(columnsDef, "matricial");
+
   return (
     <div>
-      <div style={filterBox}>
-        <div style={{ flex: 1, minWidth: 150 }}>
-          <div style={labelStyle}>Ano</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selAnos} onChange={setSelAnos}
-            options={filters.anos.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 1, minWidth: 150 }}>
-          <div style={labelStyle}>Tipo</div>
-          <Select style={{ width: "100%" }} value={tipo} onChange={setTipo}
-            options={[{ label: "Actual", value: "Actual" }, { label: "Budget", value: "Budget" }]} />
-        </div>
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center" }}>
+        <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
+          type={selAnos.length < filters.anos.length || tipo !== "Actual" ? "primary" : "default"}
+          style={{ marginLeft: "auto" }}>
+          Filtros{showFilters ? " ▲" : " ▼"}
+        </Button>
       </div>
+      {showFilters && (
+        <div style={filterBox}>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Ano</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selAnos} onChange={setSelAnos}
+              options={filters.anos.map(a => ({ label: a, value: a }))} maxTagCount="responsive" />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Tipo</div>
+            <Select style={{ width: "100%" }} value={tipo} onChange={setTipo}
+              options={[{ label: "Actual", value: "Actual" }, { label: "Budget", value: "Budget" }]} />
+          </div>
+        </div>
+      )}
       {loading ? <TableSkeleton rows={8} /> : error ? <ErrorState onRetry={loadInitial} /> : (
         <Table
           dataSource={(data?.data || []).map((d: any, i: number) => ({ ...d, key: i }))}
           columns={columns}
+          title={() => (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+              {colSettings}
+              <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                onClick={() => exportTableToExcel(columns, data?.data || [], "matricial")}>Excel</Button>
+            </div>
+          )}
           pagination={false}
           size="small"
           scroll={{ x: "max-content" }}
-          rowClassName={(record) => record["Empresa"] === "Total" ? "total-row" : ""}
+          rowClassName={(record: any) => record["Empresa"] === "Total" ? "total-row" : ""}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
         />
       )}

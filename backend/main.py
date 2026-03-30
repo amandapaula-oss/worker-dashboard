@@ -571,7 +571,7 @@ _SHEET_FILE = {
     "rac_pessoas":           "operacional.xlsx",
     "margem_pessoas":        "operacional.xlsx",
     "metas_custo":           "parametros.xlsx",
-    "classificacao_pessoas": "pessoas.xlsx",
+    "relacao_pessoas":        "pessoas.xlsx",
     "pep_vertical":          "parametros.xlsx",
     "clientes":              "parametros.xlsx",
 }
@@ -593,7 +593,7 @@ def read_csv_cached(path: str, **kwargs) -> pd.DataFrame:
 # ── Metas endpoints ────────────────────────────────────────────────────────────
 
 def get_metas_df() -> pd.DataFrame:
-    df = read_csv_cached("metas_custo.csv", dtype={"numero_pessoal": str}).copy()
+    df = read_csv_cached("metas_custo.csv", dtype={"id_sap": str, "cpf": str}).copy()
     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
     return df
 
@@ -618,7 +618,9 @@ def get_metas_custo_pessoal(
         df = df[df["empresa"].isin(empresas.split(","))]
     if tipos:
         df = df[df["tipo"].isin(tipos.split(","))]
-    agg = df.groupby(["numero_pessoal", "nome", "empresa", "tipo"], as_index=False)["custo"].sum()
+    id_cols = [c for c in ["id_sap", "cpf"] if c in df.columns]
+    group_keys = id_cols + ["nome", "empresa", "tipo"]
+    agg = df.groupby(group_keys, as_index=False)["custo"].sum()
     agg = agg.sort_values("custo")
     return agg.fillna("").to_dict(orient="records")
 
@@ -738,8 +740,8 @@ def get_margem_proj() -> pd.DataFrame:
     # Custos reais de pessoas para Apps com custo_rateado=0 no SAP
     try:
         _mp = read_csv_cached("margem_pessoas.csv", dtype={"pep": str, "cpf": str})
-        _cl = read_csv_cached("classificacao_pessoas.csv", dtype={"cpf_brcpf": str})
-        _cpf_custo = set(_cl[_cl["classificacao"] == "custo"]["cpf_brcpf"].str.strip())
+        _cl = read_csv_cached("relacao_pessoas.csv", dtype={"CPF / Worker ID": str})
+        _cpf_custo = set(_cl[_cl["classificacao"] == "custo"]["CPF / Worker ID"].dropna().str.strip())
         _mp_custo  = _mp[_mp["cpf"].str.strip().isin(_cpf_custo)].copy()
         _mp_custo["pep_base"] = _mp_custo["pep"].str.split(".").str[0]
         _pep_period_custo = _mp_custo.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
@@ -807,6 +809,20 @@ def get_margem_proj() -> pd.DataFrame:
     df["vertical"] = key.map(vlookup).fillna("")
     df["ae"]       = key.map(ae_lookup).fillna("")
 
+    # Normaliza nome_cliente para o nome canônico usando aliases do cadastro
+    try:
+        _cli = read_clientes_csv()
+        _alias_map: dict = {}
+        for _, _row in _cli.iterrows():
+            _canonical = str(_row["nome_cliente"]).strip()
+            _alias_map[_canonical.upper()] = _canonical
+            _nb = str(_row.get("nome_base", "") or "")
+            for _alias in [a.strip() for a in _nb.split("|") if a.strip()]:
+                _alias_map[_alias.upper()] = _canonical
+        df["nome_cliente"] = key.map(_alias_map).fillna(df["nome_cliente"].str.strip())
+    except Exception:
+        pass
+
     # PEP-level vertical override (para clientes que aparecem em múltiplas verticais)
     # Regra: pep_vertical.csv sempre prevalece — inclusive "Others".
     # Se o pep está mapeado no arquivo, esse valor é usado independente do vlookup do cliente.
@@ -836,12 +852,14 @@ def get_margem_filters(user=Depends(get_current_user)):
         cats = sorted(df["categoria_bu"].dropna().unique().tolist())
     verts = sorted([v for v in df["vertical"].dropna().unique().tolist() if v])
     aes   = sorted([v for v in df["ae"].dropna().unique().tolist() if v])
+    centros = sorted([v for v in df["centro_lucro"].dropna().unique().tolist() if v]) if "centro_lucro" in df.columns else []
     return {
         "periodos":      sorted(df["periodo"].dropna().unique().tolist()),
         "empresas":      sorted(df["empresa"].dropna().unique().tolist()),
         "categorias_bu": cats,
         "verticais":     verts,
         "aes":           aes,
+        "centros_lucro": centros,
     }
 
 def _clientes_nomes_upper() -> set:
@@ -940,14 +958,18 @@ def get_clientes_list(search: str = "", user=Depends(get_current_user)):
         clientes["nome_upper"] = clientes["nome_cliente"].str.upper().str.strip()
 
     merged = clientes.merge(totais, on="nome_upper", how="left").drop(columns=["nome_upper"])
-    if "nome_base" in merged.columns:
-        merged = merged.drop(columns=["nome_base"])
     merged["margem_pct"] = merged.apply(
         lambda r: float(r["margem"]) / float(r["receita"]) if r.get("receita") not in ("", None, 0) and float(r.get("receita",0)) != 0 else None,
         axis=1
     )
     if search:
-        merged = merged[merged["nome_cliente"].str.upper().str.contains(search.upper(), na=False)]
+        q = search.upper()
+        nome_match = merged["nome_cliente"].str.upper().str.contains(q, na=False)
+        if "nome_base" in merged.columns:
+            alias_match = merged["nome_base"].str.upper().str.contains(q, na=False)
+            merged = merged[nome_match | alias_match]
+        else:
+            merged = merged[nome_match]
     return merged.fillna("").to_dict(orient="records")
 
 @app.post("/api/clientes/ae")
@@ -964,7 +986,7 @@ def update_cliente_ae(body: dict, user=Depends(get_current_user)):
     return {"ok": True}
 
 @app.get("/api/margem/projetos")
-def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", verticais: str = "", aes: str = "", breakdown: bool = False, nome_cliente: str = "", apenas_atribuidos: bool = False, user=Depends(get_current_user)):
+def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: str = "", verticais: str = "", aes: str = "", centros_lucro: str = "", breakdown: bool = False, nome_cliente: str = "", apenas_atribuidos: bool = False, user=Depends(get_current_user)):
     df = get_margem_proj()
     if apenas_atribuidos:
         nomes = _clientes_nomes_upper()
@@ -979,6 +1001,8 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
         df = df[df["vertical"].isin(verticais.split(","))]
     if aes:
         df = df[df["ae"].isin(aes.split(","))]
+    if centros_lucro and "centro_lucro" in df.columns:
+        df = df[df["centro_lucro"].isin(centros_lucro.split(","))]
     if nome_cliente:
         nc_upper = nome_cliente.upper().strip()
         match_names = {nc_upper}
@@ -998,6 +1022,9 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
     v_ae_extra = [k for k in ["vertical", "ae"] if k in df.columns]
     extra_keys = base_extra + v_ae_extra
     group_keys = (["periodo", "pep", "nome_cliente", "empresa"] if breakdown else ["pep", "nome_cliente", "empresa"]) + extra_keys
+    for k in group_keys:
+        if k in df.columns:
+            df[k] = df[k].fillna("")
     agg = df.groupby(group_keys, as_index=False).agg(
         receita      =("receita",       "sum"),
         custo_rateado=("custo_rateado", "sum"),
@@ -1195,8 +1222,8 @@ def get_razao_comparativo(periodos: str = "", empresas: str = "", user=Depends(g
         ["numero_pessoal"].dropna().unique()
     )
 
-    classif = read_csv_cached("classificacao_pessoas.csv")
-    despesa_cpfs = set(classif[classif["classificacao"] == "despesa"]["cpf_brcpf"].dropna().unique())
+    classif = read_csv_cached("relacao_pessoas.csv")
+    despesa_cpfs = set(classif[classif["classificacao"] == "despesa"]["CPF / Worker ID"].dropna().unique())
 
     pess["is_pj"]      = pess["cpf"].isin(pj_cpfs)
     pess["is_despesa"] = pess["cpf"].isin(despesa_cpfs)
