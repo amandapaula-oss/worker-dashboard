@@ -36,7 +36,7 @@ app.add_middleware(
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
-SECRET_KEY = "wk_secret_key_2024_react"
+SECRET_KEY = os.environ.get("SECRET_KEY", "wk_secret_key_2024_react")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 480
 
