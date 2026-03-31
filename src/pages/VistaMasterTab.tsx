@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Table, Spin, message, Tag, Select, Input, Button, Drawer, Descriptions, Divider } from "antd";
-import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
+import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCircleFilled, CloseCircleFilled, DownloadOutlined } from "@ant-design/icons";
+import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { exportTableToExcel } from "../utils/exportExcel";
 import { useReactToPrint } from "react-to-print";
 import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3 } from "../api";
 import { toTitleCase } from "../utils/format";
@@ -421,6 +423,8 @@ export default function VistaMasterTab() {
     },
   ];
 
+  const [masterColumns, masterColSettings] = useDraggableColumns(columns, "vista-master");
+
   return (
     <div style={{ padding: "16px 0" }}>
       <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
@@ -446,7 +450,14 @@ export default function VistaMasterTab() {
       <Spin spinning={loading}>
         <Table
           dataSource={filtered}
-          columns={columns}
+          columns={masterColumns}
+          title={() => (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+              {masterColSettings}
+              <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                onClick={() => exportTableToExcel(masterColumns, filtered, "apuracao_master")}>Excel</Button>
+            </div>
+          )}
           rowKey="nome"
           size="small"
           pagination={false}
@@ -737,7 +748,7 @@ function DetalheAE({ d, periodoLabel = "Q4" }: { d: DetalheCalculo; periodoLabel
               const pRec = d.peso_receita || 0;
               const pMb  = (d as any).peso_mb || 0;
               const lbGate = (w as any).lb_gate_ws ?? 1;
-              const bRec = sal * pRec * w.peso_ws * (w.ating_rec ?? 0) * lbGate;
+              const bRec = sal * pRec * w.peso_ws * (w.ating_rec ?? 0);
               const gate = w.aplica_gate_mb ? (w.mb_gate ?? 1) : 1;
               const bMb  = sal * pMb  * w.peso_ws * (w.ating_mb ?? 0) * gate * lbGate;
               return (
@@ -1346,6 +1357,8 @@ export function VistaMasterTabQ3() {
     },
   ];
 
+  const [q3Columns, q3ColSettings] = useDraggableColumns(columnsQ3, "vista-master-q3");
+
   return (
     <div style={{ padding: "16px 0" }}>
       <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
@@ -1361,7 +1374,14 @@ export function VistaMasterTabQ3() {
       <Spin spinning={loading}>
         <Table
           dataSource={data}
-          columns={columnsQ3}
+          columns={q3Columns}
+          title={() => (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+              {q3ColSettings}
+              <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                onClick={() => exportTableToExcel(q3Columns, data, "apuracao_master_q3")}>Excel</Button>
+            </div>
+          )}
           rowKey="nome"
           size="small"
           pagination={false}
