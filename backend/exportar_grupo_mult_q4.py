@@ -33,12 +33,13 @@ def main():
                 nomes_base.add(alias)
     todos_nomes = nomes_gm | nomes_base
 
-    # mapa alias → nome_cliente canônico
+    # mapa alias → nome_cliente canônico (todos os clientes, não só Grupo Mult)
+    # necessário para normalizar clientes que entram via pep_vertical override
     base_to_canonical = {}
-    for _, row in gm.iterrows():
+    for _, row in clientes_df.iterrows():
         nc = str(row["nome_cliente"]).strip()
         nb = str(row["nome_base"]).strip() if pd.notna(row["nome_base"]) else ""
-        if nb:
+        if nc and nb:
             for alias in nb.split("|"):
                 alias = alias.strip()
                 if alias:
@@ -51,9 +52,17 @@ def main():
 
     # filtra Q4 2025
     q4 = proj[proj["periodo"].isin(["2025-10", "2025-11", "2025-12"])].copy()
+    q4["pep_base"] = q4["pep"].astype(str).str.split(".").str[0].str.strip()
 
-    # marca quais são Grupo Mult
-    q4_gm = q4[q4["nome_cliente"].isin(todos_nomes)].copy()
+    # PEPs com override explícito Grupo Mult em pep_vertical
+    pep_vert = pd.read_excel(p("parametros.xlsx"), sheet_name="pep_vertical", dtype=str)
+    pep_vert.columns = [c.strip() for c in pep_vert.columns]
+    vert_col = [c for c in pep_vert.columns if c.lower() in ("vertical", "vertice", "vertical_bu", "bu")][0]
+    pep_vert["pep"] = pep_vert["pep"].str.strip()
+    peps_override_gm = set(pep_vert[pep_vert[vert_col].str.strip() == "Grupo Mult"]["pep"])
+
+    # marca quais são Grupo Mult: pelo nome do cliente OU pelo override de PEP
+    q4_gm = q4[q4["nome_cliente"].isin(todos_nomes) | q4["pep_base"].isin(peps_override_gm)].copy()
 
     # normaliza para nome canônico
     q4_gm["nome_cliente"] = q4_gm["nome_cliente"].map(
