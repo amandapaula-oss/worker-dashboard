@@ -758,7 +758,7 @@ def calc_bonus_ae(nome: str) -> dict:
         real_lb_fin_ws_k = realized_lb_gate_ws.get(ws_k, 0.0)  # apenas clientes com budget LB > 0
         lb_gate_ws = 1 if (trigger_lb_ws_k <= 0 or real_lb_fin_ws_k >= trigger_lb_ws_k) else 0
 
-        bonus_rec = Q4_QTDE * peso_ws * ating_rec * salario * peso_rec * lb_gate_ws
+        bonus_rec = Q4_QTDE * peso_ws * ating_rec * salario * peso_rec
         rec_gate  = 1 if ating_rec > 0 else 0
         bonus_mb  = Q4_QTDE * peso_ws * ating_mb * mb_gate * salario * peso_mb * lb_gate_ws * rec_gate
 
