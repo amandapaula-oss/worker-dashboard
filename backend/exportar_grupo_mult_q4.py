@@ -21,18 +21,28 @@ def main():
     clientes_df = pd.read_excel(p("parametros.xlsx"), sheet_name="clientes", dtype=str)
     gm = clientes_df[clientes_df["bu"].str.strip() == "Grupo Mult"].copy()
 
-    # nomes canônicos + aliases SAP
+    # nomes canônicos + aliases SAP (pipe-separated em nome_base)
     nomes_gm = set(gm["nome_cliente"].dropna().str.strip())
-    nomes_base = set(gm["nome_base"].dropna().str.strip())
+    nomes_base_raw = gm["nome_base"].dropna().str.strip()
+    # expande aliases separados por |
+    nomes_base = set()
+    for nb in nomes_base_raw:
+        for alias in nb.split("|"):
+            alias = alias.strip()
+            if alias:
+                nomes_base.add(alias)
     todos_nomes = nomes_gm | nomes_base
 
-    # mapa nome_base → nome_cliente (para normalizar)
+    # mapa alias → nome_cliente canônico
     base_to_canonical = {}
     for _, row in gm.iterrows():
-        nb = str(row["nome_base"]).strip() if pd.notna(row["nome_base"]) else ""
         nc = str(row["nome_cliente"]).strip()
+        nb = str(row["nome_base"]).strip() if pd.notna(row["nome_base"]) else ""
         if nb:
-            base_to_canonical[nb] = nc
+            for alias in nb.split("|"):
+                alias = alias.strip()
+                if alias:
+                    base_to_canonical[alias] = nc
 
     # ── Projetos Q4 ─────────────────────────────────────────────────────────
     proj = pd.read_excel(p("operacional.xlsx"), sheet_name="projetos", dtype={"pep": str})

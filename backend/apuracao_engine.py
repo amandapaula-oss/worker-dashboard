@@ -98,6 +98,10 @@ def _load_all():
 
     rac_q4   = rac[rac["periodo"].isin(Q4_PERIODOS)].copy()
     marg_q4  = margem[margem["periodo"].isin(Q4_PERIODOS)].copy()
+    # Inicializa margem = receita + custo_rateado para todos os projetos.
+    # Necessário para linhas de Apps com custo_rateado != 0, que não passam pelo
+    # benchmark loop nem pelo apps-zero-mask, e ficariam com margem=NaN no groupby.
+    marg_q4["margem"] = marg_q4["receita"].fillna(0) + marg_q4["custo_rateado"].fillna(0)
 
     # Substitui receita SAP por RAC onde há match (periodo+pep_base+nome_cliente)
     # Espelha exatamente a lógica de get_margem_proj() em main.py
@@ -876,6 +880,7 @@ def _load_q3_realized():
 
     rac_q3  = rac[rac["periodo"].isin(Q3_PERIODOS)].copy()
     marg_q3 = margem[margem["periodo"].isin(Q3_PERIODOS)].copy()
+    marg_q3["margem"] = marg_q3["receita"].fillna(0) + marg_q3["custo_rateado"].fillna(0)
 
     if rac_q3.empty and marg_q3.empty:
         empty: dict = {

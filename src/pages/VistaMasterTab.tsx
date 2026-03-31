@@ -693,17 +693,17 @@ function DetalheAE({ d, periodoLabel = "Q4" }: { d: DetalheCalculo; periodoLabel
               rec_real: w.real_rec,
               mb_meta: w.budget_mb_pct,
               mb_real: w.real_mb_pct,
-              lb_meta: w.budget_rec * w.budget_mb_pct / 100,
+              lb_trigger: (w as any).trigger_lb_ws ?? (w.budget_rec * w.budget_mb_pct / 100 * triggerRec),
               lb_real: w.real_lb_financeiro ?? (w.real_rec * w.real_mb_pct / 100),
             }))}
             summary={() => {
               const ws = d.detalhe_ws!;
-              const totRecMeta = ws.reduce((s, w) => s + w.budget_rec, 0);
-              const totRecReal = ws.reduce((s, w) => s + w.real_rec, 0);
-              const totLbMeta  = ws.reduce((s, w) => s + w.budget_rec * w.budget_mb_pct / 100, 0);
-              const totLbReal  = ws.reduce((s, w) => s + (w.real_lb_financeiro ?? w.real_rec * w.real_mb_pct / 100), 0);
-              const mbMetaTot  = totRecMeta > 0 ? totLbMeta / totRecMeta * 100 : 0;
-              const mbRealTot  = totRecReal > 0 ? totLbReal / totRecReal * 100 : 0;
+              const totRecMeta    = ws.reduce((s, w) => s + w.budget_rec, 0);
+              const totRecReal    = ws.reduce((s, w) => s + w.real_rec, 0);
+              const totLbTrigger  = ws.reduce((s, w) => s + ((w as any).trigger_lb_ws ?? w.budget_rec * w.budget_mb_pct / 100 * triggerRec), 0);
+              const totLbReal     = ws.reduce((s, w) => s + (w.real_lb_financeiro ?? w.real_rec * w.real_mb_pct / 100), 0);
+              const mbMetaTot     = totRecMeta > 0 ? ws.reduce((s, w) => s + w.budget_rec * w.budget_mb_pct / 100, 0) / totRecMeta * 100 : 0;
+              const mbRealTot     = totRecReal > 0 ? totLbReal / totRecReal * 100 : 0;
               return (
                 <Table.Summary.Row style={{ fontWeight: 700, background: "#f0f4ff" }}>
                   <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
@@ -716,9 +716,9 @@ function DetalheAE({ d, periodoLabel = "Q4" }: { d: DetalheCalculo; periodoLabel
                   <Table.Summary.Cell index={5} align="right">
                     <span style={{ color: mbRealTot >= mbMetaTot ? "#52c41a" : "#ff4d4f" }}>{mbRealTot.toFixed(1)}%</span>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} align="right">{fmt(totLbMeta)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} align="right">{fmt(totLbTrigger)}</Table.Summary.Cell>
                   <Table.Summary.Cell index={7} align="right">
-                    <span style={{ color: totLbReal >= totLbMeta ? "#52c41a" : "#ff4d4f" }}>{fmt(totLbReal)}</span>
+                    <span style={{ color: totLbReal >= totLbTrigger ? "#52c41a" : "#ff4d4f" }}>{fmt(totLbReal)}</span>
                   </Table.Summary.Cell>
                 </Table.Summary.Row>
               );
@@ -745,9 +745,9 @@ function DetalheAE({ d, periodoLabel = "Q4" }: { d: DetalheCalculo; periodoLabel
               {
                 title: "LB",
                 children: [
-                  { title: "Meta", dataIndex: "lb_meta", align: "right" as const, render: (v: number) => v ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
+                  { title: "Mínimo", dataIndex: "lb_trigger", align: "right" as const, render: (v: number) => v ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
                   { title: "Realizado", dataIndex: "lb_real", align: "right" as const,
-                    render: (v: number, row: any) => <span style={{ color: v >= row.lb_meta ? "#52c41a" : v >= row.lb_meta * triggerRec ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{v ? fmt(v) : "—"}</span> },
+                    render: (v: number, row: any) => <span style={{ color: v >= row.lb_trigger ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}>{v ? fmt(v) : "—"}</span> },
                 ],
               },
             ]}
