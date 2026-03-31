@@ -1462,3 +1462,19 @@ def get_apuracao_pdf(nome: str, user=Depends(get_current_user)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/apuracao/exportar-xlsx")
+def get_exportar_xlsx(user=Depends(get_current_user)):
+    """Gera e retorna apuracao_q4_exportado.xlsx com todos os AEs."""
+    from fastapi.responses import Response
+    from exportar_apuracao_q4 import gerar_xlsx_bytes
+    try:
+        data = gerar_xlsx_bytes()
+        return Response(
+            content=data,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="apuracao_q4_exportado.xlsx"'},
+        )
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")

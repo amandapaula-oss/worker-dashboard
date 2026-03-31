@@ -189,6 +189,18 @@ export async function getApuracaoBonusAnual(nome: string) {
   return apiFetch(`/api/apuracao/bonus-anual/${encodeURIComponent(nome)}`);
 }
 
+export async function exportarApuracaoQ4(): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}/api/apuracao/exportar-xlsx`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  }
+  if (!res.ok) throw new Error(await res.text());
+  return res.blob();
+}
+
 // ── Clientes ──────────────────────────────────────────────────────────────────
 
 export async function getClientes(params: Record<string, string> = {}) {

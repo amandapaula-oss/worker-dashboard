@@ -193,5 +193,55 @@ def main():
             print(f"  - {e}")
 
 
+def gerar_xlsx_bytes() -> bytes:
+    """Gera o xlsx em memória e retorna como bytes (usado pelo endpoint da API)."""
+    import io
+    d = _load_all()
+    pessoas = d["pessoas"]
+
+    todas: list[dict] = []
+    for _, p in pessoas.iterrows():
+        nome = p["Nome"]
+        pos  = str(p["Posicao"]).upper().strip()
+        sal  = float(p["Sal_Q4"] or 0)
+        if sal == 0:
+            continue
+        try:
+            if pos in POSICOES_DIR:
+                rows = linhas_diretor(calc_bonus_diretor(nome))
+            elif pos in POSICOES_AE:
+                rows = linhas_ae(calc_bonus_ae(nome))
+            else:
+                continue
+            todas.extend(rows)
+        except Exception:
+            pass
+
+    df = pd.DataFrame(todas, columns=["Nome", "Posicao", "WS", "Categoria", "Valor_Q4"])
+
+    ws_order  = {"RESUMO": -1, **{ws.upper(): i for i, ws in enumerate(list(WS_PESOS_Q4.keys()) + ["TOTAL", "NEXUS"])}}
+    cat_order = {"Receita": 0, "Custo": 1, "LB": 2, "MB": 3, "Despesas": 4, "MC": 5}
+    df["_ws_ord"]  = df["WS"].map(lambda x: ws_order.get(x, 99))
+    df["_cat_ord"] = df["Categoria"].map(lambda x: cat_order.get(x, 99))
+    df = df.sort_values(["Nome", "_ws_ord", "_cat_ord"]).drop(columns=["_ws_ord", "_cat_ord"])
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Apuracao_Q4")
+        ws_sheet = writer.sheets["Apuracao_Q4"]
+
+        from openpyxl.styles import numbers as xl_numbers
+        for row in ws_sheet.iter_rows(min_row=2, min_col=5, max_col=5):
+            for cell in row:
+                cell.number_format = '#,##0.00'
+
+        for col in ws_sheet.columns:
+            max_len = max(len(str(cell.value or "")) for cell in col)
+            ws_sheet.column_dimensions[col[0].column_letter].width = min(max_len + 4, 50)
+
+    buf.seek(0)
+    return buf.read()
+
+
 if __name__ == "__main__":
     main()

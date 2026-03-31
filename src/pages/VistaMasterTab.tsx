@@ -4,7 +4,7 @@ import { SearchOutlined, ReloadOutlined, UserOutlined, PrinterOutlined, CheckCir
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
 import { exportTableToExcel } from "../utils/exportExcel";
 import { useReactToPrint } from "react-to-print";
-import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3 } from "../api";
+import { getApuracaoVisaoMaster, getApuracaoVisaoMasterQ3, getApuracaoCalcular, getApuracaoCalcularQ3, exportarApuracaoQ4 } from "../api";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
 
@@ -308,8 +308,24 @@ export default function VistaMasterTab() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detalhe, setDetalhe] = useState<DetalheCalculo | null>(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+  const [loadingExport, setLoadingExport] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: detalhe ? `Memória de Cálculo — ${detalhe.nome}` : "Memória de Cálculo" });
+
+  const handleExportarXlsx = () => {
+    setLoadingExport(true);
+    exportarApuracaoQ4()
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "apuracao_q4_exportado.xlsx";
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => message.error("Erro ao exportar apuração Q4"))
+      .finally(() => setLoadingExport(false));
+  };
 
   const carregar = () => {
     setLoading(true);
@@ -441,6 +457,9 @@ export default function VistaMasterTab() {
         </Select>
         <Button icon={<ReloadOutlined />} onClick={carregar} loading={loading}>
           Atualizar
+        </Button>
+        <Button icon={<DownloadOutlined />} onClick={handleExportarXlsx} loading={loadingExport}>
+          Exportar Apuração
         </Button>
         <div style={{ marginLeft: "auto", fontWeight: 600, fontSize: 15 }}>
           Total bônus filtrado: <span style={{ color: "#52c41a" }}>{fmt(totalBonus)}</span>
@@ -728,7 +747,7 @@ function DetalheAE({ d, periodoLabel = "Q4" }: { d: DetalheCalculo; periodoLabel
                 children: [
                   { title: "Meta", dataIndex: "lb_meta", align: "right" as const, render: (v: number) => v ? fmt(v) : <span style={{ color: "#ccc" }}>—</span> },
                   { title: "Realizado", dataIndex: "lb_real", align: "right" as const,
-                    render: (v: number, row: any) => <span style={{ color: v >= row.lb_meta ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{v ? fmt(v) : "—"}</span> },
+                    render: (v: number, row: any) => <span style={{ color: v >= row.lb_meta ? "#52c41a" : v >= row.lb_meta * triggerRec ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{v ? fmt(v) : "—"}</span> },
                 ],
               },
             ]}
@@ -908,6 +927,7 @@ function ResultadoBox({ bonusTotal, salario, periodo = "Q4 2025" }: { bonusTotal
 
 function DetalheDir({ d }: { d: DetalheCalculo }) {
   const gate = d.mc_gate === 1;
+  const triggerRec = d.trigger_rec ?? 0.85;
   const triggerMcAbs = d.trigger_mc_abs ?? ((d.budget_mc_abs ?? 0) * 0.85);
   const triggerMcPct = d.trigger_mc_pct ?? ((d.budget_mc_pct ?? 0) - 1.5);
 
@@ -1032,7 +1052,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
                 children: [
                   { title: "Meta", dataIndex: "rec_meta", align: "right" as const, render: (v: number) => fmt(v) },
                   { title: "Realizado", dataIndex: "rec_real", align: "right" as const,
-                    render: (v: number, row: any) => <span style={{ color: v >= row.rec_meta ? "#52c41a" : v > 0 ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{fmt(v)}</span> },
+                    render: (v: number, row: any) => <span style={{ color: v >= row.rec_meta ? "#52c41a" : v >= row.rec_meta * triggerRec ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{fmt(v)}</span> },
                 ],
               },
               {
@@ -1046,7 +1066,8 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
                 title: "LB",
                 children: [
                   { title: "Meta", dataIndex: "lb_meta", align: "right" as const, render: (v: number) => fmt(v) },
-                  { title: "Realizado", dataIndex: "lb_real", align: "right" as const, render: (v: number) => fmt(v) },
+                  { title: "Realizado", dataIndex: "lb_real", align: "right" as const,
+                    render: (v: number, row: any) => <span style={{ color: v >= row.lb_meta ? "#52c41a" : v >= row.lb_meta * triggerRec ? "#faad14" : "#ff4d4f", fontWeight: 600 }}>{v ? fmt(v) : "—"}</span> },
                 ],
               },
             ]}
