@@ -147,11 +147,12 @@ function WorkerTab() {
   );
 }
 
-type Section = "worker" | "cockpit" | "metas" | "pl" | null;
+type Section = "worker" | "cockpit" | "cockpit2026" | "metas" | "pl" | null;
 
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
   const [apenasAtribuidos, setApenasAtribuidos] = useState(false);
+  const currentUser = localStorage.getItem("username") || "";
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: theme.accent, borderRadius: 8 } }}>
@@ -176,10 +177,13 @@ export default function Dashboard() {
           {section === null && (
             <div style={{ display: "flex", gap: 24, justifyContent: "center", alignItems: "stretch", minHeight: "60vh", flexWrap: "wrap" }}>
               {([
-                { key: "worker",  icon: <UserOutlined />,      title: "Worker",            desc: "Receitas e custos por colaborador",              sub: "Base Worker" },
-                { key: "cockpit", icon: <BankOutlined />,       title: "Financeiro",        desc: "DRE, P&L por Stream e Matricial",               sub: "SAP S4 · Nexus" },
-                { key: "metas",   icon: <AimOutlined />,        title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3",     sub: "Margem · Clientes · Check" },
-                { key: "pl",      icon: <LineChartOutlined />,  title: "P&L",               desc: "Resumo financeiro por empresa e cliente",       sub: "Margem · Resumo" },
+                { key: "worker",      icon: <UserOutlined />,      title: "Worker",            desc: "Receitas e custos por colaborador",              sub: "Base Worker" },
+                { key: "cockpit",     icon: <BankOutlined />,      title: "Financeiro",        desc: "DRE, P&L por Stream e Matricial",               sub: "SAP S4 · Nexus" },
+                { key: "metas",       icon: <AimOutlined />,       title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3",    sub: "Margem · Clientes · Check" },
+                { key: "pl",          icon: <LineChartOutlined />, title: "P&L",               desc: "Resumo financeiro por empresa e cliente",        sub: "Margem · Resumo" },
+                ...(currentUser === "amanda" ? [
+                  { key: "cockpit2026" as const, icon: <BankOutlined />, title: "Financeiro 2026", desc: "DRE, P&L por Stream e Matricial — 2026", sub: "SAP S4 · Nexus" },
+                ] : []),
               ] as const).map(({ key, icon, title, desc, sub }) => (
                 <div
                   key={key}
@@ -252,7 +256,7 @@ export default function Dashboard() {
             />
           )}
 
-          {section === "cockpit" && (
+          {(section === "cockpit" || section === "cockpit2026") && (
             <Tabs
               defaultActiveKey="dre"
               type="card"
