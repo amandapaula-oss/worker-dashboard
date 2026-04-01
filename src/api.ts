@@ -35,12 +35,10 @@ export async function login(username: string, password: string) {
   if (!res.ok) throw new Error("Usuário ou senha incorretos");
   const data = await res.json();
   localStorage.setItem("token", data.access_token);
-  localStorage.setItem("username", username);
 }
 
 export function logout() {
   localStorage.removeItem("token");
-  localStorage.removeItem("username");
   window.location.href = "/login";
 }
 
