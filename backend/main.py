@@ -252,6 +252,12 @@ async def startup():
         except Exception as e:
             print(f"Erro no preload leve: {e}")
         _preload_heavy()
+        try:
+            print("Pré-carregando nova base 2026...")
+            _get_nova_base()
+            print("Nova base carregada.")
+        except Exception as e:
+            print(f"Erro ao pré-carregar nova base: {e}")
     threading.Thread(target=_preload_all, daemon=True).start()
 
 # ── P&L Engine ─────────────────────────────────────────────────────────────────
@@ -1600,3 +1606,92 @@ def get_nova_base_data(
     ]
     cols_show = [c for c in cols_show if c in df.columns]
     return _sanitize({"total": total, "truncated": total > MAX, "rows": df[cols_show].to_dict(orient="records")})
+
+@app.get("/api/nova-base/dre")
+def get_nova_base_dre(
+    periodos: str = "",
+    empresas: str = "",
+    fontes: str = "",
+    macro_areas: str = "",
+    user=Depends(get_current_user)
+):
+    df = _get_nova_base().copy()
+
+    def filt(col, param):
+        vals = [v.strip() for v in param.split(",") if v.strip()]
+        if vals and col in df.columns:
+            return df[df[col].astype(str).str.strip().isin(vals)]
+        return df
+
+    if periodos:    df = filt("periodo", periodos)
+    if empresas:    df = filt("empresa", empresas)
+    if fontes:      df = filt("fonte", fontes)
+    if macro_areas: df = filt("macro_area", macro_areas)
+
+    for col in ["receita", "custo_rateado", "valor_liquido"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    df["periodo"] = df["periodo"].fillna("").astype(str).str.strip()
+    df = df[df["periodo"].str.match(r"^\d{4}-\d{2}$")]
+
+    if df.empty:
+        return {"rows": [], "columns": []}
+
+    all_periods = sorted(df["periodo"].unique().tolist())
+    columns = all_periods + ["Total"]
+
+    # ── Helpers ────────────────────────────────────────────────────────────────
+    def row_vals(piv_row: pd.Series):
+        """piv_row: Series indexed by periodo (already reindexed)."""
+        d = {p: float(piv_row.get(p, 0)) for p in all_periods}
+        d["Total"] = float(piv_row.sum())
+        return d
+
+    def pct_vals(rec_row: pd.Series, vl_row: pd.Series):
+        d = {}
+        for p in all_periods:
+            rec = float(rec_row.get(p, 0))
+            vl  = float(vl_row.get(p, 0))
+            d[p] = vl / rec if rec else 0.0
+        tot_rec = float(rec_row.sum())
+        tot_vl  = float(vl_row.sum())
+        d["Total"] = tot_vl / tot_rec if tot_rec else 0.0
+        return d
+
+    def zero_vals():
+        return {c: 0.0 for c in columns}
+
+    # ── Single aggregation pass ────────────────────────────────────────────────
+    # Total
+    agg_total = df.groupby("periodo")[["receita", "custo_rateado", "valor_liquido"]].sum().reindex(all_periods, fill_value=0)
+
+    rows = [
+        {"name": "Receita",        "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["receita"])},
+        {"name": "Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(agg_total["custo_rateado"])},
+        {"name": "Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["valor_liquido"])},
+        {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_total["receita"], agg_total["valor_liquido"])},
+    ]
+
+    # Macro Área — one groupby for ALL areas at once
+    if "macro_area" in df.columns:
+        df["macro_area"] = df["macro_area"].fillna("").astype(str).str.strip()
+        agg_ma = (
+            df[df["macro_area"].ne("")]
+            .groupby(["macro_area", "periodo"])[["receita", "custo_rateado", "valor_liquido"]]
+            .sum()
+            .unstack("periodo")
+            .reindex(columns=all_periods, level="periodo", fill_value=0)
+        )
+        for ma in sorted(agg_ma.index.tolist()):
+            rec = agg_ma.loc[ma, "receita"]
+            cus = agg_ma.loc[ma, "custo_rateado"]
+            vl  = agg_ma.loc[ma, "valor_liquido"]
+            rows.append({"name": ma,                 "is_subtotal": False, "is_pct": False, "is_group": True,  "values": zero_vals()})
+            rows.append({"name": "  Receita",        "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(rec)})
+            rows.append({"name": "  Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(cus)})
+            rows.append({"name": "  Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(vl)})
+            rows.append({"name": "  Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(rec, vl)})
+
+    return {"rows": rows, "columns": columns}

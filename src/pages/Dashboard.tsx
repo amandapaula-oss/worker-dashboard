@@ -16,7 +16,7 @@ import VistaMasterTab, { VistaMasterTabQ3 } from "./VistaMasterTab";
 import ResumoTab from "./ResumoTab";
 import ClientesTab from "./ClientesTab";
 import NovaBaseTab from "./NovaBaseTab";
-import NovaBaseResumoTab from "./NovaBaseResumoTab";
+import NovaBaseResumoTab, { NovaDreTab } from "./NovaBaseResumoTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -254,7 +254,7 @@ export default function Dashboard() {
               size="large"
               destroyInactiveTabPane
               items={[
-                { key: "empresa",   label: <span><BankOutlined /> DRE por Empresa</span>,       children: <NovaBaseResumoTab agruparPor="empresa" /> },
+                { key: "empresa",   label: <span><BankOutlined /> DRE por Empresa</span>,       children: <NovaDreTab /> },
                 { key: "fonte",     label: <span><HeatMapOutlined /> P&L por Fonte</span>,      children: <NovaBaseResumoTab agruparPor="fonte" /> },
                 { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
                 { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
@@ -281,6 +281,7 @@ export default function Dashboard() {
       <style>{`
         .total-row td { background-color: #dce6f7 !important; font-weight: 700; }
         .subtotal-row td { background-color: #dce6f7 !important; font-weight: 700; }
+        .group-row td { background-color: #eef2ff !important; font-weight: 600; border-top: 2px solid #c7d2fe !important; }
         .ant-table-thead > tr > th { background: ${theme.accent} !important; color: #fff !important; font-weight: 600; }
         .ant-table-row:hover > td { background: #f0f4ff !important; }
         .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active { background: ${theme.accent} !important; border-color: ${theme.accent} !important; }

@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Select, Table, Button, Card, Statistic, Popover, Checkbox } from "antd";
 import { FilterOutlined, DownloadOutlined, SettingOutlined } from "@ant-design/icons";
-import { getNovaBaseFilters, getNovaBaseResumo } from "../api";
+import { getNovaBaseFilters, getNovaBaseResumo, getNovaBaseDre } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
+import PLTable from "../components/PLTable";
 import { theme } from "../theme";
-import { exportTableToExcel } from "../utils/exportExcel";
+import { exportTableToExcel, exportPLTableToExcel } from "../utils/exportExcel";
 import { periodoLabel } from "../utils/format";
 
 
@@ -272,6 +273,115 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
             </div>
           )}
         />
+      )}
+    </div>
+  );
+}
+
+// ── DRE Nova Base 2026 ─────────────────────────────────────────────────────────
+
+export function NovaDreTab() {
+  const [filters, setFilters]         = useState<any>({});
+  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
+  const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
+  const [selFontes, setSelFontes]     = useState<string[]>([]);
+  const [data, setData]               = useState<any>(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const filtersLoaded = useRef(false);
+
+  // Carrega filtros e DRE em paralelo no mount
+  useEffect(() => {
+    Promise.all([getNovaBaseFilters(), getNovaBaseDre({})])
+      .then(([f, d]) => { setFilters(f); setData(d); filtersLoaded.current = true; })
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const load = useCallback(() => {
+    if (!filtersLoaded.current) return;
+    setLoading(true);
+    const params: Record<string, string> = {};
+    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
+    if (selEmpresas.length) params.empresas = selEmpresas.join(",");
+    if (selFontes.length)   params.fontes   = selFontes.join(",");
+    getNovaBaseDre(params)
+      .then(d => { setData(d); setError(null); })
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [selPeriodos, selEmpresas, selFontes]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const opt = (arr: string[]) => arr.map((v: string) => ({ label: v, value: v }));
+  const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0;
+
+  const columns: string[] = useMemo(() => {
+    if (!data?.columns) return [];
+    return data.columns.map((c: string) =>
+      c === "Total" ? "Total" : (periodoLabel ? periodoLabel(c) : c)
+    );
+  }, [data]);
+
+  const rows = useMemo(() => {
+    if (!data?.rows) return [];
+    return data.rows.map((r: any) => {
+      const renamedValues: Record<string, number> = {};
+      (data.columns as string[]).forEach((raw: string, i: number) => {
+        renamedValues[columns[i]] = r.values[raw] ?? 0;
+      });
+      return { ...r, values: renamedValues };
+    });
+  }, [data, columns]);
+
+  return (
+    <div>
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center" }}>
+        <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
+          type={hasActiveFilter ? "primary" : "default"}
+          style={{ marginLeft: "auto" }}>
+          Filtros{showFilters ? " ▲" : " ▼"}
+        </Button>
+      </div>
+
+      {showFilters && (
+        <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Período</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
+              onChange={setSelPeriodos} options={opt(filters.periodos ?? [])}
+              maxTagCount="responsive" placeholder="Todos" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Empresa</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas}
+              onChange={setSelEmpresas} options={opt(filters.empresas ?? [])}
+              maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Fonte</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selFontes}
+              onChange={setSelFontes} options={opt(filters.fontes ?? [])}
+              maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+        </div>
+      )}
+
+      {loading ? <TableSkeleton rows={12} /> : error ? (
+        <div style={{ background: "#fff1f0", border: "1px solid #ffa39e", borderRadius: 8, padding: "1rem 1.2rem", color: "#cf1322" }}>
+          <strong>Erro ao carregar dados:</strong> {error}
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+            <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+              onClick={() => exportPLTableToExcel(data?.rows || [], data?.columns || [], "nova_base_dre")}>
+              Excel
+            </Button>
+          </div>
+          <PLTable rows={rows} columns={columns} />
+        </>
       )}
     </div>
   );

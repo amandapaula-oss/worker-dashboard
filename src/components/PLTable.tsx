@@ -6,6 +6,7 @@ interface PLRow {
   name: string;
   is_subtotal: boolean;
   is_pct: boolean;
+  is_group?: boolean;
   values: Record<string, number>;
 }
 
@@ -30,7 +31,11 @@ export default function PLTable({ rows, columns }: Props) {
       fixed: "left" as const,
       width: 220,
       render: (text: string, record: PLRow) => (
-        <span style={{ fontWeight: record.is_subtotal ? 700 : 400, color: theme.text }}>{text}</span>
+        <span style={{
+          fontWeight: record.is_group ? 600 : record.is_subtotal ? 700 : 400,
+          fontStyle: record.is_group ? "italic" : "normal",
+          color: record.is_group ? theme.accent : theme.text,
+        }}>{text}</span>
       ),
     },
     ...columns.map(col => ({
@@ -40,6 +45,7 @@ export default function PLTable({ rows, columns }: Props) {
       align: "right" as const,
       width: 120,
       render: (_: any, record: PLRow) => {
+        if (record.is_group) return null;
         const v = record.values[col] ?? 0;
         const formatted = record.is_pct ? fmtPct(v) : fmtBRL(v);
         const color = v < 0 && !record.is_pct ? "#c0392b" : theme.text;
@@ -57,7 +63,7 @@ export default function PLTable({ rows, columns }: Props) {
       pagination={false}
       size="small"
       scroll={{ x: "max-content" }}
-      rowClassName={(record) => record.is_subtotal ? "subtotal-row" : ""}
+      rowClassName={(record) => record.is_group ? "group-row" : record.is_subtotal ? "subtotal-row" : ""}
       style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
     />
   );

@@ -231,6 +231,10 @@ export async function getNovaBaseResumo(params: Record<string, string> = {}) {
   return apiFetch(`/api/nova-base/resumo${buildQuery(params)}`);
 }
 
+export async function getNovaBaseDre(params: Record<string, string> = {}) {
+  return apiFetch(`/api/nova-base/dre${buildQuery(params)}`);
+}
+
 export async function updateClienteAe(nome_cliente: string, ae: string) {
   return apiFetch("/api/clientes/ae", {
     method: "POST",
