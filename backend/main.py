@@ -1674,20 +1674,20 @@ def get_nova_base_dre(
         {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_total["receita"], agg_total["valor_liquido"])},
     ]
 
-    # Macro Área — one groupby for ALL areas at once
+    # Macro Área — um único groupby, depois filtra o resultado já agregado por área
     if "macro_area" in df.columns:
         df["macro_area"] = df["macro_area"].fillna("").astype(str).str.strip()
-        agg_ma = (
+        agg_ma_raw = (
             df[df["macro_area"].ne("")]
             .groupby(["macro_area", "periodo"])[["receita", "custo_rateado", "valor_liquido"]]
             .sum()
-            .unstack("periodo")
-            .reindex(columns=all_periods, level="periodo", fill_value=0)
+            .reset_index()
         )
-        for ma in sorted(agg_ma.index.tolist()):
-            rec = agg_ma.loc[ma, "receita"]
-            cus = agg_ma.loc[ma, "custo_rateado"]
-            vl  = agg_ma.loc[ma, "valor_liquido"]
+        for ma in sorted(agg_ma_raw["macro_area"].unique().tolist()):
+            sub = agg_ma_raw[agg_ma_raw["macro_area"] == ma].set_index("periodo").reindex(all_periods, fill_value=0)
+            rec = sub["receita"]
+            cus = sub["custo_rateado"]
+            vl  = sub["valor_liquido"]
             rows.append({"name": ma,                 "is_subtotal": False, "is_pct": False, "is_group": True,  "values": zero_vals()})
             rows.append({"name": "  Receita",        "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(rec)})
             rows.append({"name": "  Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(cus)})
