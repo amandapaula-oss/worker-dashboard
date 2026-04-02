@@ -602,6 +602,19 @@ def calc_bonus_ae(nome: str) -> dict:
     clientes_ae = list(rec_ae["cliente_norm"].dropna().unique())
     # Mapa vertical para TODOS os clientes deste AE (budget e sem budget)
     _cli_vert_ae: dict[str, str] = dict(d.get("ae_to_clients", {}).get(pessoa_nome_n, {}))
+    # Mapa reverso: cliente → AE dono (para saber se cliente pertence a outro AE)
+    _cli_owner: dict[str, str] = {}
+    for _ae_name, _ae_clis in d.get("ae_to_clients", {}).items():
+        for _c in _ae_clis:
+            _cli_owner[_c] = _ae_name
+    def _find_owner(cn: str) -> str | None:
+        """Busca dono do cliente com match exato ou parcial (ex: DIRECIONAL → DIRECIONAL ENGENHARIA S/A)."""
+        if cn in _cli_owner:
+            return _cli_owner[cn]
+        for k, v in _cli_owner.items():
+            if cn in k or k in cn:
+                return v
+        return None
     # Inclui clientes sem budget que tenham receita real na vertical correta
     for _extra, _vert in _cli_vert_ae.items():
         if _extra not in clientes_ae:
@@ -613,12 +626,19 @@ def calc_bonus_ae(nome: str) -> dict:
 
     for cli_n in clientes_ae:
         _vert_ovr = _cli_vert_ae.get(cli_n)
+        _owner = _find_owner(cli_n)
         if _vert_ovr:
             # Usa receita filtrada pela vertical do AE para evitar contabilizar
             # PEPs de outras verticais (ex: KLABIN Multisector para AE de Grupo Mult)
             real_rec   = d.get("rec_by_client_vert_nh",   {}).get((cli_n, _vert_ovr), 0.0)
             real_lb    = d.get("marg_by_client_vert_nh",  {}).get((cli_n, _vert_ovr), 0.0)
             real_custo = d.get("custo_by_client_vert_nh", {}).get((cli_n, _vert_ovr), 0.0)
+        elif (_owner and _owner != pessoa_nome_n) or (posicao == "AE_GM" and not _vert_ovr):
+            # Cliente pertence a outro AE, ou para AE_GM não está mapeado na vertical
+            # — não creditar receita real a este AE
+            real_rec   = 0.0
+            real_lb    = 0.0
+            real_custo = 0.0
         else:
             # Usa o maior entre RAC puro e receita do projetos (que já prioriza RAC onde existe).
             # Necessário para clientes com tipos="" cujo revenue vem só do SAP/projetos.
@@ -642,6 +662,9 @@ def calc_bonus_ae(nome: str) -> dict:
         if _vert_ovr:
             actual_rec_ws  = {ws_k: d.get("rec_by_client_vert_ws_nh",  {}).get((cli_n, _vert_ovr, ws_k), 0.0) for ws_k in WS_PESOS_Q4}
             actual_marg_ws = {ws_k: d.get("marg_by_client_vert_ws_nh", {}).get((cli_n, _vert_ovr, ws_k), 0.0) for ws_k in WS_PESOS_Q4}
+        elif (_owner and _owner != pessoa_nome_n) or (posicao == "AE_GM" and not _vert_ovr):
+            actual_rec_ws  = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+            actual_marg_ws = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
         else:
             actual_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws_nh"])
             actual_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws_nh"])
@@ -1157,8 +1180,22 @@ def calc_bonus_ae_q3(nome: str) -> dict:
     real_custo_total_fin: float = 0.0
 
     clientes_ae = list(rec_ae["cliente_norm"].dropna().unique())
+    # Mapa vertical para TODOS os clientes deste AE (budget e sem budget)
+    _cli_vert_ae_q3: dict[str, str] = dict(d.get("ae_to_clients", {}).get(pessoa_nome_n, {}))
+    # Mapa reverso: cliente → AE dono
+    _cli_owner_q3: dict[str, str] = {}
+    for _ae_name, _ae_clis in d.get("ae_to_clients", {}).items():
+        for _c in _ae_clis:
+            _cli_owner_q3[_c] = _ae_name
+    def _find_owner_q3(cn: str) -> str | None:
+        if cn in _cli_owner_q3:
+            return _cli_owner_q3[cn]
+        for k, v in _cli_owner_q3.items():
+            if cn in k or k in cn:
+                return v
+        return None
     # Inclui clientes do AE sem budget que tenham receita real
-    for _extra in d.get("ae_to_clients", {}).get(pessoa_nome_n, set()):
+    for _extra in _cli_vert_ae_q3:
         if _extra not in clientes_ae:
             _real = max(
                 _match_cliente(_extra, q3r["rac_by_client_nh"]),
@@ -1170,9 +1207,16 @@ def calc_bonus_ae_q3(nome: str) -> dict:
     cli_contrib: dict[str, list] = {}
 
     for cli_n in clientes_ae:
-        real_rec   = _match_cliente(cli_n, q3r["rac_by_client_nh"])
-        real_lb    = _match_cliente(cli_n, q3r["marg_by_client_nh"])
-        real_custo = _match_cliente(cli_n, q3r["custo_by_client_nh"])
+        _owner_q3 = _find_owner_q3(cli_n)
+        # Se o cliente pertence a outro AE, não creditar receita
+        if _owner_q3 and _owner_q3 != pessoa_nome_n and cli_n not in _cli_vert_ae_q3:
+            real_rec   = 0.0
+            real_lb    = 0.0
+            real_custo = 0.0
+        else:
+            real_rec   = _match_cliente(cli_n, q3r["rac_by_client_nh"])
+            real_lb    = _match_cliente(cli_n, q3r["marg_by_client_nh"])
+            real_custo = _match_cliente(cli_n, q3r["custo_by_client_nh"])
 
         cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
         cli_bgt  = float(cli_rows["q3"].sum())
@@ -1181,8 +1225,13 @@ def calc_bonus_ae_q3(nome: str) -> dict:
         cli_lb_fin    = 0.0
         cli_custo_fin = 0.0
 
-        actual_rec_ws  = _match_cliente_ws(cli_n, q3r["rec_by_client_ws_nh"])
-        actual_marg_ws = _match_cliente_ws(cli_n, q3r["marg_by_client_ws_nh"])
+        # Se cliente pertence a outro AE, zerar WS também
+        if _owner_q3 and _owner_q3 != pessoa_nome_n and cli_n not in _cli_vert_ae_q3:
+            actual_rec_ws  = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+            actual_marg_ws = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+        else:
+            actual_rec_ws  = _match_cliente_ws(cli_n, q3r["rec_by_client_ws_nh"])
+            actual_marg_ws = _match_cliente_ws(cli_n, q3r["marg_by_client_ws_nh"])
         actual_rec_ws  = {ws_k: actual_rec_ws.get(ws_k, 0.0)  for ws_k in WS_PESOS_Q4}
         actual_marg_ws = {ws_k: actual_marg_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4}
         actual_rec_total = sum(actual_rec_ws.values())
