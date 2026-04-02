@@ -1,6 +1,7 @@
 ================================================================================
 CONTEXTO DO PROJETO — worker-dashboard
 Para novo agente continuar o desenvolvimento
+Última atualização: 2026-04-02
 ================================================================================
 
 REPOSITÓRIO
@@ -8,7 +9,7 @@ REPOSITÓRIO
 GitHub: amandapaula-oss/worker-dashboard
 Branch: master
 Auto-deploy: backend → Render, frontend → Vercel (push para master = deploy)
-Python para rodar scripts: C:/Users/amanda.paula/AppData/Local/Python/pythoncore-3.14-64/python.exe
+Python para rodar scripts: py (via C:/Users/amanda.paula/AppData/Local/Microsoft/WindowsApps/py.exe)
 
 ESTRUTURA DO PROJETO
 --------------------
@@ -16,10 +17,14 @@ C:/Users/amanda.paula/worker-dashboard/
   backend/               ← FastAPI (Python)
     main.py              ← Endpoints da API
     apuracao_engine.py   ← Engine de cálculo de bônus (ARQUIVO CENTRAL)
-    dados_sap.xlsx       ← Base SAP S4 (~593k linhas — arquivo separado por tamanho)
+    dados_sap.xlsx       ← Base SAP S4 (~148k linhas após limpeza)
     operacional.xlsx     ← Dados operacionais (5 abas — ver seção BASES DE DADOS)
     pessoas.xlsx         ← Dados de pessoas/workers (4 abas)
     parametros.xlsx      ← Parâmetros e configurações (14 abas)
+    exportar_apuracao_q4.py     ← Gera apuracao_q4_exportado.xlsx (todos os AEs)
+    exportar_grupo_mult_q4.py   ← Gera grupo_mult_q4.xlsx (projetos Q4 Grupo Mult)
+    exportar_multisector_q4.py  ← Gera multisector_q4.xlsx (projetos Q4 Multisector)
+    check_verticals.py          ← Verifica divergências entre lista externa e base
     old/                 ← Arquivos legados antes da consolidação (não usar)
     criar_arquivos_consolidados.py  ← ETL: gera operacional.xlsx a partir de CSVs brutos
   src/
@@ -42,11 +47,10 @@ ARQUIVOS ATIVOS
 ---------------
 
 dados_sap.xlsx
-  → Única aba (Base): lançamentos contábeis do SAP S4 (~593k linhas, ~63MB)
+  → Única aba (Base): lançamentos contábeis do SAP S4 (~148k linhas após limpeza)
   → Colunas principais: FiscalYear, FiscalPeriod, CompanyCode, GLAccount,
     agrupador_fpa, AmountInCompanyCodeCurrency, ProfitCenter, vertical, WBSElementInternalID
-  → Todos os valores fora do Q4 2025 (FiscalPeriod 10/11/12) foram ZERADOS
-    (AmountInCompanyCodeCurrency=0). Linhas preservadas, apenas valores zerados.
+  → Somente Q4 2025 (FiscalPeriod 10/11/12). Linhas fora do Q4 foram excluídas.
 
 operacional.xlsx  — dados financeiros e de projetos
   aba "projetos"       → periodo, empresa, pep, nome_cliente, tipos, centro_lucro,
@@ -58,24 +62,20 @@ operacional.xlsx  — dados financeiros e de projetos
   aba "financeiro"     → periodo, fonte, empresa, vertical, agrupador, valor,
                          profit_center, tipo_financeiro, moeda, stream, ano
                          fonte = "SAP" | "Nexus" | "Razao"
-                         Valores fora do Q4 2025 ZERADOS (mesmo critério do dados_sap.xlsx)
   aba "rac_pessoas"    → periodo, empresa, pep, numero_pessoal, nome, valor_liquido
   aba "margem_pessoas" → periodo, pep, cpf, nome, empresa, receita, custo_rateado,
                          horas, margem
-                         Somente Q4 2025 por design (não precisa de limpeza)
 
 pessoas.xlsx  — dados de colaboradores
-  aba "receita_worker"        → receita por worker (origem: sistema Worker interno)
+  aba "receita_worker"        → receita por worker
   aba "personal_data"         → dados pessoais SAP (ID Number, Full Name, etc.)
   aba "relacao_pessoas"       → Tipo, Nome, ID SAP, CPF / Worker ID, Empresa
   aba "classificacao_pessoas" → cpf_brcpf, nome_norm, billable_category, classificacao
                                 classificacao = "custo" | "despesa"
 
 parametros.xlsx  — metas, budget, premissas, cadastros
-  aba "anuais"           → metas anuais por pessoa (nome, bu, posicao, periodo,
-                           meta_tipo, ws, peso_ws, realizado, meta, trigger,
-                           atingimento, salario, apuracao)
-  aba "mc_dir"           → nome, meta_mc_abs (meta MC absoluta para diretores)
+  aba "anuais"           → metas anuais por pessoa
+  aba "mc_dir"           → meta MC absoluta para diretores
   aba "pessoas"          → Nome, Posicao, Contrato, Sal_Q1, Sal_Q2, Sal_Q3, Sal_Q4
   aba "pesos_meta"       → Periodo, Posicao, TCV, Receita, MB_pct, MC_pct, ENPS, NPS
   aba "pesos_ws"         → pesos padrão por WS
@@ -83,12 +83,11 @@ parametros.xlsx  — metas, budget, premissas, cadastros
   aba "triggers"         → Meta, Q1, Q2, Q3, Q4, FY — percentuais de trigger
   aba "lb_trigger"       → nome, meta_lb, trigger_lb (valores anuais)
   aba "metas_custo"      → tipo, competencia, numero_pessoal, nome, empresa, custo, categoria
-                           Somente Q4 2025 por design
   aba "budget"           → tipo, bs, ae_q1..ae_q4, ws, cliente, q1, q2, q3, q4, fy
                            tipo = "Receita" | "Margem"
   aba "budget_tcv"       → ae, descricao, q1, q2, q3, q4, fy
   aba "clientes"         → nome_cliente, bu, ae, nome_base  (VER SEÇÃO ABAIXO)
-  aba "pep_vertical"     → pep, vertical
+  aba "pep_vertical"     → pep, vertical  (overrides explícitos de vertical por PEP)
   aba "realizados_manual"→ tipo, ae_ou_vertical, cliente, receita, lb
 
 COMO ATUALIZAR AS BASES
@@ -109,98 +108,83 @@ SISTEMA DE ALIASES — NOMES DIFERENTES DO MESMO CLIENTE/PESSOA
 PROBLEMA
 --------
 O SAP registra nomes de clientes que podem ser diferentes dos nomes usados no
-budget (ex: "BANCO BMG S.A." no SAP vs "BMG" no budget). Antes da correção,
-isso criava linhas duplicadas em branco na aba Clientes do dashboard.
+budget (ex: "BANCO BMG S.A." no SAP vs "BMG" no budget).
 
 SOLUÇÃO — campo nome_base em parametros.xlsx/clientes
 ------------------------------------------------------
 Cada linha em "clientes" representa um cliente canônico com:
-  - nome_cliente: nome exibido no dashboard (nome oficial)
+  - nome_cliente: nome exibido no dashboard (nome oficial/curto)
   - nome_base:    nome(s) como aparecem no SAP, separados por | quando múltiplos
-  - bu:           vertical/BU (ex: "Grupo Mult", "Health", "Finance")
+  - bu:           vertical/BU (ex: "Grupo Mult", "Health", "Finance", "Multisector")
   - ae:           nome do AE responsável
 
-Exemplos:
-  nome_cliente="SADA"    nome_base="SADA TRANSPORTES|SADA TRANSPORTES E ARMAZENAGENS LTD"
-  nome_cliente="C6 BANK" nome_base="BANCO C6 S.A."
-
-COMPORTAMENTO NO CÓDIGO
------------------------
-- main.py: read_clientes_csv() lê parametros.xlsx/clientes
-           write_clientes_csv() salva de volta em parametros.xlsx/clientes
-           (endpoint /api/clientes/ae escreve nessa aba)
-- apuracao_engine.py: usa nome_base para normalizar nomes SAP antes dos lookups
-  → _alias_pre[norm(nome_base)] = norm(nome_cliente)  — SAP → canônico
-  → aliases adicionados nos lookups de receita/margem/custo após o groupby
-- main.py get_clientes_list(): constrói alias_to_canonical map e agrega receita
-  de TODOS os aliases em uma única linha na aba Clientes
+Exemplos ativos:
+  nome_cliente="SADA"     nome_base="SADA TRANSPORTES|SADA TRANSPORTES E ARMAZENAGENS LTD"
+  nome_cliente="ESTAPAR"  nome_base="ESTAPAR ESTACIONAMENTOS SC LTDA|ALLPARK EMPREENDIMENTOS, PARTICIPAC"
+  nome_cliente="Compass"  nome_base="COMPASS GAS E ENERGIA S.A."
+  nome_cliente="Honda"    nome_base="HONDA ASSESSMENT ACESSO"
 
 REGRA IMPORTANTE
 ----------------
-Nunca criar nova linha em clientes para um alias do mesmo cliente.
-Sempre adicionar o alias no campo nome_base, separado por |.
+Sempre usar o nome mais curto como nome_cliente canônico (ex: "Compass" não
+"COMPASS GAS E ENERGIA S.A.", "Honda" não "HONDA ASSESSMENT ACESSO").
+Nunca criar nova linha para um alias — sempre adicionar ao campo nome_base com |.
 Exceção: KLABIN aparece em 2 linhas porque tem BU diferente (Multisector + Grupo Mult).
 
-ERROS CORRIGIDOS RELACIONADOS
-------------------------------
-- BMG tinha 3 linhas (1 principal + 2 aliases GRUPO BMG/Grupo BMG obsoletos).
-  Após projetos.csv ser migrado para usar "BANCO BMG S.A.", os aliases ficaram
-  sem correspondência. Resultado: 2 linhas em branco na aba Clientes, a linha
-  com dados caía na posição ~50 (limite da página 1), usuário via só os em branco.
-  FIX: removidas as 2 linhas alias obsoletas (commit 1a04e81).
+COMPORTAMENTO NO CÓDIGO
+-----------------------
+- main.py: _clientes_lookup() constrói ae_map e vertical_map a partir dos aliases
+- apuracao_engine.py: usa nome_base para normalizar nomes SAP
+  → IMPORTANTE: nome_base é pipe-separated, o código FAZ split por "|" para criar
+    uma entrada por alias. Não tratar o nome_base inteiro como chave única.
+  → bloco _alias_pre: for _alias in [a.strip() for a in _nb.split("|") if a.strip()]:
+        _alias_pre[norm(_alias)] = _nc_n
+  → mesmo padrão no segundo bloco de alias no loop principal
 
 ================================================================================
-LIMPEZA DE DADOS — ZERAGEM DE VALORES FORA DO Q4 2025
+VERTICAIS / BU — NOMENCLATURA
 ================================================================================
 
-EM QUE CONSISTIU
-----------------
-Os arquivos de dados contêm lançamentos históricos de vários períodos, mas o
-sistema atualmente só suporta análise do Q4 2025 (out/nov/dez 2025).
-Para evitar que dados de outros períodos contaminem os cálculos:
+Verticais usadas no sistema:
+  - "Finance" (sistema) = "Finance & Insurance" (nomenclatura externa)
+    → todos os projetos BR02/BR09 Finance e BR07CLP00024
+  - "Grupo Mult" — projetos do vertical Grupo Mult (AEs: Edmilson, Guilherme, Danilo)
+  - "Multisector" — vertical Multisector (AEs como Fabio)
+  - "Health" — vertical Health
+  - "Retail" — vertical Retail
 
-Todos os valores numéricos fora do Q4 2025 foram ZERADOS nos arquivos:
-  - dados_sap.xlsx:     AmountInCompanyCodeCurrency = 0 para FiscalPeriod ∉ {10,11,12}
-                        ou FiscalYear ≠ 2025  (~436k linhas zeradas, ~157k Q4 intactas)
-  - operacional.xlsx/financeiro: valor = 0 para periodo ∉ {"2025-10","2025-11","2025-12"}
-  - operacional.xlsx/nexus_agg: [Valor] = 0 para Periodo ∉ Q4 2025
-  - operacional.xlsx/projetos: receita/custo_rateado = 0 para periodo ∉ Q4 2025
+DETERMINAÇÃO DA VERTICAL POR PEP
+----------------------------------
+1. Se o PEP está na aba pep_vertical de parametros.xlsx → usa esse override
+2. Caso contrário → usa no_hierarquia da aba projetos de operacional.xlsx
+3. "Logistics" NÃO existe como vertical no sistema. PEPs de logística aparecem
+   como "Grupo Mult" internamente.
 
-NÃO FORAM ZERADOS (já são somente Q4 por design):
-  - operacional.xlsx/margem_pessoas
-  - parametros.xlsx/metas_custo
-  - parametros.xlsx/budget e budget_tcv  (estrutura de orçamento anual, formato diferente)
+PEP_VERTICAL — overrides recentes (2026-03-31)
+-----------------------------------------------
+Os seguintes PEPs foram alterados nesta sessão:
+  BR07CLP00090  → Multisector (era Others)
+  BR0CLP00143   → Multisector (era Others)
+  BR07CLP00090  → Multisector
+  BR0CLP00143   → Multisector
+  BR02CLP00037  → Grupo Mult (era Multisector)
+  BR02CLP00113  → Grupo Mult (era Multisector)
+  BR02CLP001150 → Grupo Mult (era Multisector)
+  BR02CLP00059  → Grupo Mult (era Multisector)
 
-SEGUNDA LIMPEZA — exclusão das linhas zeradas (2026-03-28, commit 6d1216d)
---------------------------------------------------------------------------
-Após a zeragem, as linhas com valor=0 foram excluídas para reduzir o tamanho:
-  - dados_sap.xlsx:          592k → 148k linhas (63MB → 15.7MB)
-  - operacional.xlsx/financeiro:  14k → 2.7k linhas
-  - operacional.xlsx/nexus_agg:   10k → 1.4k linhas
-
-IMPACTO DA EXCLUSÃO
---------------------
-- financeiro e nexus_agg: SEM perda de informação. São agregações puras
-  (valor por período/empresa/categoria) — não há relacionamentos nessas linhas.
-
-- dados_sap.xlsx: PERDA PARCIAL de dados históricos. Cada linha excluída era
-  um lançamento contábil real de períodos fora do Q4 2025, contendo:
-  WBSElementInternalID (projeto), CustomerName, ProfitCenter, CostCenter, etc.
-  Ou seja: relacionamentos de projetos/clientes de jan–set 2025 e anos anteriores
-  não estão mais acessíveis neste arquivo.
-
-  ISSO NÃO AFETA O SISTEMA ATUAL porque:
-  → O engine e cálculos usam operacional.xlsx/projetos para relacionamentos,
-    não dados_sap diretamente
-  → A aba SAP do Cockpit só exibe Q4 de qualquer forma
-  → clientes, pep_vertical e projetos estão intactos
-
-RECUPERAÇÃO SE NECESSÁRIO
---------------------------
-Os dados originais existem no histórico do git:
-  - Dados completos (antes de qualquer zeragem): git show antes do commit b0c6ff4
-  - Dados zerados (antes da exclusão das linhas): commits b0c6ff4 e 0415245
-  Para restaurar: git checkout <commit> -- backend/dados_sap.xlsx
+DIVERGÊNCIAS CONHECIDAS (lista externa vs sistema, a resolver depois)
+-----------------------------------------------------------------------
+| PEP            | Lista externa       | Sistema     |
+|----------------|---------------------|-------------|
+| BR02CLP000141  | Multisector         | Health      |
+| BR07CLP00090   | Others              | Multisector |
+| BR08CLP00042   | Others              | Retail      |
+| BR02CLP00163   | Finance & Insurance | Others      |
+| BR07CLP00165   | Others              | sem registro|
+| BR02CLP00028-  | Logistics           | Grupo Mult  |
+| ...00056 etc   | Logistics           | Grupo Mult  |
+(~22 PEPs de logística aparecem como Grupo Mult — não é erro, o sistema não
+tem vertical Logistics separada)
 
 ================================================================================
 REGRAS DE NEGÓCIO — BÔNUS Q4 2025
@@ -218,15 +202,18 @@ POSIÇÕES
 
 FÓRMULA GERAL (AE/AE_GM)
 -------------------------
-Bônus = Σ por WS [ sal × peso_rec × peso_ws × ating_rec × lb_gate_ws
-                  + sal × peso_mb  × peso_ws × ating_mb  × mb_gate × lb_gate_ws ]
-       + sal × peso_tcv × ating_tcv_area   (apenas AE_GM)
+Bônus por WS = sal × peso_rec × peso_ws × ating_rec           ← bônus receita
+             + sal × peso_mb  × peso_ws × ating_mb × mb_gate × lb_gate_ws × rec_gate
+
+ATENÇÃO: lb_gate_ws NÃO entra no bônus de receita (só no MB).
+rec_gate = 1 se ating_rec > 0, senão 0 (MB bloqueado se receita zerada)
 
 WORK STREAMS (WS) — pesos padrão Q4
 -------------------------------------
 apps: 70%, cloud: 8%, dados: 8%, hyper: 8%, demais: 6%
-Danilo (AE_GM) tem pesos customizados: apps=72%, cloud=10%, dados=0%, hyper=10%, demais=8%
-(definido em parametros.xlsx/pesos_ws_pessoa)
+Fabio (FABIO LUIS BERTI BARCELOS) pesos customizados:
+  cloud=10%, apps=72%, dados=10%, hyper=10%, demais=0%
+  → demais peso=0 → nunca gera bônus demais para Fabio
 
 TRIGGERS Q4
 -----------
@@ -234,23 +221,29 @@ TRIGGERS Q4
 - MB%:         meta - 1.5pp → abaixo = 0, linear até meta
 - Apps: gate MB = bloqueia bônus MB apps se ating_mb = 0
 
+ATINGIMENTO PARCIAL
+-------------------
+calc_atingimento(realizado, meta, trigger=0.85):
+  < meta * trigger  → 0.0
+  >= meta           → 1.0
+  entre ambos       → (realizado - meta*trigger) / (meta - meta*trigger) * 0.5 + 0.5
+  Retorna 0.5 a 1.0 para resultados entre trigger e meta (linear)
+
+calc_atingimento_mb(real_pct, meta_pct, delta=0.015):
+  trigger_abs = meta_pct - delta
+  Mesma lógica: 0 abaixo, 0.5→1.0 linear, 1.0 acima
+
 TRIGGERS Q3
 -----------
 - Receita/TCV: 90% da meta
 - MB%:         meta - 1.0pp
 
-GATE LB POR WS (implementado recentemente)
--------------------------------------------
+GATE LB POR WS
+--------------
 - Para cada WS, verifica se LB realizado >= trigger LB proporcional
 - realized_lb_gate_ws: acumula APENAS clientes com budget LB > 0 naquela WS
-  (evita que clientes sem budget inflem o gate)
-- trigger_lb_ws_k = bgt_lb_ws * (trigger_lb_anual / meta_lb_anual)
-- Se trigger = 0 → gate auto-passa
-
-BENCHMARKS MB% POR WS
-----------------------
-Cloud: 34%, Dados: 35%, Hyper: 35%, Demais: 37%
-Apps: calculado de verdade (custo real ou benchmark 35% se sem custo)
+- trigger_lb_ws_k = bgt_lb_ws * _trigger_ratio
+- Se trigger = 0 → gate auto-passa (lb_gate_ws = 1)
 
 ================================================================================
 ENGINE — apuracao_engine.py
@@ -258,27 +251,13 @@ ENGINE — apuracao_engine.py
 
 FUNÇÕES PRINCIPAIS
 ------------------
-calc_bonus_ae(nome: str) → dict
-  → Calcula bônus Q4 para AE, AE_GM, Hunter
-  → Usa coluna q4 do budget, ae_q4, Sal_Q4
+calc_bonus_ae(nome) → calcula Q4 para AE/AE_GM/Hunter
+calc_bonus_ae_q3(nome) → calcula Q3 para AE_GM
+calc_bonus_diretor(nome) → calcula Q4 para Diretores
+_load_all() → carrega todos os dados (cached lru_cache)
 
-calc_bonus_ae_q3(nome: str) → dict
-  → Calcula bônus Q3 para AE_GM (adicionado recentemente)
-  → Usa coluna q3 do budget, ae_q3, Sal_Q3
-  → _load_q3_realized() carrega SAP Q3 (vazio por ora)
-
-calc_bonus_diretor(nome: str) → dict
-  → Calcula bônus Q4 para Diretores
-
-_load_all() → dict (cached com lru_cache)
-  → Carrega TODOS os dados Q4 (budget, SAP, lookups, etc.)
-  → Lê de: parametros.xlsx (múltiplas abas), operacional.xlsx, pessoas.xlsx
-
-_load_q3_realized() → dict (cached com lru_cache)
-  → Carrega dados SAP Q3 (vazio até dados serem adicionados)
-
-CONSTANTES IMPORTANTES
-----------------------
+CONSTANTES
+----------
 Q4_PERIODOS = ["2025-10", "2025-11", "2025-12"]
 Q3_PERIODOS = ["2025-07", "2025-08", "2025-09"]
 TRIGGER_REC_Q4 = 0.85
@@ -286,45 +265,32 @@ TRIGGER_REC_Q3 = 0.90
 MB_TRIGGER_DELTA = 0.015  (Q4: 1.5pp)
 MB_TRIGGER_DELTA_Q3 = 0.010  (Q3: 1.0pp)
 WS_PESOS_Q4 = {cloud:0.08, apps:0.70, dados:0.08, hyper:0.08, demais:0.06}
-WS_MB_BENCHMARK_Q4 = {cloud:0.34, dados:0.35, hyper:0.35, demais:0.37}
+
+CÁLCULO DE RECEITA REAL POR CLIENTE
+--------------------------------------
+real_rec = max(
+    _match_cliente(cli_n, rac_by_client_nh),    ← receita RAC (tipos != "")
+    _match_cliente(cli_n, rec_by_client_nh),    ← receita projetos/SAP
+)
+O max() garante que clientes com RAC parcial (ex: Compass com R$30k RAC)
+não percam a receita total que está em rec_by_client_nh.
+
+Clientes sem RAC (tipos="") como Honda e alguns da Compass: real_rec vem de
+rec_by_client_nh (projetos SAP).
 
 CAMPOS RETORNADOS POR calc_bonus_ae()
 --------------------------------------
-nome, posicao, contrato, salario_q4, periodo ("Q4 2025" ou "Q3 2025")
+nome, posicao, contrato, salario_q4, periodo
 peso_tcv, peso_receita, peso_mb
-budget_tcv_q4, real_tcv_q4, ating_tcv, bonus_tcv   ← só AE_GM
 budget_rec_total, real_rec_total, ating_rec_total
 budget_mb_pct, real_mb_pct, ating_mb_total
 meta_lb_q4, trigger_lb_q4, real_lb_total, lb_gate
 bonus_total
-detalhe_ws: lista por WS com campos:
-  ws, peso_ws, budget_rec, trigger_rec_amount, real_rec, ating_rec
-  budget_mb_pct, trigger_mb_pct, real_mb_pct, ating_mb, mb_gate, aplica_gate_mb
-  meta_lb_ws, trigger_lb_ws, real_lb_financeiro, real_lb_gate, lb_gate_ws
-  bonus_rec, bonus_mb, bonus_ws, clientes_ws
-clientes_detalhe: lista por cliente com budget_rec, real_rec, real_lb, real_custo, margem_pct
-
-================================================================================
-ENDPOINTS API (main.py)
-================================================================================
-
-GET /api/apuracao/pessoas
-  → Lista pessoas com posição, contrato, salário Q4
-
-GET /api/apuracao/calcular?nome=NOME
-  → Calcula bônus Q4. Chama calc_bonus_diretor se DIRETOR, senão calc_bonus_ae
-
-GET /api/apuracao/calcular-q3?nome=NOME
-  → Calcula bônus Q3 para AE_GM
-
-GET /api/apuracao/visao-master
-  → Todos os bônus calculados (tabela consolidada)
-
-GET /api/apuracao/bonus-anual/{nome}
-  → Bônus anual (Q1–Q4)
-
-GET /api/apuracao/pdf?nome=NOME
-  → Gera PDF da memória de cálculo
+detalhe_ws: lista por WS (ws, peso_ws, budget_rec, real_rec, ating_rec,
+  budget_mb_pct, real_mb_pct, ating_mb, mb_gate, aplica_gate_mb,
+  meta_lb_ws, trigger_lb_ws, real_lb_financeiro, real_lb_gate, lb_gate_ws,
+  bonus_rec, bonus_mb, bonus_ws, clientes_ws)
+clientes_detalhe: lista por cliente
 
 ================================================================================
 FRONTEND — VistaMasterTab.tsx
@@ -332,183 +298,284 @@ FRONTEND — VistaMasterTab.tsx
 
 COMPONENTES PRINCIPAIS
 -----------------------
-VistaMasterTab      → componente principal, tabela com todos os avaliados
-DetalheDrawer       → container do drawer Q4
-DetalheDrawerQ3     → container do drawer Q3 (apenas AE_GM)
+VistaMasterTab      → tabela com todos os avaliados
 DetalheAE           → detalhe de bônus AE/AE_GM (reutilizado Q3 e Q4 via periodoLabel prop)
 DetalheDir          → detalhe de bônus Diretor
-ResultadoBox        → caixa de resultado (bônus total) — aceita prop periodo
+ResultadoBox        → caixa de resultado (bônus total)
 MetaRealRow         → linha de meta/realizado com barra visual
 
-LÓGICA DO DRAWER
-----------------
-- Clicar no nome de uma pessoa abre o drawer
-- Para AE_GM: busca Q4 E Q3 em paralelo
-- Painel Q3 aparece ACIMA do Q4 no drawer (somente se posicao === "AE_GM")
-- Header do drawer mostra "Bônus Q3: R$X" e "Bônus Q4: R$Y" para AE_GM
+LÓGICA DE CORES NAS TABELAS DE WS
+-----------------------------------
+Para receita realizada e LB realizado na tabela de WS por período:
+  >= meta          → verde (#52c41a)
+  >= meta * triggerRec → laranja (#faad14)  ← entre trigger e meta = atingimento parcial
+  < trigger        → vermelho (#ff4d4f)
 
-RECALCULO LOCAL (FRONTEND)
----------------------------
-O frontend recalcula alguns bônus localmente para exibir na tabela de WS.
-Aplica lb_gate_ws ao recalcular:
-  const lbGate = w.lb_gate_ws ?? 1;
-  const bRec = sal * pRec * w.peso_ws * (w.ating_rec ?? 0) * lbGate;
+triggerRec = d.trigger_rec ?? 0.85 (vem do backend)
+
+ATENÇÃO: antes desta correção (2026-03-31) o lb_real mostrava laranja para
+qualquer valor > 0, mesmo abaixo do trigger. Corrigido em VistaMasterTab.tsx.
+
+CÁLCULO LOCAL DO BÔNUS POR WS (seção "Cálculo do Bônus por WS")
+-----------------------------------------------------------------
+  const lbGate = (w as any).lb_gate_ws ?? 1;
+  const bRec = sal * pRec * w.peso_ws * (w.ating_rec ?? 0);
+    ← ATENÇÃO: lb_gate_ws NÃO entra no bRec (corrigido em 2026-03-31)
   const gate = w.aplica_gate_mb ? (w.mb_gate ?? 1) : 1;
   const bMb  = sal * pMb  * w.peso_ws * (w.ating_mb ?? 0) * gate * lbGate;
-
-ÍCONES
-------
-Todos os ícones do dashboard usam @ant-design/icons (sem emojis).
-Dashboard.tsx importa: UserOutlined, BankOutlined, AimOutlined, LineChartOutlined,
-FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined,
-HeatMapOutlined, SlidersOutlined, ArrowLeftOutlined, LogoutOutlined, HomeOutlined.
-Header usa o logo da FCamara: <img src="/logo-fcamara.png" />.
+    ← lb_gate_ws entra apenas no bMb
 
 ================================================================================
-VALORES ATUAIS Q4 (referência, estado em 2026-03-26)
+VALORES Q4 FABIO BERTI (referência 2026-03-31)
 ================================================================================
 
-AE_GM (Grupo Mult):
-  Edmilson:              bônus R$ 5.470,91  | sal R$ 36.000
-  Guilherme:             bônus R$ 22.590,94 | sal R$ 36.000
-  DANILO DE SOUZA MACIEIRA: bônus R$ 3.191,36 | sal R$ 21.000
+FABIO LUIS BERTI BARCELOS — AE Multisector
+  salario_q4: R$ 15.690,17
+  bonus_total: R$ 7.719,56
 
-AE outros:
-  MIRELLA ANDRADE ARAUJO:          bônus R$ 0       | sal R$ 20.940
-  JOSE EDUARDO DOS SANTOS GARCIA:  bônus R$ 942,91  | sal R$ 18.132
-  FABIO LUIS BERTI BARCELOS:       bônus R$ 0       | sal R$ 15.690
-  VINICIUS TEDESCO GANDRA MARTINS: bônus R$ 405,77  | sal R$ 11.271
-  Nicolly Brasil:                  bônus R$ 0       | sal R$ 13.012
+  WS detalhe:
+  CLOUD  | budget=540.780 | real=449.533 | ating_rec=0,0    (abaixo trigger 459.663)
+  APPS   | budget=2.770.702 | real=2.832.710 | ating_rec=1,0 → bonus_rec=R$6.778
+  DADOS  | budget=270.000 | real=533.529 | ating_rec=1,0   → bonus_rec=R$941
+  HYPER  | budget=375.000 | real=0       | ating_rec=0,0
+  DEMAIS | peso_ws=0 → sem bônus
 
-================================================================================
-VALORES HARDCODED / SIMPLIFICAÇÕES — IMPORTANTE PARA MANUTENÇÃO
-================================================================================
-
-Os itens abaixo estão hardcoded no engine e precisarão de atenção quando
-os dados reais estiverem disponíveis:
-
-1. real_tcv_q3_ae = 0.0  (linha em calc_bonus_ae_q3, após bloco "if peso_tcv > 0")
-   MOTIVO: parametros.xlsx/realizados_manual só tem TCV Q4 (tipo="TCV_Q4").
-   Não existe dado de TCV realizado Q3 ainda.
-   QUANDO TIVER DADO: adicionar linhas tipo="TCV_Q3" em realizados_manual e atualizar
-   essa linha para: real_tcv_q3_ae = float(d["tcv_real_q3"].get("Grupo Mult", 0.0))
-
-2. Benchmark Apps = 35% (fallback)  (linha: marg_q4.at[_idx, "margem_pct"] = 0.35)
-   MOTIVO: quando um projeto Apps não tem custo_rateado no SAP e não tem dados
-   de margem_pessoas para aquele PEP+período, usa 35% de MB% como fallback.
-   NÃO MUDA com os dados Q3 — é um fallback de segurança, não um dado faltante.
-
-3. Override OpenX = 45% MB  (linhas com "openx_mask" em _load_all e _load_q3_realized)
-   MOTIVO: projetos com no_hierarquia="OPENX" usam MB% fixo de 45% independente
-   do SAP. Decisão de negócio, não um dado faltante.
-
-4. _trigger_ratio para Q3 usa mesma tabela anual de parametros.xlsx/lb_trigger
-   MOTIVO: essa tabela só tem valores anuais (meta_lb, trigger_lb). O ratio
-   trigger/meta (~85%) é aplicado proporcionalmente ao budget Q3 de cada WS.
-   Se as metas anuais mudarem para Q3, atualizar a aba lb_trigger.
-
-5. WS_MB_BENCHMARK_Q4 usado também no Q3  (em _load_q3_realized e calc_bonus_ae_q3)
-   MOTIVO: os benchmarks de MB% por WS (cloud=34%, dados=35%, etc.) são os mesmos
-   para Q3 e Q4 por decisão de negócio. Se mudarem para Q3, criar WS_MB_BENCHMARK_Q3.
+  Clientes Multisector do Fabio com receita Q4:
+    KLABIN: R$1.323.724 | SADA: R$1.008.364 | Compass: R$988.049
+    IPSOS: R$857.365 | INTELIPOST: R$843.280 | AMBIPAR: R$629.919
+    BAUDUCCO: R$418.914 | DEXCO: R$398.345 | TOLEDO: R$329.982
+    Rimini Street: R$298.689 | ESTAPAR: R$278.811 | Honda: R$107.630
+    Falconi: R$85.040 | SortenaBet: R$128.449 | ...
 
 ================================================================================
-COMO ADICIONAR DADOS SAP Q3 (passo a passo)
+EXPORTS DISPONÍVEIS (scripts locais — não vão para produção)
 ================================================================================
 
-Quando o usuário fornecer os dados SAP Q3, o agente deve:
+backend/exportar_apuracao_q4.py
+  → Gera apuracao_q4_exportado.xlsx
+  → Colunas: Nome, Posicao, WS, Categoria, Valor_Q4
+  → Contém bônus breakdown por pessoa/WS/categoria
+  → Rodar: cd backend && py exportar_apuracao_q4.py
 
-PASSO 1 — operacional.xlsx / projetos
-  Adicionar linhas com periodo="2025-07", "2025-08" ou "2025-09".
-  Colunas obrigatórias:
-    periodo, pep, nome_cliente, empresa, centro_lucro, no_hierarquia,
-    categoria_bu, receita, custo_rateado, horas, tipos
-  categoria_bu deve usar os valores: Apps, Cloud, Cyber, Dados, Hyper, Demais
-  (o engine normaliza para minúsculas internamente via _norm_ws())
-  OBS: pode usar criar_arquivos_consolidados.py se os CSVs brutos estiverem disponíveis.
+backend/exportar_grupo_mult_q4.py
+  → Gera grupo_mult_q4.xlsx
+  → Sheet1: Projetos_Receita_Custo (projetos Q4 do vertical Grupo Mult)
+  → Sheet2: Pessoas_por_PEP (pessoas alocadas nos PEPs)
+  → Filtra clientes com bu="Grupo Mult" em parametros.xlsx/clientes
 
-PASSO 2 — operacional.xlsx / projetos (RAC)
-  As linhas com RAC devem ter o campo "tipos" preenchido (ex: "MapaReceita").
-  O engine explode o campo tipos e usa valor_liquido como receita RAC.
+backend/exportar_multisector_q4.py
+  → Gera multisector_q4.xlsx (mesmo formato do grupo_mult)
+  → Filtra clientes com bu="Multisector"
+  → Expande aliases pipe-separated do campo nome_base
+  → Rodar: cd backend && py exportar_multisector_q4.py
 
-PASSO 3 — parametros.xlsx / realizados_manual (TCV Q3, se disponível)
-  Adicionar linhas com tipo="TCV_Q3", ae_ou_vertical=vertical, receita=valor.
-  Depois atualizar a linha hardcoded em calc_bonus_ae_q3():
-    Trocar: real_tcv_q3_ae = 0.0
-    Por:    real_tcv_q3_ae = float(d["tcv_real_q3"].get("Grupo Mult", 0.0))
-
-PASSO 4 — Invalidar cache do engine (se servidor estiver rodando)
-  O engine usa @lru_cache. Em produção no Render, o deploy automático reinicia
-  o processo e limpa o cache. Em desenvolvimento local, reiniciar o servidor.
-
-NÃO é necessário mexer em código para os passos 1 e 2 — o engine lê
-automaticamente qualquer linha com periodo nos Q3_PERIODOS.
+backend/check_verticals.py
+  → Compara lista externa de PEP→vertical contra o que está na base
+  → Mostra divergências e PEPs sem registro
 
 ================================================================================
-TAREFAS PENDENTES / POSSÍVEIS PRÓXIMOS PASSOS
+ENDPOINTS API (main.py)
 ================================================================================
 
-1. DADOS SAP Q3 (main pendente):
-   Usuário vai fornecer arquivo com dados SAP Q3. Seguir passo a passo acima.
-   Estrutura esperada: igual às abas de operacional.xlsx/projetos atuais,
-   com periodo = "2025-07", "2025-08" ou "2025-09".
+GET /api/apuracao/pessoas
+GET /api/apuracao/calcular?nome=NOME          ← Q4
+GET /api/apuracao/calcular-q3?nome=NOME       ← Q3 (só AE_GM)
+GET /api/apuracao/visao-master
+GET /api/apuracao/bonus-anual/{nome}
+GET /api/apuracao/pdf?nome=NOME
 
-2. TCV REALIZADO Q3 (hardcoded como 0.0):
-   Ver seção "VALORES HARDCODED" acima. Quando o usuário fornecer o número,
-   adicionar em parametros.xlsx/realizados_manual e atualizar linha hardcoded.
-
-3. BÔNUS ANUAL (Q1 a Q4):
-   Existe endpoint /api/apuracao/bonus-anual/{nome} mas não foi validado
-   recentemente para AE_GM.
+GET /api/nova-base/filters                    ← listas de períodos, empresas, fontes, macro_areas
+GET /api/nova-base/resumo?...                 ← dados agrupados (NovaBaseResumoTab)
+GET /api/nova-base/data?...                   ← tabela detalhada linha a linha
+GET /api/nova-base/dre?periodos=&empresas=&fontes=&macro_areas=  ← DRE PLTable com breakdown por Macro Área
 
 ================================================================================
-BUGS RESOLVIDOS RECENTEMENTE (histórico para evitar regressão)
+FINANCEIRO 2026 — NOVA BASE (base_2026.csv)
 ================================================================================
 
-- BMG aparecia 3 vezes (2 em branco) na aba Clientes:
-  CAUSA: clientes tinha 3 linhas para BMG — 1 principal + 2 aliases (GRUPO BMG/Grupo BMG).
-  Após projetos.csv migrar para "BANCO BMG S.A.", os aliases ficaram sem correspondência.
-  FIX: removidas as 2 linhas alias obsoletas. Se BMG voltar em branco, verificar
-  se projetos voltou a usar "GRUPO BMG" como nome_cliente (commit 1a04e81).
+ARQUIVO DE DADOS
+----------------
+backend/base_2026.csv  — ~5MB, 13.456 linhas × 63 colunas
+  Convertido do xlsx original para CSV (leitura: ~0.2s vs ~5s do xlsx)
+  Colunas principais: periodo (YYYY-MM), empresa, fonte, macro_area,
+                      receita, custo_rateado, valor_liquido
 
-- Aliases de cliente geravam linhas duplicadas em branco na aba Clientes:
-  CAUSA: cada alias era uma linha separada em clientes.csv.
-  FIX: campo nome_base com múltiplos aliases separados por | em uma única linha.
-  O backend agrega receita de todos os aliases no mesmo cliente canônico (commit 1b5ec38).
+CARREGAMENTO NO BACKEND
+-----------------------
+- _get_nova_base() em main.py usa _cache["nova_base"] + _nova_base_lock (threading.Lock)
+  para evitar carregamentos concorrentes no cold start do Render
+- Pré-carregada em _preload_all() no startup do FastAPI
+- Prefere CSV, fallback para xlsx se CSV não existir
 
-- Nicolly: R$312 bonus_mb Demais inesperado:
-  CAUSA: lb_gate_ws não aplicado no recalculo local do frontend
-  FIX: aplicar lb_gate_ws no recalculo local
+REGRA CRÍTICA — _sanitize() OBRIGATÓRIO
+-----------------------------------------
+Todo endpoint /api/nova-base/* que faz cálculos (divisões, médias etc.) DEVE
+chamar _sanitize(resultado) antes do return. Sem isso, NaN produzido por
+divisões (ex: valor_liquido/receita quando receita=0) quebra a serialização JSON
+e o endpoint retorna 500. O frontend (apiFetch) não exibe esse erro — a aba
+simplesmente não carrega sem mensagem. Todos os endpoints já usam _sanitize().
 
-- José Eduardo R$5.077 bonus apps: OURIBANK tinha LB realizado sem budget apps
-  FIX: realized_lb_gate_ws só acumula clientes com bgt_lb > 0 naquela WS
+FRONT-END — COMPONENTES
+------------------------
+src/pages/NovaBaseResumoTab.tsx
+  → NovaBaseResumoTab (default export) — usada nas abas P&L por Fonte, Base Detalhada
+  → NovaDreTab (named export) — aba "DRE por Empresa"
 
-- José Eduardo R$580 bonus hyper: bgt_lb=0 → trigger=0 → gate passa → ating_mb=1.0 fallback
-  FIX: elif bgt_lb_ == 0: ating_mb = 0.0
+src/pages/Dashboard.tsx
+  → monta NovaDreTab como <NovaDreTab /> na aba "DRE por Empresa"
+  → CSS .group-row: background #eef2ff, bold, border-top #c7d2fe
 
-- José Eduardo Demais: R$290,12 correto (40%×6%×66.7%×18.132,80)
-  FIX: adicionar OURIBANK Demais q4=93.480 em budget_lb (agora em parametros.xlsx/budget)
+PADRÃO DE CARREGAMENTO (NovaDreTab)
+-------------------------------------
+Sequencial: getNovaBaseFilters() → então getNovaBaseDre({})
+NUNCA paralelizar com Promise.all — causa race condition (bug confirmado)
 
-- Fabio: Honda/RiminiStreet/Waycarbon/Bauducco/SortenaBet/Falconi faltando
-  FIX: adicionados em budget/ws=Demais/q4=0 e em clientes
+FEATURE DRE POR EMPRESA (implementada 2026-04-02)
+---------------------------------------------------
+Endpoint GET /api/nova-base/dre retorna PLTable-format:
+  {"rows": [...], "columns": ["2025-10", "2025-11", ..., "Total"]}
+
+Estrutura das linhas:
+  Receita           (is_subtotal: true)
+  Custo
+  Gross Profit      (is_subtotal: true)
+  Gross Margin %    (is_subtotal: true, is_pct: true)
+  [por cada Macro Área:]
+    <Nome da Área>  (is_group: true  → header sem valores)
+    "  Receita"
+    "  Custo"
+    "  Gross Profit"   (is_subtotal: true)
+    "  Gross Margin %"  (is_subtotal: true, is_pct: true)
+
+PLTable (src/components/PLTable.tsx) foi estendida com is_group?: boolean.
+Linhas de grupo: itálico, cor destaque, classe CSS group-row, sem valores.
+
+================================================================================
+BUGS RESOLVIDOS NESTA SESSÃO (2026-03-31)
+================================================================================
+
+1. ESTAPAR não normalizava em apuracao_engine (R$23k em vez de R$278k):
+   CAUSA: nome_base pipe-separated era tratado como chave única.
+   FIX: split por "|" no loop _alias_pre e no loop principal do engine.
+
+2. ESTAPAR aparecia como "Others" em vez de "Multisector":
+   CAUSA: BR07CLP00090 e BR0CLP00143 tinham override "Others" em pep_vertical.
+   FIX: alterados para "Multisector" em parametros.xlsx/pep_vertical.
+
+3. Compass mostrando só R$30k de receita (tinha R$988k real):
+   CAUSA: tipos="" nas linhas principais → rec vinha de rac_by_client_nh = R$30k
+   FIX: real_rec = max(rac_by_client, rec_by_client_nh)
+
+4. Compass budget name mismatch:
+   CAUSA: budget usava "COMPASS GAS E ENERGIA S.A." mas dados normalizados para "compass"
+   FIX: renomeado em budget para "Compass"
+
+5. Honda real_rec = 0 (sem RAC, tipos=""):
+   CAUSA: mesmo problema do Compass, fix pelo max()
+
+6. bonus_total = 0 para todos os AEs:
+   CAUSA: lb_gate_ws estava multiplicado no bonus_rec. Como apps lb_gate=0 (367k vs 955k),
+   o bônus de receita de apps era zerado.
+   FIX: removido lb_gate_ws do bonus_rec. lb_gate_ws só aplica ao bonus_mb.
+   REGRA DE NEGÓCIO: gatilho é por receita de WS, não por LB. LB gate só bloqueia MB bonus.
+
+7. Frontend mostrando zeros no "Cálculo do Bônus por WS":
+   CAUSA: VistaMasterTab recalculava bRec com * lbGate mesmo após fix no backend.
+   FIX: removido * lbGate do cálculo de bRec no frontend.
+
+8. LB realizado laranja quando deveria ser vermelho (ex: R$152.841 Cloud Fabio):
+   CAUSA: lógica de cor usava "v > 0 → laranja" sem checar trigger.
+   FIX: cor agora usa v >= lb_meta * triggerRec → laranja, v < trigger → vermelho.
+   Corrigido nas tabelas de WS Q4 e Q3.
+
+================================================================================
+BUGS RESOLVIDOS EM SESSÕES ANTERIORES
+================================================================================
+
+- BMG aparecia 3 vezes (2 em branco) na aba Clientes
+- Aliases geravam linhas duplicadas em branco
+- Nicolly: R$312 bonus_mb Demais inesperado → lb_gate_ws não aplicado no frontend
+- José Eduardo R$5.077 bonus apps: OURIBANK sem budget apps → realized_lb_gate_ws fix
+- José Eduardo R$580 bonus hyper: bgt_lb=0 → trigger=0 → gate → ating_mb=1.0 fallback
+- Fabio: Honda/RiminiStreet/Waycarbon/Bauducco/SortenaBet/Falconi faltando no budget
+
+================================================================================
+BUGS RESOLVIDOS EM SESSÃO 2026-04-02 (Nova Base / DRE)
+================================================================================
+
+1. DRE por Empresa não carregava (sem dados, sem mensagem de erro):
+   CAUSA: endpoint /api/nova-base/dre retornava {"rows":..., "columns":...} sem
+   chamar _sanitize(). Divisões valor_liquido/receita produziam NaN quando
+   receita=0. Python json.dumps falha com NaN → FastAPI retorna 500 silencioso.
+   FIX: return _sanitize({"rows": rows, "columns": columns}) — commit aaafef8
+
+2. Cold start com carregamentos concorrentes travando a nova base:
+   CAUSA: dois requests chegavam ao mesmo tempo no cold start, ambos tentavam
+   ler o xlsx simultaneamente causando inconsistência no cache.
+   FIX: threading.Lock (_nova_base_lock) + double-check locking em _get_nova_base()
+
+3. Performance: nova base demorava ~5s para carregar:
+   CAUSA: pd.read_excel em arquivo .xlsx de 5.4MB
+   FIX: convertido para base_2026.csv (pd.read_csv → ~0.2s) + preload no startup
+
+================================================================================
+VALORES HARDCODED / SIMPLIFICAÇÕES
+================================================================================
+
+1. real_tcv_q3_ae = 0.0 em calc_bonus_ae_q3 — TCV Q3 não disponível ainda
+2. Benchmark Apps = 35% (fallback para projetos sem custo)
+3. Override OpenX = 45% MB (no_hierarquia="OPENX" → MB% fixo)
+4. WS_MB_BENCHMARK_Q4 usado também no Q3
 
 ================================================================================
 COMANDOS ÚTEIS
 ================================================================================
 
 # Testar engine:
-C:/Users/amanda.paula/AppData/Local/Python/pythoncore-3.14-64/python.exe -c "
-import sys, os
-sys.path.insert(0, 'C:/Users/amanda.paula/worker-dashboard/backend')
-os.chdir('C:/Users/amanda.paula/worker-dashboard/backend')
-from apuracao_engine import calc_bonus_ae
-r = calc_bonus_ae('NOME COMPLETO')
-print(r)
-"
+cd C:/Users/amanda.paula/worker-dashboard/backend
+py -c "from apuracao_engine import calc_bonus_ae; import json; r=calc_bonus_ae('NOME'); print(r['bonus_total'])"
+
+# Exports:
+cd C:/Users/amanda.paula/worker-dashboard/backend
+py exportar_apuracao_q4.py
+py exportar_grupo_mult_q4.py
+py exportar_multisector_q4.py
 
 # TypeScript check:
 cd C:/Users/amanda.paula/worker-dashboard && npx tsc --noEmit
 
-# Deploy:
-cd C:/Users/amanda.paula/worker-dashboard && git add -p && git commit -m "msg" && git push origin master
+# Deploy frontend — FLUXO OBRIGATÓRIO (nessa ordem):
+# 1. Bump REACT_APP_VERSION em .env E .env.production (formato YYYY.MM.DD-N, ex: 2026.04.02-1)
+#    ATENÇÃO: é o REACT_APP_VERSION nesses dois arquivos, NÃO o version do package.json
+#    Esse valor aparece no header do dashboard. Sem bump → versão desatualizada exibida.
+# 2. npm run build   (buildCommand está vazio no vercel.json — Vercel serve o build/ existente)
+# 3. npx vercel --prod
+# Indicativo de sucesso: upload ~10MB (com assets compilados), não ~150KB (só configs)
+cd C:/Users/amanda.paula/worker-dashboard && npm run build && npx vercel --prod
+
+# Versão atual do frontend: 2026.04.02-6
+
+# Backend deploy: push para master = deploy automático no Render
+# URL backend: https://worker-dashboard-api.onrender.com
+# Render free tier: spins down após inatividade → cold start ~30-60s no primeiro request
+
+================================================================================
+TAREFAS PENDENTES
+================================================================================
+
+1. DADOS SAP Q3 (main pendente):
+   Quando o usuário fornecer, adicionar em operacional.xlsx/projetos com
+   periodo = "2025-07", "2025-08" ou "2025-09".
+
+2. TCV REALIZADO Q3 (hardcoded como 0.0):
+   Quando disponível: adicionar em parametros.xlsx/realizados_manual tipo="TCV_Q3"
+   e atualizar linha hardcoded em calc_bonus_ae_q3().
+
+3. DIVERGÊNCIAS DE VERTICAL A RESOLVER (lista do usuário vs sistema):
+   BR02CLP000141 (usuário: Multisector, sistema: Health) — decidir qual está correto
+   BR08CLP00042 (usuário: Others, sistema: Retail)
+   BR02CLP00163 (usuário: Finance & Insurance, sistema: Others/INNOVATION)
+   BR07CLP00165 (sem registro na base)
+   ~22 PEPs "Logistics" → sistema usa Grupo Mult (não há vertical Logistics)
 
 ================================================================================
