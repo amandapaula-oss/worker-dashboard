@@ -1496,15 +1496,29 @@ def _get_nova_base() -> pd.DataFrame:
     with _nova_base_lock:                          # apenas uma thread carrega por vez
         if _cache["nova_base"] is not None:        # double-check após adquirir o lock
             return _cache["nova_base"]
-        path = os.path.join(_BASE_DIR, "base_2026.xlsx")
-        if not os.path.exists(path):
-            path = os.path.join(_BASE_DIR, "..", "base_2026.xlsx")
-        print(f"[nova_base] loading from: {path} (exists={os.path.exists(path)})")
-        df = pd.read_excel(path, sheet_name="base", dtype=str)
-        for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
-                    "taxa_hora", "hour_price", "gross_revenue"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        # Prefere parquet (7x mais rápido); fallback para xlsx
+        parquet_path = os.path.join(_BASE_DIR, "base_2026.parquet")
+        xlsx_path    = os.path.join(_BASE_DIR, "base_2026.xlsx")
+        if not os.path.exists(parquet_path):
+            parquet_path = os.path.join(_BASE_DIR, "..", "base_2026.parquet")
+        if not os.path.exists(xlsx_path):
+            xlsx_path    = os.path.join(_BASE_DIR, "..", "base_2026.xlsx")
+
+        if os.path.exists(parquet_path):
+            print(f"[nova_base] loading parquet: {parquet_path}")
+            df = pd.read_parquet(parquet_path)
+            # garante tipos numéricos (parquet preserva, mas por segurança)
+            for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
+                        "taxa_hora", "hour_price", "gross_revenue"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+        else:
+            print(f"[nova_base] parquet não encontrado, lendo xlsx: {xlsx_path}")
+            df = pd.read_excel(xlsx_path, sheet_name="base", dtype=str)
+            for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
+                        "taxa_hora", "hour_price", "gross_revenue"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
