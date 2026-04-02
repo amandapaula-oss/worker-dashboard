@@ -169,9 +169,14 @@ export default function Dashboard() {
               <Text type="secondary" style={{ fontSize: "0.8rem" }}>Visualização gerencial de resultados financeiros</Text>
             </div>
           </div>
-          <Button icon={<LogoutOutlined />} onClick={logout} type="text" style={{ color: "#6b7fa3" }}>
-            Sair
-          </Button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: "0.7rem", color: "#b0bac9", fontFamily: "monospace", background: "#f4f6fb", padding: "2px 8px", borderRadius: 4, border: "1px solid #dde3f0" }}>
+              v{process.env.REACT_APP_VERSION ?? "dev"}
+            </span>
+            <Button icon={<LogoutOutlined />} onClick={logout} type="text" style={{ color: "#6b7fa3" }}>
+              Sair
+            </Button>
+          </div>
         </Header>
 
         <Content style={{ padding: "1.5rem 2rem" }}>
