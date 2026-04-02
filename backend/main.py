@@ -1485,10 +1485,10 @@ _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def _get_nova_base() -> pd.DataFrame:
     if _cache["nova_base"] is None:
-        # Try next to main.py first, then project root
         path = os.path.join(_BASE_DIR, "base_2026.xlsx")
         if not os.path.exists(path):
             path = os.path.join(_BASE_DIR, "..", "base_2026.xlsx")
+        print(f"[nova_base] loading from: {path} (exists={os.path.exists(path)})")
         df = pd.read_excel(path, sheet_name="base", dtype=str)
         for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
                     "taxa_hora", "hour_price", "gross_revenue"]:

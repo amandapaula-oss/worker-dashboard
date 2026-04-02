@@ -33,6 +33,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   const [selFontes, setSelFontes]       = useState<string[]>([]);
   const [rawData, setRawData]           = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState<string | null>(null);
   const [filtersReady, setFiltersReady] = useState(false);
   const [showFilters, setShowFilters]   = useState(false);
   const initialLoad = useRef(true);
@@ -56,7 +57,9 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   };
 
   useEffect(() => {
-    getNovaBaseFilters().then(f => { setFilters(f); setFiltersReady(true); });
+    getNovaBaseFilters()
+      .then(f => { setFilters(f); setFiltersReady(true); })
+      .catch(e => { setError(String(e)); setLoading(false); });
   }, []);
 
   const load = useCallback(() => {
@@ -66,7 +69,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selFontes.length)   params.fontes   = selFontes.join(",");
     getNovaBaseResumo(params)
-      .then(r => { setRawData(r); initialLoad.current = false; })
+      .then(r => { setRawData(r); initialLoad.current = false; setError(null); })
+      .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, [selPeriodos, selEmpresas, selFontes, agruparPor]);
 
@@ -231,7 +235,11 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         ))}
       </div>
 
-      {loading ? <TableSkeleton rows={8} /> : (
+      {loading ? <TableSkeleton rows={8} /> : error ? (
+        <div style={{ background: "#fff1f0", border: "1px solid #ffa39e", borderRadius: 8, padding: "1rem 1.2rem", color: "#cf1322" }}>
+          <strong>Erro ao carregar dados:</strong> {error}
+        </div>
+      ) : (
         <Table
           dataSource={tableData}
           columns={columnsDef}
