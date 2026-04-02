@@ -42,13 +42,13 @@ export default function NovaBaseTab() {
   const [total, setTotal]                   = useState(0);
   const [truncated, setTruncated]           = useState(false);
   const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState<string | null>(null);
   const [filtersReady, setFiltersReady]     = useState(false);
 
   useEffect(() => {
-    getNovaBaseFilters().then(f => {
-      setFilters(f);
-      setFiltersReady(true);
-    });
+    getNovaBaseFilters()
+      .then(f => { setFilters(f); setFiltersReady(true); })
+      .catch(e => { setError(String(e)); setLoading(false); });
   }, []);
 
   const load = useCallback(() => {
@@ -152,7 +152,11 @@ export default function NovaBaseTab() {
         </Space>
       </div>
 
-      {loading ? <TableSkeleton rows={10} /> : (
+      {loading ? <TableSkeleton rows={10} /> : error ? (
+        <div style={{ background: "#fff1f0", border: "1px solid #ffa39e", borderRadius: 8, padding: "1rem 1.2rem", color: "#cf1322" }}>
+          <strong>Erro ao carregar dados:</strong> {error}
+        </div>
+      ) : (
         <Table
           dataSource={rows}
           columns={columns}
