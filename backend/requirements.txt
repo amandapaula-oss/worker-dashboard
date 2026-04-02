@@ -7,4 +7,3 @@ python-jose[cryptography]
 bcrypt
 python-multipart
 reportlab
-pyarrow

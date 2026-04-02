@@ -1497,28 +1497,27 @@ def _get_nova_base() -> pd.DataFrame:
         if _cache["nova_base"] is not None:        # double-check após adquirir o lock
             return _cache["nova_base"]
         # Prefere parquet (7x mais rápido); fallback para xlsx
-        parquet_path = os.path.join(_BASE_DIR, "base_2026.parquet")
-        xlsx_path    = os.path.join(_BASE_DIR, "base_2026.xlsx")
-        if not os.path.exists(parquet_path):
-            parquet_path = os.path.join(_BASE_DIR, "..", "base_2026.parquet")
+        xlsx_path = os.path.join(_BASE_DIR, "base_2026.xlsx")
         if not os.path.exists(xlsx_path):
-            xlsx_path    = os.path.join(_BASE_DIR, "..", "base_2026.xlsx")
+            xlsx_path = os.path.join(_BASE_DIR, "..", "base_2026.xlsx")
 
-        if os.path.exists(parquet_path):
-            print(f"[nova_base] loading parquet: {parquet_path}")
-            df = pd.read_parquet(parquet_path)
-            # garante tipos numéricos (parquet preserva, mas por segurança)
-            for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
-                        "taxa_hora", "hour_price", "gross_revenue"]:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-        else:
-            print(f"[nova_base] parquet não encontrado, lendo xlsx: {xlsx_path}")
+        csv_path = os.path.join(_BASE_DIR, "base_2026.csv")
+        if not os.path.exists(csv_path):
+            csv_path = os.path.join(_BASE_DIR, "..", "base_2026.csv")
+
+        if os.path.exists(csv_path):
+            print(f"[nova_base] loading csv: {csv_path}")
+            df = pd.read_csv(csv_path, dtype=str)
+        elif os.path.exists(xlsx_path):
+            print(f"[nova_base] csv não encontrado, lendo xlsx: {xlsx_path}")
             df = pd.read_excel(xlsx_path, sheet_name="base", dtype=str)
-            for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
-                        "taxa_hora", "hour_price", "gross_revenue"]:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
+        else:
+            raise FileNotFoundError(f"base_2026.csv / .xlsx não encontrado em {_BASE_DIR}")
+
+        for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
+                    "taxa_hora", "hour_price", "gross_revenue"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
