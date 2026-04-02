@@ -366,8 +366,7 @@ def _load_all():
     # Usa projetos bruto (_proj) antes da substituição RAC para evitar dupla-contagem
     # em PEPs com múltiplos tipos (ex: "Fee,WIP" seria somado duas vezes no rac_q4).
     _pv_raw = _proj[
-        _proj["periodo"].astype(str).str.strip().isin(Q4_PERIODOS) &
-        ~_proj["empresa"].isin(_EXCL_MARG)
+        _proj["periodo"].astype(str).str.strip().isin(Q4_PERIODOS)
     ].copy()
     _pv_raw["pep_base"] = _pv_raw["pep"].astype(str).str.split(".").str[0].str.strip()
     _pv_raw["nome_norm"] = _pv_raw["nome_cliente"].astype(str).str.strip().apply(norm)
