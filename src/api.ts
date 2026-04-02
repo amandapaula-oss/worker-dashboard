@@ -207,6 +207,20 @@ export async function getClientes(params: Record<string, string> = {}) {
   return apiFetch(`/api/clientes${buildQuery(params)}`);
 }
 
+// ── Nova Base 2026 ────────────────────────────────────────────────────────────
+
+export async function getNovaBaseFilters() {
+  return apiFetch("/api/nova-base/filters");
+}
+
+export async function getNovaBaseData(params: Record<string, string> = {}) {
+  return apiFetch(`/api/nova-base/data${buildQuery(params)}`);
+}
+
+export async function getNovaBaseResumo(params: Record<string, string> = {}) {
+  return apiFetch(`/api/nova-base/resumo${buildQuery(params)}`);
+}
+
 export async function updateClienteAe(nome_cliente: string, ae: string) {
   return apiFetch("/api/clientes/ae", {
     method: "POST",

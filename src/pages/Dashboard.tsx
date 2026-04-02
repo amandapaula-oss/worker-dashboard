@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Card, Switch } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, BarChartOutlined, AimOutlined, LineChartOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, TableOutlined, SlidersOutlined, UserOutlined } from "@ant-design/icons";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, BarChartOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, TableOutlined, SlidersOutlined, UserOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
@@ -15,6 +15,8 @@ import CheckLucasTab from "./CheckLucasTab";
 import VistaMasterTab, { VistaMasterTabQ3 } from "./VistaMasterTab";
 import ResumoTab from "./ResumoTab";
 import ClientesTab from "./ClientesTab";
+import NovaBaseTab from "./NovaBaseTab";
+import NovaBaseResumoTab from "./NovaBaseResumoTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -147,7 +149,7 @@ function WorkerTab() {
   );
 }
 
-type Section = "worker" | "cockpit" | "metas" | "pl" | null;
+type Section = "worker" | "cockpit" | "metas" | "nova_base" | null;
 
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
@@ -177,9 +179,9 @@ export default function Dashboard() {
             <div style={{ display: "flex", gap: 24, justifyContent: "center", alignItems: "stretch", minHeight: "60vh", flexWrap: "wrap" }}>
               {([
                 { key: "worker",  icon: <UserOutlined />,      title: "Worker",            desc: "Receitas e custos por colaborador",              sub: "Base Worker" },
-                { key: "cockpit", icon: <BankOutlined />,       title: "Financeiro",        desc: "DRE, P&L por Stream e Matricial",               sub: "SAP S4 · Nexus" },
+                { key: "cockpit",    icon: <BankOutlined />,       title: "Financeiro",          desc: "DRE, P&L por Stream e Matricial",               sub: "SAP S4 · Nexus" },
+                { key: "nova_base",  icon: <DatabaseOutlined />,   title: "Financeiro - Nova Base", desc: "Base unificada 2026 com todas as fontes",      sub: "Nova Base · 2026" },
                 { key: "metas",   icon: <AimOutlined />,        title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3",     sub: "Margem · Clientes · Check" },
-                { key: "pl",      icon: <LineChartOutlined />,  title: "P&L",               desc: "Resumo financeiro por empresa e cliente",       sub: "Margem · Resumo" },
               ] as const).map(({ key, icon, title, desc, sub }) => (
                 <div
                   key={key}
@@ -240,14 +242,16 @@ export default function Dashboard() {
             </>
           )}
 
-          {section === "pl" && (
+          {section === "nova_base" && (
             <Tabs
-              defaultActiveKey="resumo"
+              defaultActiveKey="empresa"
               type="card"
               size="large"
               items={[
-                { key: "resumo", label: <span><FileTextOutlined /> Resumo por Empresa</span>, children: <ResumoTab /> },
-                { key: "margem", label: <span><FundOutlined /> Margem por Cliente</span>,   children: <MargemTab /> },
+                { key: "empresa",   label: <span><BankOutlined /> DRE por Empresa</span>,   children: <NovaBaseResumoTab agruparPor="empresa" /> },
+                { key: "fonte",     label: <span><HeatMapOutlined /> P&L por Fonte</span>,  children: <NovaBaseResumoTab agruparPor="fonte" /> },
+                { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
+                { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>, children: <NovaBaseTab /> },
               ]}
             />
           )}

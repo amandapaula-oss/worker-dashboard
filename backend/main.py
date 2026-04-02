@@ -74,7 +74,7 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 
 # ── Cache em memória ───────────────────────────────────────────────────────────
 
-_cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None, "clt": None, "financeiro": None}
+_cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None, "clt": None, "financeiro": None, "nova_base": None}
 _ready: dict = {"sap": False, "nexus": False}
 
 CLT_FOLDER_ID = "1aEHQAARXkf_BZbc5j0Z8Tt0s5Fmk6tSu"
@@ -1478,3 +1478,122 @@ def get_exportar_xlsx(user=Depends(get_current_user)):
     except Exception as e:
         import traceback
         raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")
+
+# ── Nova Base 2026 ─────────────────────────────────────────────────────────────
+
+def _get_nova_base() -> pd.DataFrame:
+    if _cache["nova_base"] is None:
+        df = pd.read_excel("base_2026.xlsx", sheet_name="base", dtype=str)
+        for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
+                    "taxa_hora", "hour_price", "gross_revenue"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        _cache["nova_base"] = df
+    return _cache["nova_base"]
+
+@app.get("/api/nova-base/filters")
+def get_nova_base_filters(user=Depends(get_current_user)):
+    df = _get_nova_base()
+    def uniq(col):
+        return sorted(df[col].dropna().astype(str).str.strip().unique().tolist()) if col in df.columns else []
+    return {
+        "periodos":        uniq("periodo"),
+        "fontes":          uniq("fonte"),
+        "empresas":        uniq("empresa"),
+        "macro_areas":     uniq("macro_area"),
+        "areas":           uniq("area"),
+        "tipos_contrato":  uniq("tipo_contrato"),
+        "classificacoes":  uniq("classificacao"),
+        "verticais":       uniq("vertical"),
+    }
+
+@app.get("/api/nova-base/resumo")
+def get_nova_base_resumo(
+    periodos: str = "",
+    empresas: str = "",
+    fontes: str = "",
+    macro_areas: str = "",
+    tipos_contrato: str = "",
+    classificacoes: str = "",
+    agrupar_por: str = "empresa",
+    user=Depends(get_current_user)
+):
+    df = _get_nova_base().copy()
+
+    def filt(col, param):
+        vals = [v.strip() for v in param.split(",") if v.strip()]
+        if vals and col in df.columns:
+            return df[df[col].astype(str).str.strip().isin(vals)]
+        return df
+
+    if periodos:       df = filt("periodo", periodos)
+    if empresas:       df = filt("empresa", empresas)
+    if fontes:         df = filt("fonte", fontes)
+    if macro_areas:    df = filt("macro_area", macro_areas)
+    if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
+    if classificacoes: df = filt("classificacao", classificacoes)
+
+    group_col = agrupar_por if agrupar_por in df.columns else "empresa"
+    for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    df[group_col] = df[group_col].fillna("(sem grupo)").astype(str).str.strip()
+    df["periodo"]  = df["periodo"].fillna("(sem período)").astype(str).str.strip()
+    df = df[df[group_col].str.strip().ne("") & df["periodo"].str.strip().ne("")]
+
+    agg = df.groupby([group_col, "periodo"], as_index=False).agg(
+        receita       = ("receita",       "sum"),
+        custo_rateado = ("custo_rateado", "sum"),
+        horas         = ("horas",         "sum"),
+        valor_liquido = ("valor_liquido", "sum"),
+    )
+    agg = agg.rename(columns={group_col: "grupo"})
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["receita"] / r["receita"] * 0 if r["receita"] == 0 else None, axis=1
+    )
+    return _sanitize(agg.fillna("").to_dict(orient="records"))
+
+@app.get("/api/nova-base/data")
+def get_nova_base_data(
+    periodos: str = "",
+    fontes: str = "",
+    empresas: str = "",
+    macro_areas: str = "",
+    areas: str = "",
+    tipos_contrato: str = "",
+    classificacoes: str = "",
+    verticais: str = "",
+    user=Depends(get_current_user)
+):
+    df = _get_nova_base().copy()
+
+    def filt(col, param):
+        vals = [v.strip() for v in param.split(",") if v.strip()]
+        if vals and col in df.columns:
+            return df[df[col].astype(str).str.strip().isin(vals)]
+        return df
+
+    if periodos:       df = filt("periodo", periodos)
+    if fontes:         df = filt("fonte", fontes)
+    if empresas:       df = filt("empresa", empresas)
+    if macro_areas:    df = filt("macro_area", macro_areas)
+    if areas:          df = filt("area", areas)
+    if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
+    if classificacoes: df = filt("classificacao", classificacoes)
+    if verticais:      df = filt("vertical", verticais)
+
+    MAX = 5000
+    total = len(df)
+    df = df.head(MAX)
+
+    cols_show = [
+        "fonte", "periodo", "empresa", "pep_base", "nome_pessoa",
+        "nome_cliente", "tipo_contrato", "classificacao", "area",
+        "centro_lucro", "macro_area", "vertical",
+        "receita", "custo_rateado", "horas", "margem",
+        "valor_liquido", "taxa_hora", "billable_category", "Comentarios",
+    ]
+    cols_show = [c for c in cols_show if c in df.columns]
+    return _sanitize({"total": total, "truncated": total > MAX, "rows": df[cols_show].to_dict(orient="records")})
