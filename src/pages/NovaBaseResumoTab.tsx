@@ -289,18 +289,27 @@ export function NovaDreTab() {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const filtersLoaded = useRef(false);
+  const [filtersReady, setFiltersReady] = useState(false);
+  const initialLoad = useRef(true);
 
-  // Carrega filtros e DRE em paralelo no mount
-  useEffect(() => {
+  // Carga inicial: filtros + DRE em paralelo
+  const loadInitial = useCallback(() => {
+    setLoading(true); setError(null);
     Promise.all([getNovaBaseFilters(), getNovaBaseDre({})])
-      .then(([f, d]) => { setFilters(f); setData(d); filtersLoaded.current = true; })
+      .then(([f, d]) => {
+        setFilters(f); setData(d);
+        setFiltersReady(true); initialLoad.current = false;
+      })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const load = useCallback(() => {
-    if (!filtersLoaded.current) return;
+  useEffect(() => { loadInitial(); }, [loadInitial]);
+
+  // Recarrega quando o usuário muda filtros (não na carga inicial)
+  useEffect(() => {
+    if (!filtersReady || initialLoad.current) return;
     setLoading(true);
     const params: Record<string, string> = {};
     if (selPeriodos.length) params.periodos = selPeriodos.join(",");
@@ -310,9 +319,8 @@ export function NovaDreTab() {
       .then(d => { setData(d); setError(null); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [selPeriodos, selEmpresas, selFontes]);
-
-  useEffect(() => { load(); }, [load]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersReady, selPeriodos, selEmpresas, selFontes]);
 
   const opt = (arr: string[]) => arr.map((v: string) => ({ label: v, value: v }));
   const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0;
