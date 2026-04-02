@@ -1545,9 +1545,9 @@ def get_nova_base_resumo(
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    df[group_col] = df[group_col].fillna("(sem grupo)").astype(str).str.strip()
-    df["periodo"]  = df["periodo"].fillna("(sem período)").astype(str).str.strip()
-    df = df[df[group_col].str.strip().ne("") & df["periodo"].str.strip().ne("")]
+    df[group_col] = df[group_col].fillna("").astype(str).str.strip()
+    df["periodo"]  = df["periodo"].fillna("").astype(str).str.strip()
+    df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")]
 
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
