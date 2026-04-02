@@ -5,14 +5,24 @@ function getToken() {
 }
 
 async function apiFetch(path: string, options: RequestInit = {}, retries = 36): Promise<any> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getToken()}`,
-      ...options.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    // Network error (backend sleeping / connection refused) — retry
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 5000));
+      return apiFetch(path, options, retries - 1);
+    }
+    throw err;
+  }
   if (res.status === 401) {
     localStorage.removeItem("token");
     window.location.href = "/login";

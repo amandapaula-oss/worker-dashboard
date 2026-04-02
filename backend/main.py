@@ -1556,10 +1556,7 @@ def get_nova_base_resumo(
         valor_liquido = ("valor_liquido", "sum"),
     )
     agg = agg.rename(columns={group_col: "grupo"})
-    agg["margem_pct"] = agg.apply(
-        lambda r: r["receita"] / r["receita"] * 0 if r["receita"] == 0 else None, axis=1
-    )
-    return _sanitize(agg.fillna("").to_dict(orient="records"))
+    return _sanitize(agg.to_dict(orient="records"))
 
 @app.get("/api/nova-base/data")
 def get_nova_base_data(

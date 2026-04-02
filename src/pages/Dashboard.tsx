@@ -252,11 +252,12 @@ export default function Dashboard() {
               defaultActiveKey="empresa"
               type="card"
               size="large"
+              destroyInactiveTabPane
               items={[
-                { key: "empresa",   label: <span><BankOutlined /> DRE por Empresa</span>,   children: <NovaBaseResumoTab agruparPor="empresa" /> },
-                { key: "fonte",     label: <span><HeatMapOutlined /> P&L por Fonte</span>,  children: <NovaBaseResumoTab agruparPor="fonte" /> },
+                { key: "empresa",   label: <span><BankOutlined /> DRE por Empresa</span>,       children: <NovaBaseResumoTab agruparPor="empresa" /> },
+                { key: "fonte",     label: <span><HeatMapOutlined /> P&L por Fonte</span>,      children: <NovaBaseResumoTab agruparPor="fonte" /> },
                 { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
-                { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>, children: <NovaBaseTab /> },
+                { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
               ]}
             />
           )}
