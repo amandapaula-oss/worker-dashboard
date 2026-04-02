@@ -4,6 +4,7 @@ import { FilterOutlined, DownloadOutlined, SettingOutlined } from "@ant-design/i
 import { getNovaBaseFilters, getNovaBaseResumo, getNovaBaseDre } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
 import PLTable from "../components/PLTable";
+import ErrorState from "../components/ErrorState";
 import { theme } from "../theme";
 import { exportTableToExcel, exportPLTableToExcel } from "../utils/exportExcel";
 import { periodoLabel } from "../utils/format";
@@ -292,14 +293,12 @@ export function NovaDreTab() {
   const [filtersReady, setFiltersReady] = useState(false);
   const initialLoad = useRef(true);
 
-  // Carga inicial: filtros + DRE em paralelo
+  // Carga inicial: filtros primeiro, depois DRE (evita carga dupla do Excel no cold start)
   const loadInitial = useCallback(() => {
     setLoading(true); setError(null);
-    Promise.all([getNovaBaseFilters(), getNovaBaseDre({})])
-      .then(([f, d]) => {
-        setFilters(f); setData(d);
-        setFiltersReady(true); initialLoad.current = false;
-      })
+    getNovaBaseFilters()
+      .then(f => { setFilters(f); return getNovaBaseDre({}); })
+      .then(d => { setData(d); setFiltersReady(true); initialLoad.current = false; })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -377,9 +376,7 @@ export function NovaDreTab() {
       )}
 
       {loading ? <TableSkeleton rows={12} /> : error ? (
-        <div style={{ background: "#fff1f0", border: "1px solid #ffa39e", borderRadius: 8, padding: "1rem 1.2rem", color: "#cf1322" }}>
-          <strong>Erro ao carregar dados:</strong> {error}
-        </div>
+        <ErrorState onRetry={loadInitial} message="Não foi possível carregar o DRE. O servidor pode estar acordando — tente novamente." />
       ) : (
         <>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>

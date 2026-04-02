@@ -1488,9 +1488,14 @@ def get_exportar_xlsx(user=Depends(get_current_user)):
 # ── Nova Base 2026 ─────────────────────────────────────────────────────────────
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_nova_base_lock = __import__("threading").Lock()
 
 def _get_nova_base() -> pd.DataFrame:
-    if _cache["nova_base"] is None:
+    if _cache["nova_base"] is not None:
+        return _cache["nova_base"]
+    with _nova_base_lock:                          # apenas uma thread carrega por vez
+        if _cache["nova_base"] is not None:        # double-check após adquirir o lock
+            return _cache["nova_base"]
         path = os.path.join(_BASE_DIR, "base_2026.xlsx")
         if not os.path.exists(path):
             path = os.path.join(_BASE_DIR, "..", "base_2026.xlsx")
