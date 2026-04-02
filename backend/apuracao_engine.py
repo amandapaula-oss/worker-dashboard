@@ -308,6 +308,7 @@ def _load_all():
         pass
 
     _cli_bu: dict = {}
+    _ae_to_clients: dict = {}
     if os.path.exists(clientes_path):
         try:
             _cdf_b = pd.read_excel(clientes_path, sheet_name="clientes", dtype=str).fillna("")
@@ -315,10 +316,13 @@ def _load_all():
                 _nc = str(_r.get("nome_cliente", "") or "").strip()
                 _nb = str(_r.get("nome_base", "") or "").strip()
                 _bu2 = str(_r.get("bu", "") or "").strip()
+                _ae2 = str(_r.get("ae", "") or "").strip()
                 if _nc and _bu2:
                     _cli_bu[norm(_nc)] = _bu2
                 if _nb and _bu2 and norm(_nb) not in _cli_bu:
                     _cli_bu[norm(_nb)] = _bu2
+                if _nc and _ae2 and _bu2:
+                    _ae_to_clients.setdefault(norm(_ae2), {})[norm(_nc)] = _bu2
         except Exception:
             pass
 
@@ -356,6 +360,29 @@ def _load_all():
     rec_by_pep_ws = marg_q4.groupby(["pep_base", "ws_key"])["receita"].sum().to_dict()
     lb_by_pep_ws  = marg_q4.groupby(["pep_base", "ws_key"])["margem"].sum().to_dict()
     custo_by_pep  = marg_q4.groupby("pep_base")["custo_rateado"].sum().to_dict()
+
+    # Lookups filtrados por (cliente, vertical) — usados para clientes sem budget
+    # para não inflar a receita com PEPs de outras verticais.
+    # Usa projetos bruto (_proj) antes da substituição RAC para evitar dupla-contagem
+    # em PEPs com múltiplos tipos (ex: "Fee,WIP" seria somado duas vezes no rac_q4).
+    _pv_raw = _proj[
+        _proj["periodo"].astype(str).str.strip().isin(Q4_PERIODOS) &
+        ~_proj["empresa"].isin(_EXCL_MARG)
+    ].copy()
+    _pv_raw["pep_base"] = _pv_raw["pep"].astype(str).str.split(".").str[0].str.strip()
+    _pv_raw["nome_norm"] = _pv_raw["nome_cliente"].astype(str).str.strip().apply(norm)
+    if _alias_pre:
+        _pv_raw["nome_norm"] = _pv_raw["nome_norm"].map(lambda x: _alias_pre.get(x, x))
+    _pv_raw["vert"] = _pv_raw["pep_base"].map(vert_by_pep).fillna("Others")
+    _pv_raw["ws_key"] = _pv_raw.get("categoria_bu", pd.Series("demais", index=_pv_raw.index)).apply(
+        lambda x: _norm_ws(str(x)) if pd.notna(x) and str(x).strip() else "demais"
+    )
+    _pv_raw["margem"] = _pv_raw["receita"].fillna(0) + _pv_raw["custo_rateado"].fillna(0)
+    rec_by_client_vert_nh   = _pv_raw.groupby(["nome_norm", "vert"])["receita"].sum().to_dict()
+    marg_by_client_vert_nh  = _pv_raw.groupby(["nome_norm", "vert"])["margem"].sum().to_dict()
+    custo_by_client_vert_nh = _pv_raw.groupby(["nome_norm", "vert"])["custo_rateado"].sum().to_dict()
+    rec_by_client_vert_ws_nh  = _pv_raw.groupby(["nome_norm", "vert", "ws_key"])["receita"].sum().to_dict()
+    marg_by_client_vert_ws_nh = _pv_raw.groupby(["nome_norm", "vert", "ws_key"])["margem"].sum().to_dict()
 
     # Total SAP receita dos diretores — denominador para alocação proporcional de despesas.
     # Usa rec_by_pep_ws (mesma fonte de _sap_rec_total em calc_bonus_diretor) para garantir
@@ -401,6 +428,12 @@ def _load_all():
         "rec_by_pep_ws":    rec_by_pep_ws,
         "lb_by_pep_ws":     lb_by_pep_ws,
         "custo_by_pep":     custo_by_pep,
+        "ae_to_clients":             _ae_to_clients,
+        "rec_by_client_vert_nh":     rec_by_client_vert_nh,
+        "marg_by_client_vert_nh":    marg_by_client_vert_nh,
+        "custo_by_client_vert_nh":   custo_by_client_vert_nh,
+        "rec_by_client_vert_ws_nh":  rec_by_client_vert_ws_nh,
+        "marg_by_client_vert_ws_nh": marg_by_client_vert_ws_nh,
     }
 
 
@@ -567,19 +600,35 @@ def calc_bonus_ae(nome: str) -> dict:
     real_lb_financeiro:    float = 0.0  # LB real (marg_by_client) para o gatilho
     real_custo_total_fin:  float = 0.0  # Custo real (custo_rateado) total
 
-    clientes_ae = rec_ae["cliente_norm"].dropna().unique()
+    clientes_ae = list(rec_ae["cliente_norm"].dropna().unique())
+    # Mapa vertical para TODOS os clientes deste AE (budget e sem budget)
+    _cli_vert_ae: dict[str, str] = dict(d.get("ae_to_clients", {}).get(pessoa_nome_n, {}))
+    # Inclui clientes sem budget que tenham receita real na vertical correta
+    for _extra, _vert in _cli_vert_ae.items():
+        if _extra not in clientes_ae:
+            _real = d.get("rec_by_client_vert_nh", {}).get((_extra, _vert), 0.0)
+            if _real > 0:
+                clientes_ae.append(_extra)
     clientes_detalhe = []
     cli_contrib: dict[str, list] = {}  # {ws_k: [{cliente, budget_rec, real_rec}]}
 
     for cli_n in clientes_ae:
-        # Usa o maior entre RAC puro e receita do projetos (que já prioriza RAC onde existe).
-        # Necessário para clientes com tipos="" cujo revenue vem só do SAP/projetos.
-        real_rec  = max(
-            _match_cliente(cli_n, d["rac_by_client_nh"]),
-            _match_cliente(cli_n, d["rec_by_client_nh"]),
-        )
-        real_lb   = _match_cliente(cli_n, d["marg_by_client_nh"])
-        real_custo = _match_cliente(cli_n, d["custo_by_client_nh"])
+        _vert_ovr = _cli_vert_ae.get(cli_n)
+        if _vert_ovr:
+            # Usa receita filtrada pela vertical do AE para evitar contabilizar
+            # PEPs de outras verticais (ex: KLABIN Multisector para AE de Grupo Mult)
+            real_rec   = d.get("rec_by_client_vert_nh",   {}).get((cli_n, _vert_ovr), 0.0)
+            real_lb    = d.get("marg_by_client_vert_nh",  {}).get((cli_n, _vert_ovr), 0.0)
+            real_custo = d.get("custo_by_client_vert_nh", {}).get((cli_n, _vert_ovr), 0.0)
+        else:
+            # Usa o maior entre RAC puro e receita do projetos (que já prioriza RAC onde existe).
+            # Necessário para clientes com tipos="" cujo revenue vem só do SAP/projetos.
+            real_rec  = max(
+                _match_cliente(cli_n, d["rac_by_client_nh"]),
+                _match_cliente(cli_n, d["rec_by_client_nh"]),
+            )
+            real_lb   = _match_cliente(cli_n, d["marg_by_client_nh"])
+            real_custo = _match_cliente(cli_n, d["custo_by_client_nh"])
         lb_visual  = real_rec - abs(real_custo)  # LB financeiro do cliente (mesma base da aba margem por cliente)
         cli_rows = rec_ae[rec_ae["cliente_norm"] == cli_n]
         cli_bgt  = float(cli_rows["q4"].sum())
@@ -591,8 +640,12 @@ def calc_bonus_ae(nome: str) -> dict:
         # Distribui realizado pela WS real dos projetos (categoria_bu do margem)
         # em vez de proporcional ao budget
         # Usa lookups sem time Hyper (_nh) para não atribuir receita do time Hyper a este AE
-        actual_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws_nh"])
-        actual_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws_nh"])
+        if _vert_ovr:
+            actual_rec_ws  = {ws_k: d.get("rec_by_client_vert_ws_nh",  {}).get((cli_n, _vert_ovr, ws_k), 0.0) for ws_k in WS_PESOS_Q4}
+            actual_marg_ws = {ws_k: d.get("marg_by_client_vert_ws_nh", {}).get((cli_n, _vert_ovr, ws_k), 0.0) for ws_k in WS_PESOS_Q4}
+        else:
+            actual_rec_ws  = _match_cliente_ws(cli_n, d["rec_by_client_ws_nh"])
+            actual_marg_ws = _match_cliente_ws(cli_n, d["marg_by_client_ws_nh"])
         # Garante todas as chaves de WS
         actual_rec_ws  = {ws_k: actual_rec_ws.get(ws_k, 0.0)  for ws_k in WS_PESOS_Q4}
         actual_marg_ws = {ws_k: actual_marg_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4}
@@ -1104,7 +1157,16 @@ def calc_bonus_ae_q3(nome: str) -> dict:
     real_lb_financeiro:   float = 0.0
     real_custo_total_fin: float = 0.0
 
-    clientes_ae = rec_ae["cliente_norm"].dropna().unique()
+    clientes_ae = list(rec_ae["cliente_norm"].dropna().unique())
+    # Inclui clientes do AE sem budget que tenham receita real
+    for _extra in d.get("ae_to_clients", {}).get(pessoa_nome_n, set()):
+        if _extra not in clientes_ae:
+            _real = max(
+                _match_cliente(_extra, q3r["rac_by_client_nh"]),
+                _match_cliente(_extra, q3r["rec_by_client_nh"]),
+            )
+            if _real > 0:
+                clientes_ae.append(_extra)
     clientes_detalhe = []
     cli_contrib: dict[str, list] = {}
 
