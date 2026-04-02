@@ -1712,4 +1712,4 @@ def get_nova_base_dre(
             rows.append({"name": "  Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(vl)})
             rows.append({"name": "  Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(rec, vl)})
 
-    return {"rows": rows, "columns": columns}
+    return _sanitize({"rows": rows, "columns": columns})
