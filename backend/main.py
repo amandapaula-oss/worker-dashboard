@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -10,6 +10,7 @@ import pandas as pd
 import gdown
 import os
 import math
+import traceback
 
 def _sanitize(obj):
     """Recursively replace NaN/Inf with None so JSON serialization never fails."""
@@ -33,6 +34,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    print(f"[ERROR] {request.url} → {exc}\n{tb}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "traceback": tb},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
@@ -1641,7 +1652,11 @@ def get_nova_base_dre(
     macro_areas: str = "",
     user=Depends(get_current_user)
 ):
-    df = _get_nova_base().copy()
+    try:
+        df = _get_nova_base().copy()
+    except Exception as e:
+        print(f"[nova-base/dre] erro ao carregar base: {e}\n{traceback.format_exc()}")
+        raise
 
     def filt(col, param):
         vals = [v.strip() for v in param.split(",") if v.strip()]
