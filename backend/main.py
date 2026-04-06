@@ -250,27 +250,6 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-@app.get("/debug/nova-base")
-async def debug_nova_base():
-    """Diagnóstico sem auth — remover depois."""
-    import sys
-    try:
-        df = _get_nova_base()
-        return {
-            "status": "ok",
-            "rows": len(df),
-            "cols": df.columns.tolist(),
-            "python": sys.version,
-            "pandas": pd.__version__,
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-            "python": sys.version,
-            "pandas": pd.__version__,
-        }
 
 @app.on_event("startup")
 async def startup():
@@ -1708,15 +1687,15 @@ def get_nova_base_dre(
     # ── Helpers ────────────────────────────────────────────────────────────────
     def row_vals(piv_row: pd.Series):
         """piv_row: Series indexed by periodo (already reindexed)."""
-        d = {p: float(piv_row.get(p, 0)) for p in all_periods}
+        d = {p: float(piv_row[p]) for p in all_periods}
         d["Total"] = float(piv_row.sum())
         return d
 
     def pct_vals(rec_row: pd.Series, vl_row: pd.Series):
         d = {}
         for p in all_periods:
-            rec = float(rec_row.get(p, 0))
-            vl  = float(vl_row.get(p, 0))
+            rec = float(rec_row[p])
+            vl  = float(vl_row[p])
             d[p] = vl / rec if rec else 0.0
         tot_rec = float(rec_row.sum())
         tot_vl  = float(vl_row.sum())
