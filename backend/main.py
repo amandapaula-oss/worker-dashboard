@@ -250,6 +250,28 @@ async def root():
 async def health():
     return {"status": "ok"}
 
+@app.get("/debug/nova-base")
+async def debug_nova_base():
+    """Diagnóstico sem auth — remover depois."""
+    import sys
+    try:
+        df = _get_nova_base()
+        return {
+            "status": "ok",
+            "rows": len(df),
+            "cols": df.columns.tolist(),
+            "python": sys.version,
+            "pandas": pd.__version__,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "python": sys.version,
+            "pandas": pd.__version__,
+        }
+
 @app.on_event("startup")
 async def startup():
     # Tudo em background para o servidor declarar "Live" imediatamente
