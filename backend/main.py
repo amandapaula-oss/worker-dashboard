@@ -1726,14 +1726,16 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
         return {c: 0.0 for c in columns}
 
     # ── Single aggregation pass ────────────────────────────────────────────────
-    NUM_COLS = ["receita", "custo_rateado", "valor_liquido"]
+    # Gross Profit = receita - custo_rateado (NÃO valor_liquido, que vem de fontes de custo e gera fantasmas)
+    NUM_COLS = ["receita", "custo_rateado"]
     agg_total = df.groupby("periodo")[NUM_COLS].sum().reindex(all_periods, fill_value=0)
+    agg_total["gross_profit"] = agg_total["receita"] - agg_total["custo_rateado"]
 
     rows = [
         {"name": "Receita",        "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["receita"])},
         {"name": "Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(agg_total["custo_rateado"])},
-        {"name": "Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["valor_liquido"])},
-        {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_total["receita"], agg_total["valor_liquido"])},
+        {"name": "Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["gross_profit"])},
+        {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_total["receita"], agg_total["gross_profit"])},
     ]
 
     # Macro Área
@@ -1746,17 +1748,16 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
             .reset_index()
         )
         for ma in sorted(agg_ma_raw["macro_area"].unique().tolist()):
-            # seleciona só colunas numéricas antes do reindex para evitar fill_value=0 em colunas string
             sub = (agg_ma_raw[agg_ma_raw["macro_area"] == ma]
                    .set_index("periodo")[NUM_COLS]
                    .reindex(all_periods, fill_value=0))
             rec = sub["receita"]
             cus = sub["custo_rateado"]
-            vl  = sub["valor_liquido"]
+            gp  = rec - cus
             rows.append({"name": ma,                 "is_subtotal": False, "is_pct": False, "is_group": True,  "values": zero_vals()})
             rows.append({"name": "  Receita",        "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(rec)})
             rows.append({"name": "  Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(cus)})
-            rows.append({"name": "  Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(vl)})
-            rows.append({"name": "  Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(rec, vl)})
+            rows.append({"name": "  Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(gp)})
+            rows.append({"name": "  Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(rec, gp)})
 
     return _sanitize({"rows": rows, "columns": columns})
