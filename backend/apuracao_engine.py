@@ -838,8 +838,9 @@ def calc_bonus_ae(nome: str) -> dict:
         lb_gate_ws = 1 if (trigger_lb_ws_k <= 0 or real_lb_fin_ws_k >= trigger_lb_ws_k) else 0
 
         bonus_rec = Q4_QTDE * peso_ws * ating_rec * salario * peso_rec
-        rec_gate  = 1 if ating_rec > 0 else 0
-        bonus_mb  = Q4_QTDE * peso_ws * ating_mb * mb_gate * salario * peso_mb * lb_gate_ws * rec_gate
+        # lb_gate_ws já é o guardião correto: se LB gate passa, há LB real (logo receita real).
+        # rec_gate era redundante e bloqueava MB indevidamente quando revenue trigger não batia mas LB batia.
+        bonus_mb  = Q4_QTDE * peso_ws * ating_mb * mb_gate * salario * peso_mb * lb_gate_ws
 
         bonus_total += bonus_rec + bonus_mb
 
@@ -1381,8 +1382,8 @@ def calc_bonus_ae_q3(nome: str) -> dict:
         lb_gate_ws = 1 if (trigger_lb_ws_k <= 0 or real_lb_fin_ws_k >= trigger_lb_ws_k) else 0
 
         bonus_rec = Q3_QTDE * peso_ws * ating_rec * salario * peso_rec
-        rec_gate  = 1 if ating_rec > 0 else 0
-        bonus_mb  = Q3_QTDE * peso_ws * ating_mb  * mb_gate  * salario * peso_mb  * lb_gate_ws * rec_gate
+        # lb_gate_ws já é o guardião correto — mesmo fix do Q4
+        bonus_mb  = Q3_QTDE * peso_ws * ating_mb  * mb_gate  * salario * peso_mb  * lb_gate_ws
 
         bonus_total += bonus_rec + bonus_mb
 
