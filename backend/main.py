@@ -1655,10 +1655,15 @@ def get_nova_base_dre(
     user=Depends(get_current_user)
 ):
     try:
-        df = _get_nova_base().copy()
+        return _nova_base_dre_logic(periodos, empresas, fontes, macro_areas)
     except Exception as e:
-        print(f"[nova-base/dre] erro ao carregar base: {e}\n{traceback.format_exc()}")
-        raise
+        tb = traceback.format_exc()
+        print(f"[nova-base/dre] ERRO: {e}\n{tb}")
+        return JSONResponse(status_code=500, content={"detail": str(e), "traceback": tb},
+                            headers={"Access-Control-Allow-Origin": "*"})
+
+def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
+    df = _get_nova_base().copy()
 
     def filt(col, param):
         vals = [v.strip() for v in param.split(",") if v.strip()]
@@ -1688,7 +1693,6 @@ def get_nova_base_dre(
 
     # ── Helpers ────────────────────────────────────────────────────────────────
     def row_vals(piv_row: pd.Series):
-        """piv_row: Series indexed by periodo (already reindexed)."""
         d = {p: float(piv_row[p]) for p in all_periods}
         d["Total"] = float(piv_row.sum())
         return d
@@ -1708,8 +1712,8 @@ def get_nova_base_dre(
         return {c: 0.0 for c in columns}
 
     # ── Single aggregation pass ────────────────────────────────────────────────
-    # Total
-    agg_total = df.groupby("periodo")[["receita", "custo_rateado", "valor_liquido"]].sum().reindex(all_periods, fill_value=0)
+    NUM_COLS = ["receita", "custo_rateado", "valor_liquido"]
+    agg_total = df.groupby("periodo")[NUM_COLS].sum().reindex(all_periods, fill_value=0)
 
     rows = [
         {"name": "Receita",        "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["receita"])},
@@ -1718,17 +1722,20 @@ def get_nova_base_dre(
         {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_total["receita"], agg_total["valor_liquido"])},
     ]
 
-    # Macro Área — um único groupby, depois filtra o resultado já agregado por área
+    # Macro Área
     if "macro_area" in df.columns:
         df["macro_area"] = df["macro_area"].fillna("").astype(str).str.strip()
         agg_ma_raw = (
             df[df["macro_area"].ne("")]
-            .groupby(["macro_area", "periodo"])[["receita", "custo_rateado", "valor_liquido"]]
+            .groupby(["macro_area", "periodo"])[NUM_COLS]
             .sum()
             .reset_index()
         )
         for ma in sorted(agg_ma_raw["macro_area"].unique().tolist()):
-            sub = agg_ma_raw[agg_ma_raw["macro_area"] == ma].set_index("periodo").reindex(all_periods, fill_value=0)
+            # seleciona só colunas numéricas antes do reindex para evitar fill_value=0 em colunas string
+            sub = (agg_ma_raw[agg_ma_raw["macro_area"] == ma]
+                   .set_index("periodo")[NUM_COLS]
+                   .reindex(all_periods, fill_value=0))
             rec = sub["receita"]
             cus = sub["custo_rateado"]
             vl  = sub["valor_liquido"]
