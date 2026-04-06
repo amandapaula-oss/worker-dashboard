@@ -31,6 +31,10 @@ async function apiFetch(path: string, options: RequestInit = {}, retries = 36): 
     await new Promise(r => setTimeout(r, 5000));
     return apiFetch(path, options, retries - 1);
   }
+  if (res.status === 500 && retries > 0) {
+    await new Promise(r => setTimeout(r, 3000));
+    return apiFetch(path, options, retries - 1);
+  }
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

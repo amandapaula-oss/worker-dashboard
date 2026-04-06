@@ -9,6 +9,31 @@ import { theme } from "../theme";
 import { exportTableToExcel, exportPLTableToExcel } from "../utils/exportExcel";
 import { periodoLabel } from "../utils/format";
 
+/* Timer que aparece após 5s de loading para informar sobre cold start */
+function WarmUpNotice() {
+  const [elapsed, setElapsed] = useState(0);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t0 = Date.now();
+    const id = setInterval(() => {
+      const s = Math.floor((Date.now() - t0) / 1000);
+      setElapsed(s);
+      if (s >= 5) setShow(true);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (!show) return null;
+  return (
+    <div style={{ marginTop: 16, color: "#6b7fa3", fontSize: "0.85rem", textAlign: "center" }}>
+      <span style={{ fontSize: 18, marginRight: 6 }}>⏳</span>
+      Aguardando servidor... <strong>{elapsed}s</strong>
+      <div style={{ marginTop: 4, fontSize: "0.78rem", opacity: 0.7 }}>
+        O servidor pode demorar até 60s para acordar na primeira vez.
+      </div>
+    </div>
+  );
+}
+
 
 const labelStyle: React.CSSProperties = {
   color: theme.text, fontSize: "0.8rem", fontWeight: 600,
@@ -375,7 +400,12 @@ export function NovaDreTab() {
         </div>
       )}
 
-      {loading ? <TableSkeleton rows={12} /> : error ? (
+      {loading ? (
+        <div>
+          <TableSkeleton rows={12} />
+          <WarmUpNotice />
+        </div>
+      ) : error ? (
         <ErrorState onRetry={loadInitial} message="Não foi possível carregar o DRE. O servidor pode estar acordando — tente novamente." />
       ) : (
         <>
