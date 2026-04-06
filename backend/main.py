@@ -1543,7 +1543,10 @@ def _get_nova_base() -> pd.DataFrame:
 
 @app.get("/api/nova-base/filters")
 def get_nova_base_filters(user=Depends(get_current_user)):
+    from datetime import datetime
+    current_period = datetime.now().strftime("%Y-%m")
     df = _get_nova_base()
+    df = df[df["periodo"].fillna("").astype(str) <= current_period]
     def uniq(col):
         return sorted(df[col].dropna().astype(str).str.strip().unique().tolist()) if col in df.columns else []
     return {
@@ -1568,7 +1571,12 @@ def get_nova_base_resumo(
     agrupar_por: str = "empresa",
     user=Depends(get_current_user)
 ):
+    from datetime import datetime
     df = _get_nova_base().copy()
+
+    if not periodos:
+        current_period = datetime.now().strftime("%Y-%m")
+        df = df[df["periodo"].fillna("").astype(str) <= current_period].copy()
 
     def filt(col, param):
         vals = [v.strip() for v in param.split(",") if v.strip()]
@@ -1663,7 +1671,13 @@ def get_nova_base_dre(
                             headers={"Access-Control-Allow-Origin": "*"})
 
 def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
+    from datetime import datetime
     df = _get_nova_base().copy()
+
+    # Remove períodos futuros (sem dados reais) — exceto se o usuário filtrou explicitamente
+    if not periodos:
+        current_period = datetime.now().strftime("%Y-%m")
+        df = df[df["periodo"].fillna("").astype(str) <= current_period]
 
     def filt(col, param):
         vals = [v.strip() for v in param.split(",") if v.strip()]
