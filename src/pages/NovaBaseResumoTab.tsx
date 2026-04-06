@@ -28,7 +28,7 @@ function WarmUpNotice() {
       <span style={{ fontSize: 18, marginRight: 6 }}>⏳</span>
       Aguardando servidor... <strong>{elapsed}s</strong>
       <div style={{ marginTop: 4, fontSize: "0.78rem", opacity: 0.7 }}>
-        O servidor pode demorar até 60s para acordar na primeira vez.
+        O servidor pode demorar até 2 min para acordar na primeira vez.
       </div>
     </div>
   );
