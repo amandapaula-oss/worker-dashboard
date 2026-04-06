@@ -1573,7 +1573,7 @@ def get_nova_base_resumo(
     def filt(col, param):
         vals = [v.strip() for v in param.split(",") if v.strip()]
         if vals and col in df.columns:
-            return df[df[col].astype(str).str.strip().isin(vals)]
+            return df[df[col].astype(str).str.strip().isin(vals)].copy()
         return df
 
     if periodos:       df = filt("periodo", periodos)
@@ -1583,6 +1583,7 @@ def get_nova_base_resumo(
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
     if classificacoes: df = filt("classificacao", classificacoes)
 
+    df = df.copy()
     group_col = agrupar_por if agrupar_por in df.columns else "empresa"
     for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
         if col not in df.columns:
@@ -1591,7 +1592,7 @@ def get_nova_base_resumo(
 
     df[group_col] = df[group_col].fillna("").astype(str).str.strip()
     df["periodo"]  = df["periodo"].fillna("").astype(str).str.strip()
-    df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")]
+    df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
 
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
@@ -1619,7 +1620,7 @@ def get_nova_base_data(
     def filt(col, param):
         vals = [v.strip() for v in param.split(",") if v.strip()]
         if vals and col in df.columns:
-            return df[df[col].astype(str).str.strip().isin(vals)]
+            return df[df[col].astype(str).str.strip().isin(vals)].copy()
         return df
 
     if periodos:       df = filt("periodo", periodos)
@@ -1662,7 +1663,7 @@ def get_nova_base_dre(
     def filt(col, param):
         vals = [v.strip() for v in param.split(",") if v.strip()]
         if vals and col in df.columns:
-            return df[df[col].astype(str).str.strip().isin(vals)]
+            return df[df[col].astype(str).str.strip().isin(vals)].copy()
         return df
 
     if periodos:    df = filt("periodo", periodos)
@@ -1670,13 +1671,14 @@ def get_nova_base_dre(
     if fontes:      df = filt("fonte", fontes)
     if macro_areas: df = filt("macro_area", macro_areas)
 
+    df = df.copy()
     for col in ["receita", "custo_rateado", "valor_liquido"]:
         if col not in df.columns:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
     df["periodo"] = df["periodo"].fillna("").astype(str).str.strip()
-    df = df[df["periodo"].str.match(r"^\d{4}-\d{2}$")]
+    df = df[df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
 
     if df.empty:
         return {"rows": [], "columns": []}
