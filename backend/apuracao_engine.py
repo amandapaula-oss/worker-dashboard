@@ -1550,14 +1550,23 @@ def calc_bonus_diretor(nome: str) -> dict:
     # TCV realizado: lido do tcv_realizado.csv por vertical
     real_tcv_q4 = float(d["tcv_real"].get(vertical, 0.0)) if vertical else 0.0
 
-    ating_tcv = calc_atingimento(real_tcv_q4, bgt_tcv_q4, TRIGGER_REC_Q4)
+    # TCV: atingimento binário — só usa o trigger mínimo (85%)
+    # Se atingiu o mínimo → ating = 1.0; abaixo → 0.0
+    if bgt_tcv_q4 > 0:
+        ating_tcv = 1.0 if real_tcv_q4 >= bgt_tcv_q4 * TRIGGER_REC_Q4 else 0.0
+    else:
+        ating_tcv = 0.0
 
     # ─ Receita ─
     bgt_rec = d["bgt_rec"]
     # Budget receita da vertical do diretor (bs = vertical)
     if vertical:
         bs_key = VERTICAL_BS_MAP.get(vertical, vertical)
-        rec_dir = bgt_rec[bgt_rec["bs"].str.lower() == bs_key.lower()]
+        rec_dir = bgt_rec[bgt_rec["bs"].str.lower() == bs_key.lower()].copy()
+        # Exclui linhas placeholder ("Cliente 1", "Cliente 2", ...) — são pipeline/estimativas
+        # que não representam clientes reais e inflam o budget tornando o trigger inalcançável
+        _placeholder_mask = rec_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)
+        rec_dir = rec_dir[~_placeholder_mask]
     else:
         bs_key = ""
         rec_dir = pd.DataFrame()
@@ -1714,7 +1723,11 @@ def calc_bonus_diretor(nome: str) -> dict:
     # Budget MC%: bgt_lb / bgt_rec para a vertical
     # Para verticais sem linhas no budget_receita.csv, usa nexus Budget
     bgt_lb  = d["bgt_lb"]
-    lb_dir  = bgt_lb[bgt_lb["bs"].str.lower() == bs_key.lower()] if (vertical and bs_key) else pd.DataFrame()
+    lb_dir  = bgt_lb[bgt_lb["bs"].str.lower() == bs_key.lower()].copy() if (vertical and bs_key) else pd.DataFrame()
+    # Exclui placeholders "Cliente N" do LB também (mesma lógica do budget receita)
+    if not lb_dir.empty:
+        _lb_placeholder_mask = lb_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)
+        lb_dir = lb_dir[~_lb_placeholder_mask]
     bgt_lb_q4  = float(lb_dir["q4"].sum()) if not lb_dir.empty else 0.0
     bgt_gross = bgt_payroll = bgt_third_party = bgt_other_costs = bgt_payroll_exp = bgt_deductions = 0.0
     if bgt_rec_q4 == 0 and not nq4_budget.empty:
@@ -1797,19 +1810,11 @@ def calc_bonus_diretor(nome: str) -> dict:
     ating_lb_dir = calc_atingimento(real_lb_dir, bgt_lb_q4, TRIGGER_REC_Q4) if bgt_lb_q4 > 0 else 0.0
 
     # ─ Bônus ─
-    if mc_gate == 0:
-        bonus_tcv = 0.0
-        bonus_rec = 0.0
-        bonus_mc  = 0.0
-        bonus_lb  = 0.0
-        for ws in detalhe_ws_dir:
-            ws["bonus_ws"] = 0.0
-        bonus_rec_ws_total = 0.0
-    else:
-        bonus_tcv = Q4_QTDE * 1.0 * ating_tcv  * salario * peso_tcv
-        bonus_rec = bonus_rec_ws_total
-        bonus_mc  = Q4_QTDE * 1.0 * ating_mc   * salario * peso_mc
-        bonus_lb  = Q4_QTDE * 1.0 * ating_lb_dir * salario * peso_lb
+    # mc_gate bloqueia apenas o bonus_mc; rec, tcv e lb são independentes
+    bonus_tcv = Q4_QTDE * 1.0 * ating_tcv    * salario * peso_tcv
+    bonus_rec = bonus_rec_ws_total
+    bonus_mc  = Q4_QTDE * 1.0 * ating_mc     * salario * peso_mc  * mc_gate
+    bonus_lb  = Q4_QTDE * 1.0 * ating_lb_dir * salario * peso_lb
 
     bonus_total = bonus_tcv + bonus_rec + bonus_mc + bonus_lb
 
