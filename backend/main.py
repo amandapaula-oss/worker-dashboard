@@ -1546,18 +1546,19 @@ def _get_nova_base() -> pd.DataFrame:
         # CLTs/TDMs: custo_gerencial_sap + extras (billable e non-billable)
         # PJs: valor_liquido (positivo = custo)
         sem_custo = df["custo_rateado"] == 0
+        import numpy as np
+        # CLTs/TDMs: custo_gerencial_sap → custo_rateado (negativo)
         if "custo_gerencial_sap" in df.columns:
-            mask_clt = sem_custo & (df["custo_gerencial_sap"] != 0)
-            custo_clt = (
-                df.loc[mask_clt, "custo_gerencial_sap"]
-                + df.loc[mask_clt, "custo_h_hora_extra"]
-                + df.loc[mask_clt, "custo_h_sobreaviso"]
-            )
-            df.loc[mask_clt, "custo_rateado"] = -custo_clt
-        if "valor_liquido" in df.columns:
-            # PJs: valor_liquido positivo = custo do PJ (fonte PJs)
-            mask_pj = sem_custo & (df.get("fonte", pd.Series(dtype=str)).astype(str) == "PJs") & (df["valor_liquido"] > 0)
-            df.loc[mask_pj, "custo_rateado"] = -df.loc[mask_pj, "valor_liquido"]
+            custo_ger = df["custo_gerencial_sap"].fillna(0)
+            custo_ext = df.get("custo_h_hora_extra", pd.Series(0, index=df.index)).fillna(0)
+            custo_sob = df.get("custo_h_sobreaviso", pd.Series(0, index=df.index)).fillna(0)
+            mask_clt  = (df["custo_rateado"] == 0) & (custo_ger != 0)
+            df["custo_rateado"] = np.where(mask_clt, -(custo_ger + custo_ext + custo_sob), df["custo_rateado"])
+        # PJs: valor_liquido positivo = custo
+        if "valor_liquido" in df.columns and "fonte" in df.columns:
+            vl = df["valor_liquido"].fillna(0)
+            mask_pj = (df["custo_rateado"] == 0) & (df["fonte"].astype(str) == "PJs") & (vl > 0)
+            df["custo_rateado"] = np.where(mask_pj, -vl, df["custo_rateado"])
 
         _cache["nova_base"] = df
     return _cache["nova_base"]
@@ -1768,10 +1769,14 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
         return {c: 0.0 for c in columns}
 
     # ── Single aggregation pass ────────────────────────────────────────────────
-    # Gross Profit = receita - custo_rateado (NÃO valor_liquido, que vem de fontes de custo e gera fantasmas)
+    # Custo direto = linhas SEM macro_area (receita e custo de projetos)
+    # Despesas = linhas COM macro_area (overhead por categoria)
     NUM_COLS = ["receita", "custo_rateado"]
-    agg_total = df.groupby("periodo")[NUM_COLS].sum().reindex(all_periods, fill_value=0)
-    agg_total["gross_profit"] = agg_total["receita"] - agg_total["custo_rateado"]
+    df["_has_ma"] = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else False
+    df_direto = df[~df["_has_ma"]]
+    agg_total = df_direto.groupby("periodo")[NUM_COLS].sum().reindex(all_periods, fill_value=0)
+    # Gross Profit = receita + custo_rateado (custo_rateado já é negativo)
+    agg_total["gross_profit"] = agg_total["receita"] + agg_total["custo_rateado"]
 
     rows = [
         {"name": "Receita",        "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["receita"])},
@@ -1780,32 +1785,23 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
         {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_total["receita"], agg_total["gross_profit"])},
     ]
 
-    # Macro Área
+    # ── Despesas por Macro Área (classificação de overhead, sem receita) ──────────
+    # macro_area é uma classificação de despesas — não mistura com receita/GP
     if "macro_area" in df.columns:
         df["macro_area"] = df["macro_area"].fillna("").astype(str).str.strip()
         agg_ma_raw = (
             df[df["macro_area"].ne("")]
-            .groupby(["macro_area", "periodo"])[NUM_COLS]
+            .groupby(["macro_area", "periodo"])[["custo_rateado"]]
             .sum()
             .reset_index()
         )
-        for ma in sorted(agg_ma_raw["macro_area"].unique().tolist()):
-            sub = (agg_ma_raw[agg_ma_raw["macro_area"] == ma]
-                   .set_index("periodo")[NUM_COLS]
-                   .reindex(all_periods, fill_value=0))
-            rec = sub["receita"]
-            cus = sub["custo_rateado"]
-            gp  = rec - cus
-            has_revenue = float(rec.sum()) != 0
-            if has_revenue:
-                # Linha com receita: abre em Receita / Custo / GP / GM%
-                rows.append({"name": ma,                 "is_subtotal": False, "is_pct": False, "is_group": True,  "values": zero_vals()})
-                rows.append({"name": "  Receita",        "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(rec)})
-                rows.append({"name": "  Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(cus)})
-                rows.append({"name": "  Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(gp)})
-                rows.append({"name": "  Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(rec, gp)})
-            else:
-                # Overhead puro: uma única linha com o valor da despesa
-                rows.append({"name": ma, "is_subtotal": False, "is_pct": False, "is_group": True, "values": row_vals(cus)})
+        if not agg_ma_raw.empty:
+            rows.append({"name": "Despesas", "is_subtotal": False, "is_pct": False, "is_group": True, "values": zero_vals()})
+            for ma in sorted(agg_ma_raw["macro_area"].unique().tolist()):
+                sub_cus = (agg_ma_raw[agg_ma_raw["macro_area"] == ma]
+                           .set_index("periodo")[["custo_rateado"]]
+                           .reindex(all_periods, fill_value=0)["custo_rateado"])
+                if float(sub_cus.sum()) != 0:
+                    rows.append({"name": f"  {ma}", "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(sub_cus)})
 
     return _sanitize({"rows": rows, "columns": columns})
