@@ -1802,10 +1802,16 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
             rec = sub["receita"]
             cus = sub["custo_rateado"]
             gp  = rec - cus
-            rows.append({"name": ma,                 "is_subtotal": False, "is_pct": False, "is_group": True,  "values": zero_vals()})
-            rows.append({"name": "  Receita",        "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(rec)})
-            rows.append({"name": "  Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(cus)})
-            rows.append({"name": "  Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(gp)})
-            rows.append({"name": "  Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(rec, gp)})
+            has_revenue = float(rec.sum()) != 0
+            if has_revenue:
+                # Linha com receita: abre em Receita / Custo / GP / GM%
+                rows.append({"name": ma,                 "is_subtotal": False, "is_pct": False, "is_group": True,  "values": zero_vals()})
+                rows.append({"name": "  Receita",        "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(rec)})
+                rows.append({"name": "  Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(cus)})
+                rows.append({"name": "  Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(gp)})
+                rows.append({"name": "  Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(rec, gp)})
+            else:
+                # Overhead puro: uma única linha com o valor da despesa
+                rows.append({"name": ma, "is_subtotal": False, "is_pct": False, "is_group": True, "values": row_vals(cus)})
 
     return _sanitize({"rows": rows, "columns": columns})
