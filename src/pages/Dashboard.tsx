@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Card, Switch } from "antd";
+import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Switch, theme as antdTheme } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, BarChartOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, TableOutlined, SlidersOutlined, UserOutlined } from "@ant-design/icons";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
 import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
-import { theme } from "../theme";
+import { theme, darkTheme, lightTheme } from "../theme";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 import MargemTab from "./MargemTab";
 import CheckLucasTab from "./CheckLucasTab";
@@ -21,7 +21,8 @@ import NovaBaseResumoTab, { NovaDreTab } from "./NovaBaseResumoTab";
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 
-function WorkerTab() {
+function WorkerTab({ dark }: { dark: boolean }) {
+  const t = dark ? darkTheme : lightTheme;
   const [competencias, setCompetencias] = useState<string[]>([]);
   const [selComp, setSelComp] = useState<string[]>([]);
   const [path, setPath] = useState<PathItem[]>([]);
@@ -79,7 +80,7 @@ function WorkerTab() {
   const breadcrumbItems = [
     {
       title: (
-        <span style={{ cursor: "pointer", color: theme.link }} onClick={() => setPath([])}>
+        <span style={{ cursor: "pointer", color: t.link }} onClick={() => setPath([])}>
           <HomeOutlined /> Início
         </span>
       ),
@@ -88,7 +89,7 @@ function WorkerTab() {
       title: (
         <span
           style={{ cursor: i < path.length - 1 ? "pointer" : "default",
-                   color: i === path.length - 1 ? theme.text : theme.link,
+                   color: i === path.length - 1 ? t.text : t.link,
                    fontWeight: i === path.length - 1 ? 600 : 400 }}
           onClick={() => i < path.length - 1 && setPath(prev => prev.slice(0, i + 1))}
         >
@@ -100,9 +101,9 @@ function WorkerTab() {
 
   return (
     <div>
-      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+      <div style={{ background: t.cardBg, border: `1px solid ${t.border}`, borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
         <Space wrap>
-          <Text strong style={{ color: theme.text }}>Competência:</Text>
+          <Text strong style={{ color: t.text }}>Competência:</Text>
           <Button size="small" type="link" onClick={() => setSelComp(competencias)}>Todas</Button>
           <Button size="small" type="link" onClick={() => setSelComp([])}>Nenhuma</Button>
           <Divider type="vertical" />
@@ -112,7 +113,7 @@ function WorkerTab() {
         </Space>
       </div>
 
-      <Breadcrumb items={breadcrumbItems} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 20 }} />
+      <Breadcrumb items={breadcrumbItems} style={{ background: t.cardBg, border: `1px solid ${t.border}`, borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 20 }} />
 
       {kpis && (
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
@@ -124,7 +125,7 @@ function WorkerTab() {
         </div>
       )}
 
-      <Title level={5} style={{ color: theme.text, borderBottom: `2px solid ${theme.accent}`, paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
+      <Title level={5} style={{ color: t.text, borderBottom: `2px solid ${theme.accent}`, paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
         Comparativo por Competência
       </Title>
       {loading ? <TableSkeleton rows={6} /> : <MonthlySection data={mensal} />}
@@ -133,7 +134,7 @@ function WorkerTab() {
 
       {currentLevel && (
         <>
-          <Title level={5} style={{ color: theme.text, borderBottom: `2px solid ${theme.accent}`, paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
+          <Title level={5} style={{ color: t.text, borderBottom: `2px solid ${theme.accent}`, paddingBottom: 4, display: "inline-block", marginBottom: 16 }}>
             Visão por {LEVEL_LABELS[currentLevel]}
           </Title>
           {loading ? <TableSkeleton rows={8} /> : (
@@ -154,26 +155,58 @@ type Section = "worker" | "cockpit" | "metas" | "nova_base" | null;
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
   const [apenasAtribuidos, setApenasAtribuidos] = useState(false);
+  const [dark, setDark] = useState<boolean>(() => localStorage.getItem("darkMode") === "true");
+
+  useEffect(() => {
+    localStorage.setItem("darkMode", String(dark));
+    document.body.setAttribute("data-theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  const t = dark ? darkTheme : lightTheme;
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: theme.accent, borderRadius: 8 } }}>
-      <Layout style={{ minHeight: "100vh", background: "#f4f6fb" }}>
-        <Header style={{ background: "#fff", borderBottom: "1px solid #dde3f0", padding: "0 2rem", height: "auto", lineHeight: "normal", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", paddingTop: "0.8rem", paddingBottom: "0.8rem" }}>
+    <ConfigProvider
+      theme={{
+        algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        token: { colorPrimary: theme.accent, borderRadius: 8 },
+      }}
+    >
+      <Layout style={{ minHeight: "100vh", background: t.pageBg }}>
+        <Header style={{
+          background: t.cardBg,
+          borderBottom: `1px solid ${t.border}`,
+          padding: "0 2rem",
+          height: "auto",
+          lineHeight: "normal",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: dark ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.05)",
+          paddingTop: "0.8rem",
+          paddingBottom: "0.8rem",
+        }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {section && (
-              <Button icon={<ArrowLeftOutlined />} type="text" style={{ color: theme.link }} onClick={() => setSection(null)} />
+              <Button icon={<ArrowLeftOutlined />} type="text" style={{ color: t.link }} onClick={() => setSection(null)} />
             )}
-            <img src="/logo-fcamara.png" alt="FCamara" style={{ height: 32, width: "auto" }} />
+            <img src="/logo-fcamara.png" alt="FCamara" style={{ height: 32, width: "auto", filter: dark ? "brightness(0.9)" : "none" }} />
             <div>
-              <Title level={4} style={{ margin: 0, color: theme.text }}>Cockpit FP&A</Title>
+              <Title level={4} style={{ margin: 0, color: t.text }}>Cockpit FP&A</Title>
               <Text type="secondary" style={{ fontSize: "0.8rem" }}>Visualização gerencial de resultados financeiros</Text>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "0.7rem", color: "#b0bac9", fontFamily: "monospace", background: "#f4f6fb", padding: "2px 8px", borderRadius: 4, border: "1px solid #dde3f0" }}>
+            <span style={{ fontSize: "0.7rem", color: t.secondary, fontFamily: "monospace", background: t.tagBg, padding: "2px 8px", borderRadius: 4, border: `1px solid ${t.border}` }}>
               v{process.env.REACT_APP_VERSION ?? "dev"}
             </span>
-            <Button icon={<LogoutOutlined />} onClick={logout} type="text" style={{ color: "#6b7fa3" }}>
+            <Switch
+              checked={dark}
+              onChange={setDark}
+              checkedChildren={<MoonOutlined />}
+              unCheckedChildren={<SunOutlined />}
+              style={{ background: dark ? "#3b4a6b" : "#d9d9d9" }}
+            />
+            <Button icon={<LogoutOutlined />} onClick={logout} type="text" style={{ color: t.secondary }}>
               Sair
             </Button>
           </div>
@@ -183,21 +216,31 @@ export default function Dashboard() {
           {section === null && (
             <div style={{ display: "flex", gap: 24, justifyContent: "center", alignItems: "stretch", minHeight: "60vh", flexWrap: "wrap" }}>
               {([
-                { key: "worker",  icon: <UserOutlined />,      title: "Worker",            desc: "Receitas e custos por colaborador",              sub: "Base Worker" },
-                { key: "cockpit",    icon: <BankOutlined />,       title: "Financeiro",          desc: "DRE, P&L por Stream e Matricial",               sub: "SAP S4 · Nexus" },
-                { key: "nova_base",  icon: <DatabaseOutlined />,   title: "Financeiro - Nova Base", desc: "Base unificada 2026 com todas as fontes",      sub: "Nova Base · 2026" },
-                { key: "metas",   icon: <AimOutlined />,        title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3",     sub: "Margem · Clientes · Check" },
+                { key: "worker",    icon: <UserOutlined />,      title: "Worker",                 desc: "Receitas e custos por colaborador",           sub: "Base Worker" },
+                { key: "cockpit",   icon: <BankOutlined />,      title: "Financeiro",             desc: "DRE, P&L por Stream e Matricial",             sub: "SAP S4 · Nexus" },
+                { key: "nova_base", icon: <DatabaseOutlined />,  title: "Financeiro - Nova Base", desc: "Base unificada 2026 com todas as fontes",     sub: "Nova Base · 2026" },
+                { key: "metas",     icon: <AimOutlined />,       title: "Apuração de Metas",      desc: "Acompanhamento e apuração de metas Q4 e Q3", sub: "Margem · Clientes · Check" },
               ] as const).map(({ key, icon, title, desc, sub }) => (
                 <div
                   key={key}
                   onClick={() => setSection(key)}
                   className="home-card"
-                  style={{ width: 240, cursor: "pointer", background: "#fff", borderRadius: 14, border: "1.5px solid #dde3f0", padding: "2rem 1.5rem", textAlign: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s" }}
+                  style={{
+                    width: 240,
+                    cursor: "pointer",
+                    background: t.cardBg,
+                    borderRadius: 14,
+                    border: `1.5px solid ${t.border}`,
+                    padding: "2rem 1.5rem",
+                    textAlign: "center",
+                    boxShadow: dark ? "0 2px 12px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.05)",
+                    transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s",
+                  }}
                 >
                   <div style={{ fontSize: 40, marginBottom: 14, lineHeight: 1, color: theme.accent }}>{icon}</div>
-                  <div style={{ color: theme.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 6 }}>{title}</div>
-                  <div style={{ color: "#6b7fa3", fontSize: "0.82rem", lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
-                  <div style={{ display: "inline-block", background: "#f4f6fb", color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 600, padding: "2px 10px", borderRadius: 20, letterSpacing: 0.3 }}>{sub}</div>
+                  <div style={{ color: t.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 6 }}>{title}</div>
+                  <div style={{ color: t.secondary, fontSize: "0.82rem", lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
+                  <div style={{ display: "inline-block", background: t.tagBg, color: t.secondary, fontSize: "0.72rem", fontWeight: 600, padding: "2px 10px", borderRadius: 20, letterSpacing: 0.3 }}>{sub}</div>
                 </div>
               ))}
             </div>
@@ -209,24 +252,24 @@ export default function Dashboard() {
               type="card"
               size="large"
               items={[
-                { key: "worker", label: <span><UserOutlined /> Worker</span>, children: <WorkerTab /> },
+                { key: "worker", label: <span><UserOutlined /> Worker</span>, children: <WorkerTab dark={dark} /> },
               ]}
             />
           )}
 
           {section === "metas" && (
             <>
-              <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.6rem 1.2rem", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ background: t.cardBg, border: `1px solid ${t.border}`, borderRadius: 10, padding: "0.6rem 1.2rem", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
                 <Switch
                   size="small"
                   checked={apenasAtribuidos}
                   onChange={v => setApenasAtribuidos(v)}
                 />
-                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: apenasAtribuidos ? theme.link : "#6b7fa3" }}>
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: apenasAtribuidos ? t.link : t.secondary }}>
                   Apenas projetos atribuídos
                 </span>
                 {apenasAtribuidos && (
-                  <span style={{ fontSize: "0.78rem", color: "#856404", background: "#fff3cd", padding: "1px 8px", borderRadius: 4 }}>
+                  <span style={{ fontSize: "0.78rem", color: dark ? "#fbbf24" : "#856404", background: dark ? "#3b2800" : "#fff3cd", padding: "1px 8px", borderRadius: 4 }}>
                     Filtrando pela base de clientes
                   </span>
                 )}
@@ -268,10 +311,10 @@ export default function Dashboard() {
               type="card"
               size="large"
               items={[
-                { key: "dre",       label: <span><BankOutlined /> DRE por Empresa</span>,  children: <DreTab /> },
-                { key: "streams",   label: <span><HeatMapOutlined /> P&L por Stream</span>, children: <StreamsTab /> },
-                { key: "matricial", label: <span><SlidersOutlined /> P&L Matricial</span>,  children: <MatricialTab /> },
-                { key: "sap",       label: <span><DatabaseOutlined /> Base SAP S4</span>,   children: <SapTab /> },
+                { key: "dre",       label: <span><BankOutlined /> DRE por Empresa</span>,    children: <DreTab /> },
+                { key: "streams",   label: <span><HeatMapOutlined /> P&L por Stream</span>,  children: <StreamsTab /> },
+                { key: "matricial", label: <span><SlidersOutlined /> P&L Matricial</span>,   children: <MatricialTab /> },
+                { key: "sap",       label: <span><DatabaseOutlined /> Base SAP S4</span>,    children: <SapTab /> },
               ]}
             />
           )}
@@ -279,16 +322,17 @@ export default function Dashboard() {
       </Layout>
 
       <style>{`
-        .total-row td { background-color: #dce6f7 !important; font-weight: 700; }
-        .subtotal-row td { background-color: #dce6f7 !important; font-weight: 700; }
-        .group-row td { background-color: #eef2ff !important; font-weight: 600; border-top: 2px solid #c7d2fe !important; }
+        body { background: ${t.pageBg}; transition: background 0.2s; }
+        .total-row td   { background-color: ${t.totalRow} !important; font-weight: 700; }
+        .subtotal-row td { background-color: ${t.totalRow} !important; font-weight: 700; }
+        .group-row td   { background-color: ${t.groupRow} !important; font-weight: 600; border-top: 2px solid ${dark ? "#2d4a8a" : "#c7d2fe"} !important; }
         .ant-table-thead > tr > th { background: ${theme.accent} !important; color: #fff !important; font-weight: 600; }
-        .ant-table-row:hover > td { background: #f0f4ff !important; }
+        .ant-table-row:hover > td  { background: ${t.hoverRow} !important; }
         .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active { background: ${theme.accent} !important; border-color: ${theme.accent} !important; }
         .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn { color: #fff !important; }
         .clickable-row { cursor: pointer; }
-        .clickable-row:hover > td { background: #eef2ff !important; }
-        .home-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important; transform: translateY(-2px); border-color: ${theme.accent} !important; }
+        .clickable-row:hover > td { background: ${t.hoverRow} !important; }
+        .home-card:hover { box-shadow: ${dark ? "0 8px 28px rgba(0,0,0,0.5)" : "0 8px 24px rgba(0,0,0,0.12)"} !important; transform: translateY(-2px); border-color: ${theme.accent} !important; }
       `}</style>
     </ConfigProvider>
   );
