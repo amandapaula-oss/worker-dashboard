@@ -1609,6 +1609,13 @@ def get_nova_base_resumo(
         valor_liquido = ("valor_liquido", "sum"),
     )
     agg = agg.rename(columns={group_col: "grupo"})
+
+    # Remove períodos sem nenhum dado real (todos os valores zerados)
+    if not periodos:
+        periodo_totals = agg.groupby("periodo")[["receita","custo_rateado","horas","valor_liquido"]].sum().abs().sum(axis=1)
+        periodos_com_dados = periodo_totals[periodo_totals > 0].index
+        agg = agg[agg["periodo"].isin(periodos_com_dados)]
+
     return _sanitize(agg.to_dict(orient="records"))
 
 @app.get("/api/nova-base/data")
@@ -1701,6 +1708,12 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
 
     if df.empty:
         return {"rows": [], "columns": []}
+
+    # Remove períodos sem nenhum dado real (soma absoluta zero)
+    if not periodos:
+        period_totals = df.groupby("periodo")[["receita","custo_rateado"]].sum().abs().sum(axis=1)
+        periods_with_data = set(period_totals[period_totals > 0].index)
+        df = df[df["periodo"].isin(periods_with_data)]
 
     all_periods = sorted(df["periodo"].unique().tolist())
     columns = all_periods + ["Total"]
