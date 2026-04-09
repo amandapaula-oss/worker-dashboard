@@ -1553,17 +1553,22 @@ def _get_nova_base() -> pd.DataFrame:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-        # Linhas billable com custo_gerencial_sap: usa como custo_rateado (negativo)
-        if "billable_category" in df.columns and "custo_gerencial_sap" in df.columns:
-            billable_mask = (
-                df["billable_category"].astype(str).str.strip().str.lower() == "billable"
-            ) & (df["custo_rateado"] == 0) & (df["custo_gerencial_sap"] != 0)
-            custo_total = (
-                df.loc[billable_mask, "custo_gerencial_sap"]
-                + df.loc[billable_mask, "custo_h_hora_extra"]
-                + df.loc[billable_mask, "custo_h_sobreaviso"]
+        # Mapeia custo para custo_rateado (negativo) onde ainda está zerado:
+        # CLTs/TDMs: custo_gerencial_sap + extras (billable e non-billable)
+        # PJs: valor_liquido (positivo = custo)
+        sem_custo = df["custo_rateado"] == 0
+        if "custo_gerencial_sap" in df.columns:
+            mask_clt = sem_custo & (df["custo_gerencial_sap"] != 0)
+            custo_clt = (
+                df.loc[mask_clt, "custo_gerencial_sap"]
+                + df.loc[mask_clt, "custo_h_hora_extra"]
+                + df.loc[mask_clt, "custo_h_sobreaviso"]
             )
-            df.loc[billable_mask, "custo_rateado"] = -custo_total
+            df.loc[mask_clt, "custo_rateado"] = -custo_clt
+        if "valor_liquido" in df.columns:
+            # PJs: valor_liquido positivo = custo do PJ (fonte PJs)
+            mask_pj = sem_custo & (df.get("fonte", pd.Series(dtype=str)).astype(str) == "PJs") & (df["valor_liquido"] > 0)
+            df.loc[mask_pj, "custo_rateado"] = -df.loc[mask_pj, "valor_liquido"]
 
         _cache["nova_base"] = df
     return _cache["nova_base"]
