@@ -354,7 +354,12 @@ export default function Dashboard() {
         [data-theme="dark"] .ant-table-wrapper { background: #161b2e !important; }
         [data-theme="dark"] .ant-table { background: #161b2e !important; color: #e2e8f0 !important; }
         [data-theme="dark"] .ant-table-cell { background: #161b2e !important; color: #e2e8f0 !important; border-color: #2a3050 !important; }
-        [data-theme="dark"] .ant-table-tbody > tr > td { border-color: #2a3050 !important; }
+        [data-theme="dark"] .ant-table-tbody > tr > td { border-color: #2a3050 !important; color: #e2e8f0 !important; }
+        [data-theme="dark"] .ant-table-tbody > tr > td span { color: inherit !important; }
+        [data-theme="dark"] .total-row td, [data-theme="dark"] .subtotal-row td { color: #e2e8f0 !important; }
+        [data-theme="dark"] .group-row td { color: #e2e8f0 !important; }
+        [data-theme="dark"] .ant-table-tbody > tr > td span[style*="color: rgb(50, 56, 62)"],
+        [data-theme="dark"] .ant-table-tbody > tr > td span[style*="color:#32383E"] { color: #e2e8f0 !important; }
         [data-theme="dark"] .ant-table-container { border-color: #2a3050 !important; }
         [data-theme="dark"] .ant-table-title { background: #161b2e !important; border-color: #2a3050 !important; }
         [data-theme="dark"] .ant-btn-default { background: #1e2438 !important; border-color: #2a3050 !important; color: #e2e8f0 !important; }

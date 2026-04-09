@@ -20,8 +20,16 @@ function fmtBRL(v: number) {
 }
 function fmtPct(v: number) { return `${(v * 100).toFixed(1)}%`; }
 
+function isDark() {
+  return document.documentElement.getAttribute("data-theme") === "dark";
+}
+
 export default function PLTable({ rows, columns }: Props) {
   if (!rows.length) return <p style={{ color: "#6b7fa3" }}>Nenhum dado encontrado.</p>;
+
+  const dark = isDark();
+  const textColor = dark ? "#e2e8f0" : theme.text;
+  const negColor  = dark ? "#f87171" : "#c0392b";
 
   const tableColumns = [
     {
@@ -34,7 +42,7 @@ export default function PLTable({ rows, columns }: Props) {
         <span style={{
           fontWeight: record.is_group ? 600 : record.is_subtotal ? 700 : 400,
           fontStyle: record.is_group ? "italic" : "normal",
-          color: record.is_group ? theme.accent : theme.text,
+          color: record.is_group ? theme.accent : textColor,
         }}>{text}</span>
       ),
     },
@@ -48,7 +56,7 @@ export default function PLTable({ rows, columns }: Props) {
         if (record.is_group) return null;
         const v = record.values[col] ?? 0;
         const formatted = record.is_pct ? fmtPct(v) : fmtBRL(v);
-        const color = v < 0 && !record.is_pct ? "#c0392b" : theme.text;
+        const color = v < 0 && !record.is_pct ? negColor : textColor;
         return <span style={{ fontWeight: record.is_subtotal ? 700 : 400, color }}>{formatted}</span>;
       },
     })),
