@@ -256,14 +256,6 @@ async def startup():
     # Tudo em background para o servidor declarar "Live" imediatamente
     import threading
 
-    def _preload_nova_base():
-        try:
-            print("Pré-carregando nova base 2026...")
-            _get_nova_base()
-            print("Nova base carregada.")
-        except Exception as e:
-            print(f"Erro ao pré-carregar nova base: {e}")
-
     def _preload_all():
         try:
             print("Carregando Worker (background)...")
@@ -272,11 +264,8 @@ async def startup():
             print("Worker carregado. Carregando dados pesados...")
         except Exception as e:
             print(f"Erro no preload leve: {e}")
-        # Paraleliza: nova base + dados pesados (SAP/Nexus) ao mesmo tempo
-        nb_thread = threading.Thread(target=_preload_nova_base, daemon=True)
-        nb_thread.start()
+        # Nova base carrega lazy (na primeira requisição) para não estourar memória no startup
         _preload_heavy()
-        nb_thread.join()
         print("Todos os dados carregados.")
     threading.Thread(target=_preload_all, daemon=True).start()
 
