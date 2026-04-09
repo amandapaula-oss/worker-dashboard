@@ -1547,6 +1547,14 @@ def get_nova_base_filters(user=Depends(get_current_user)):
     current_period = datetime.now().strftime("%Y-%m")
     df = _get_nova_base()
     df = df[df["periodo"].fillna("").astype(str) <= current_period]
+    # Exclui períodos sem nenhum dado real
+    for col in ["receita", "custo_rateado", "valor_liquido", "horas"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    period_totals = df.groupby("periodo")[["receita","custo_rateado","valor_liquido","horas"]].sum().abs().sum(axis=1)
+    periodos_com_dados = set(period_totals[period_totals > 0].index)
+    df = df[df["periodo"].isin(periodos_com_dados)]
     def uniq(col):
         return sorted(df[col].dropna().astype(str).str.strip().unique().tolist()) if col in df.columns else []
     return {
