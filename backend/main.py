@@ -1535,9 +1535,24 @@ def _get_nova_base() -> pd.DataFrame:
             raise FileNotFoundError(f"base_2026.csv / .xlsx não encontrado em {_BASE_DIR}")
 
         for col in ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
-                    "taxa_hora", "hour_price", "gross_revenue"]:
+                    "taxa_hora", "hour_price", "gross_revenue",
+                    "custo_gerencial_sap", "custo_h_hora_extra", "custo_h_sobreaviso"]:
             if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+        # Linhas billable com custo_gerencial_sap: usa como custo_rateado (negativo)
+        # custo_gerencial_sap já é positivo no Mapa Pessoas; custo_rateado é convenção negativa
+        if "billable_category" in df.columns and "custo_gerencial_sap" in df.columns:
+            billable_mask = (
+                df["billable_category"].astype(str).str.strip().str.lower() == "billable"
+            ) & (df["custo_rateado"].fillna(0) == 0) & (df["custo_gerencial_sap"].fillna(0) != 0)
+            custo_total = (
+                df.loc[billable_mask, "custo_gerencial_sap"].fillna(0)
+                + df.loc[billable_mask, "custo_h_hora_extra"].fillna(0)
+                + df.loc[billable_mask, "custo_h_sobreaviso"].fillna(0)
+            )
+            df.loc[billable_mask, "custo_rateado"] = -custo_total
+
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
