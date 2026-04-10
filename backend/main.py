@@ -1768,30 +1768,37 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
     def zero_vals():
         return {c: 0.0 for c in columns}
 
-    # ── Single aggregation pass ────────────────────────────────────────────────
-    # Custo direto = linhas SEM macro_area (receita e custo de projetos)
-    # Despesas = linhas COM macro_area (overhead por categoria)
-    NUM_COLS = ["receita", "custo_rateado"]
-    df["_has_ma"] = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else False
-    df_direto = df[~df["_has_ma"]]
-    agg_total = df_direto.groupby("periodo")[NUM_COLS].sum().reindex(all_periods, fill_value=0)
-    # Gross Profit = receita + custo_rateado (custo_rateado já é negativo)
-    agg_total["gross_profit"] = agg_total["receita"] + agg_total["custo_rateado"]
+    # ── Separação por fonte para evitar dupla contagem ────────────────────────
+    # Receita: qualquer fonte com receita > 0 (racionais)
+    # Custo direto e Despesas: exclusivamente fonte == "custo_gerencial"
+    #   (CLTs/PJs ficam na base como histórico mas não entram no DRE de custos)
+    df["macro_area"] = df["macro_area"].fillna("").astype(str).str.strip() if "macro_area" in df.columns else ""
+    df["_has_ma"] = df["macro_area"].ne("")
+    df["_is_cg"]  = df["fonte"].astype(str).str.strip() == "custo_gerencial"
+
+    # Receita (sem macro_area)
+    df_rec = df[~df["_has_ma"]]
+    agg_rec = df_rec.groupby("periodo")["receita"].sum().reindex(all_periods, fill_value=0)
+
+    # Custo direto: custo_gerencial SEM macro_area (billable — vai contra projetos)
+    df_cg_direto = df[df["_is_cg"] & ~df["_has_ma"]]
+    agg_cus = df_cg_direto.groupby("periodo")["custo_rateado"].sum().reindex(all_periods, fill_value=0)
+
+    agg_gp = agg_rec + agg_cus  # custo_rateado já é negativo
 
     rows = [
-        {"name": "Receita",        "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["receita"])},
-        {"name": "Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(agg_total["custo_rateado"])},
-        {"name": "Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_total["gross_profit"])},
-        {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_total["receita"], agg_total["gross_profit"])},
+        {"name": "Receita",        "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_rec)},
+        {"name": "Custo",          "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(agg_cus)},
+        {"name": "Gross Profit",   "is_subtotal": True,  "is_pct": False, "is_group": False, "values": row_vals(agg_gp)},
+        {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_rec, agg_gp)},
     ]
 
-    # ── Despesas por Macro Área (classificação de overhead, sem receita) ──────────
-    # macro_area é uma classificação de despesas — não mistura com receita/GP
-    if "macro_area" in df.columns:
-        df["macro_area"] = df["macro_area"].fillna("").astype(str).str.strip()
+    # ── Despesas por Macro Área: custo_gerencial COM macro_area ───────────────
+    df_cg_desp = df[df["_is_cg"] & df["_has_ma"]]
+    if not df_cg_desp.empty:
         agg_ma_raw = (
-            df[df["macro_area"].ne("")]
-            .groupby(["macro_area", "periodo"])[["custo_rateado"]]
+            df_cg_desp
+            .groupby(["macro_area", "periodo"])["custo_rateado"]
             .sum()
             .reset_index()
         )
@@ -1799,8 +1806,8 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
             rows.append({"name": "Despesas", "is_subtotal": False, "is_pct": False, "is_group": True, "values": zero_vals()})
             for ma in sorted(agg_ma_raw["macro_area"].unique().tolist()):
                 sub_cus = (agg_ma_raw[agg_ma_raw["macro_area"] == ma]
-                           .set_index("periodo")[["custo_rateado"]]
-                           .reindex(all_periods, fill_value=0)["custo_rateado"])
+                           .set_index("periodo")["custo_rateado"]
+                           .reindex(all_periods, fill_value=0))
                 if float(sub_cus.sum()) != 0:
                     rows.append({"name": f"  {ma}", "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(sub_cus)})
 

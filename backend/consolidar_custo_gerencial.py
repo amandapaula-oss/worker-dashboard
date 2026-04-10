@@ -281,22 +281,10 @@ except Exception as e:
 print(f"\nCarregando {BASE_CSV}...")
 base = pd.read_csv(BASE_CSV, low_memory=False, dtype=str)
 
-# Remove linhas de custo_gerencial já existentes para evitar duplicata
+# Remove linhas de custo_gerencial já existentes para evitar duplicata ao re-rodar o script
 before = len(base)
 base = base[base["fonte"] != "custo_gerencial"]
 print(f"Base: {before} → {len(base)} linhas (removidas {before-len(base)} antigas de custo_gerencial)")
-
-# Remove apenas as pessoas que já existem como CLTs no mesmo período (evita duplicata sem perder dados únicos)
-clts_base = base[base["fonte"] == "CLTs"][["periodo", "numero_pessoal"]].copy()
-clts_base["numero_pessoal"] = clts_base["numero_pessoal"].astype(str).str.strip()
-clts_base["_chave"] = clts_base["periodo"] + "|" + clts_base["numero_pessoal"]
-chaves_clts = set(clts_base["_chave"])
-
-novo["numero_pessoal"] = novo["numero_pessoal"].astype(str).str.strip()
-novo["_chave"] = novo["periodo"] + "|" + novo["numero_pessoal"]
-antes = len(novo)
-novo = novo[~novo["_chave"].isin(chaves_clts)].drop(columns=["_chave"])
-print(f"Removidos {antes - len(novo)} linhas de custo_gerencial que já existem como CLTs (mesmo periodo+pessoa)")
 
 # Alinha colunas
 for col in base.columns:
