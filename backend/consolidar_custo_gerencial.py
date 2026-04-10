@@ -286,6 +286,13 @@ before = len(base)
 base = base[base["fonte"] != "custo_gerencial"]
 print(f"Base: {before} → {len(base)} linhas (removidas {before-len(base)} antigas de custo_gerencial)")
 
+# Remove períodos que já têm CLTs no base (Mapa Pessoas já cobre esses meses)
+periodos_com_clts = set(base[base["fonte"] == "CLTs"]["periodo"].unique())
+if periodos_com_clts:
+    antes = len(novo)
+    novo = novo[~novo["periodo"].isin(periodos_com_clts)]
+    print(f"Removidos {antes - len(novo)} linhas de custo_gerencial duplicadas (períodos já cobertos por CLTs: {sorted(periodos_com_clts)})")
+
 # Alinha colunas
 for col in base.columns:
     if col not in novo.columns:
