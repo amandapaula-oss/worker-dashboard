@@ -2422,6 +2422,9 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
     if bgt_tcv_q3 > 0:
         if real_tcv_q3 == 0.0:
             real_tcv_q3 = real_rec_q3
+        # Override Q3 Henrique — TCV realizado fixo conforme análise
+        if "HENRIQUE" in nome_n.upper():
+            real_tcv_q3 = 10688084.0
         ating_tcv = 1.0 if real_tcv_q3 >= bgt_tcv_q3 * TRIGGER_REC_Q3 else 0.0
     else:
         ating_tcv = 0.0
