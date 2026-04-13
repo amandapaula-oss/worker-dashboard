@@ -296,6 +296,17 @@ def _load_all():
         except Exception:
             pass
 
+    # ── Despesas pessoas Q3 (mesma lógica, períodos Q3) ──────────────────────────
+    total_despesa_pessoas_q3 = 0.0
+    if not margem_pess.empty and not class_pess.empty:
+        try:
+            _mp_q3    = margem_pess[margem_pess["periodo"].isin(Q3_PERIODOS)]
+            _cpf_desp = set(class_pess[class_pess["classificacao"] == "despesa"]["cpf_brcpf"].str.strip())
+            _mp_desp3 = _mp_q3[_mp_q3["cpf"].str.strip().isin(_cpf_desp)]
+            total_despesa_pessoas_q3 = float(_mp_desp3["custo_rateado"].sum())
+        except Exception:
+            pass
+
     # total_dir_rac_q4 será calculado após vert_by_pep e rac_by_pep estarem disponíveis
     total_dir_rac_q4 = 0.0
 
@@ -420,6 +431,7 @@ def _load_all():
         "pesos_ws_pessoa_q3":  pesos_ws_pessoa_q3,
         "total_despesa_pessoas_q4": total_despesa_pessoas_q4,
         "total_dir_rac_q4":        total_dir_rac_q4,
+        "total_despesa_pessoas_q3": total_despesa_pessoas_q3,
         "mc_metas_dir":            mc_metas_dir,
         "vert_by_pep":      vert_by_pep,
         "pep_to_nome_cli":  pep_to_nome_cli,
@@ -2332,8 +2344,13 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
         # Realized revenue uses client-level sum (same source as AEs) for consistency.
 
     _real_lb_sap = sum(realized_lb_ws.values()) if any(v != 0 for v in realized_lb_ws.values()) else real_lb_q3
-    _real_mc_abs = _real_lb_sap + real_payroll_exp + real_deductions
-    real_mc_pct  = _real_mc_abs / real_rec_q3 if real_rec_q3 else 0.0
+    # Despesas pessoas Q3: proporcional por receita (mesma Opção C do Q4).
+    # total_dir_rac_q3 = real_rec_q3 (Henrique é o único diretor em Q3).
+    _total_desp_q3  = d.get("total_despesa_pessoas_q3", 0.0)
+    _total_dir_q3   = real_rec_q3 if real_rec_q3 > 0 else 1.0
+    despesas_q3     = _total_desp_q3 * (real_rec_q3 / _total_dir_q3)  # = _total_desp_q3
+    _real_mc_abs    = _real_lb_sap + despesas_q3
+    real_mc_pct     = _real_mc_abs / real_rec_q3 if real_rec_q3 else 0.0
 
     if not nq3_budget.empty:
         bgt_gross        = float(nq3_budget[nq3_budget["Agrupador"] == "Gross revenue"]["[Valor]"].sum())
@@ -2462,7 +2479,7 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
         "real_other_costs":  round(real_other_costs, 2),
         "real_payroll_exp":  round(real_payroll_exp, 2),
         "real_deductions":   round(real_deductions, 2),
-        "real_despesa_pessoas": 0.0,
+        "real_despesa_pessoas": round(despesas_q3, 2),
         "bgt_gross_rev":     round(bgt_gross, 2),
         "bgt_payroll":       round(bgt_payroll, 2),
         "bgt_third_party":   round(bgt_third_party, 2),
