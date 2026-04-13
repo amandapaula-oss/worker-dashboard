@@ -1122,6 +1122,24 @@ def _load_q3_realized():
         except Exception:
             pass
 
+    # Override Q3 — MRV: receita correta R$ 2.876.691 (planilha CSV); LB escalado proporcionalmente
+    _mrv_n = norm("MRV")
+    _mrv_rec_correto = 2876691.0
+    if _mrv_n in rec_by_client_nh and rec_by_client_nh[_mrv_n] > 0:
+        _ratio = _mrv_rec_correto / rec_by_client_nh[_mrv_n]
+        _old_lb    = marg_by_client_nh.get(_mrv_n, 0.0)
+        _old_custo = custo_by_client_nh.get(_mrv_n, 0.0)
+        rac_by_client_nh[_mrv_n]   = _mrv_rec_correto
+        rec_by_client_nh[_mrv_n]   = _mrv_rec_correto
+        marg_by_client_nh[_mrv_n]  = _old_lb * _ratio
+        custo_by_client_nh[_mrv_n] = _old_custo * _ratio
+        for _k in list(rec_by_client_ws_nh):
+            if _k[0] == _mrv_n:
+                rec_by_client_ws_nh[_k] = rec_by_client_ws_nh[_k] * _ratio
+        for _k in list(marg_by_client_ws_nh):
+            if _k[0] == _mrv_n:
+                marg_by_client_ws_nh[_k] = marg_by_client_ws_nh[_k] * _ratio
+
     return {
         "rac_by_client_nh":      rac_by_client_nh,
         "marg_by_client_nh":     marg_by_client_nh,
