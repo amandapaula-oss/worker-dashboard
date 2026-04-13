@@ -1116,54 +1116,73 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
       )}
 
       {/* ── Breakdown Custos / Despesas ── */}
-      <Divider>Custos e Despesas — Composição da MC% (Nexus Q4)</Divider>
-      <Table
-        size="small"
-        pagination={false}
-        style={{ marginBottom: 16 }}
-        dataSource={(() => {
-          const rec  = d.real_rec_sap ?? d.real_rec_q4 ?? 0;
-          const lb   = d.real_lb_q4 ?? 0;
-          const desp = d.real_despesa_pessoas ?? ((d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0));
-          const mc   = lb + desp;
-          const bgtRec  = d.budget_rec_q4 ?? 0;
-          const bgtLb   = d.budget_lb_q4 ?? 0;
-          const bgtDesp = (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0);
-          const bgtMc   = bgtLb + bgtDesp;
-          return [
-            { key: "rec",  linha: "Receita",                    tipo: "receita", bgt: bgtRec,  real: rec,  pct: null },
-            { key: "lb",   linha: "Lucro Bruto (MB)",           tipo: "mb",      bgt: bgtLb,   real: lb,   pct: rec ? `${(lb/rec*100).toFixed(1)}%` : null },
-            { key: "desp", linha: "Despesas",                   tipo: "despesa", bgt: bgtDesp, real: desp, pct: null },
-            { key: "mc",   linha: "Margem de Contribuição (MC)", tipo: "mc",      bgt: bgtMc,   real: mc,   pct: rec ? `${(mc/rec*100).toFixed(1)}%` : null },
-          ];
-        })()}
-        columns={[
-          { title: "Linha", dataIndex: "linha", width: "45%",
-            render: (v: string, row: any) => {
-              const color = row.tipo === "receita" ? theme.text
-                : row.tipo === "mb" ? "#1a6e3c"
-                : row.tipo === "despesa" ? "#e67e22"
-                : "#0050b3";
-              return <span style={{ color, fontWeight: row.tipo === "mb" || row.tipo === "mc" ? 700 : 400 }}>{v}</span>;
-            }
-          },
-          { title: "Budget Q4", dataIndex: "bgt", align: "right" as const,
-            render: (v: number) => <span style={{ color: "#888" }}>{v !== 0 ? fmt(v) : "—"}</span> },
-          { title: "Realizado Q4", dataIndex: "real", align: "right" as const,
-            render: (v: number, row: any) => {
-              if (v === 0 && row.tipo !== "mb" && row.tipo !== "mc") return <span style={{ color: "#ccc" }}>—</span>;
-              const color = row.tipo === "receita" ? theme.text
-                : row.tipo === "mb" ? "#1a6e3c"
-                : row.tipo === "despesa" ? "#e67e22"
-                : "#0050b3";
-              return <span style={{ color, fontWeight: 600 }}>{fmt(v)}</span>;
-            }
-          },
-          { title: "% s/ Receita", dataIndex: "pct", align: "right" as const,
-            render: (v: string | null) => v ? <span style={{ fontWeight: 700 }}>{v}</span> : <span style={{ color: "#ccc" }}>—</span>
-          },
-        ]}
-      />
+      {(() => {
+        const periodo = d.periodo ?? "";
+        const isQ3 = periodo.includes("Q3");
+        const fonte = isQ3 ? "Projetos/RAC" : "Nexus";
+        const rec  = d.real_rec_sap ?? d.real_rec_q4 ?? 0;
+        const lb   = d.real_lb_q4 ?? 0;
+        const hasNexusCosts = (d.real_payroll ?? 0) !== 0 || (d.real_third_party ?? 0) !== 0 || (d.real_deductions ?? 0) !== 0;
+        // Para Q3 (sem Nexus): custo dos projetos = lb - rec (negativo); desp pessoas = 0
+        const custoProjetos = isQ3 && !hasNexusCosts ? lb - rec : 0;
+        const desp = d.real_despesa_pessoas ?? ((d.real_payroll_exp ?? 0) + (d.real_deductions ?? 0));
+        const mc   = lb + desp;
+        const bgtRec  = d.budget_rec_q4 ?? 0;
+        const bgtLb   = d.budget_lb_q4 ?? 0;
+        const bgtDesp = (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0);
+        const bgtMc   = bgtLb + bgtDesp;
+
+        const rows: any[] = [
+          { key: "rec",  linha: "Receita",                    tipo: "receita", bgt: bgtRec, real: rec, pct: null },
+        ];
+        if (isQ3 && !hasNexusCosts) {
+          rows.push({ key: "custo", linha: "Custo Direto (Projetos)", tipo: "despesa", bgt: 0, real: custoProjetos, pct: rec ? `${(custoProjetos/rec*100).toFixed(1)}%` : null });
+        }
+        rows.push({ key: "lb",   linha: "Lucro Bruto (MB)",            tipo: "mb",      bgt: bgtLb,   real: lb,   pct: rec ? `${(lb/rec*100).toFixed(1)}%` : null });
+        if (!isQ3 || hasNexusCosts) {
+          rows.push({ key: "desp", linha: "Despesas Pessoas",           tipo: "despesa", bgt: bgtDesp, real: desp, pct: null });
+        }
+        rows.push({ key: "mc", linha: "Margem de Contribuição (MC)",   tipo: "mc",      bgt: bgtMc,   real: mc,   pct: rec ? `${(mc/rec*100).toFixed(1)}%` : null });
+
+        const periodo_label = isQ3 ? "Q3 2025" : "Q4 2025";
+        return (
+          <>
+            <Divider>Custos e Despesas — Composição da MC% ({fonte} · {periodo_label})</Divider>
+            <Table
+              size="small"
+              pagination={false}
+              style={{ marginBottom: 16 }}
+              dataSource={rows}
+              columns={[
+                { title: "Linha", dataIndex: "linha", width: "45%",
+                  render: (v: string, row: any) => {
+                    const color = row.tipo === "receita" ? theme.text
+                      : row.tipo === "mb" ? "#1a6e3c"
+                      : row.tipo === "despesa" ? "#e67e22"
+                      : "#0050b3";
+                    return <span style={{ color, fontWeight: row.tipo === "mb" || row.tipo === "mc" ? 700 : 400 }}>{v}</span>;
+                  }
+                },
+                { title: `Budget ${periodo_label}`, dataIndex: "bgt", align: "right" as const,
+                  render: (v: number) => <span style={{ color: "#888" }}>{v !== 0 ? fmt(v) : "—"}</span> },
+                { title: `Realizado ${periodo_label}`, dataIndex: "real", align: "right" as const,
+                  render: (v: number, row: any) => {
+                    if (v === 0 && row.tipo !== "mb" && row.tipo !== "mc") return <span style={{ color: "#ccc" }}>—</span>;
+                    const color = row.tipo === "receita" ? theme.text
+                      : row.tipo === "mb" ? "#1a6e3c"
+                      : row.tipo === "despesa" ? "#e67e22"
+                      : "#0050b3";
+                    return <span style={{ color, fontWeight: 600 }}>{fmt(v)}</span>;
+                  }
+                },
+                { title: "% s/ Receita", dataIndex: "pct", align: "right" as const,
+                  render: (v: string | null) => v ? <span style={{ fontWeight: 700 }}>{v}</span> : <span style={{ color: "#ccc" }}>—</span>
+                },
+              ]}
+            />
+          </>
+        );
+      })()}
 
       {/* ── Clientes da Vertical ── */}
       {d.clientes_detalhe && d.clientes_detalhe.length > 0 && (
