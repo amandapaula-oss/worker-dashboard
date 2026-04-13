@@ -931,7 +931,8 @@ function ResultadoBox({ bonusTotal, salario, periodo = "Q4 2025" }: { bonusTotal
 function DetalheDir({ d }: { d: DetalheCalculo }) {
   const gate = d.mc_gate === 1;
   const triggerRec = d.trigger_rec ?? 0.85;
-  const triggerMcAbs = d.trigger_mc_abs ?? ((d.budget_mc_abs ?? 0) * 0.85);
+  const triggerPct = Math.round(triggerRec * 100);
+  const triggerMcAbs = d.trigger_mc_abs ?? ((d.budget_mc_abs ?? 0) * triggerRec);
   const triggerMcPct = d.trigger_mc_pct ?? ((d.budget_mc_pct ?? 0) - 1.5);
 
   return (
@@ -953,7 +954,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
             {gate ? "Gatilho atingido" : "Gatilho NÃO atingido — sem apuração de Receita e TCV"}
           </div>
           <div style={{ fontSize: 12, color: "#666" }}>
-            MC {gate ? "≥" : "<"} mínimo de {fmt(triggerMcAbs)} (85% da meta de {fmt(d.budget_mc_abs ?? 0)})
+            MC {gate ? "≥" : "<"} mínimo de {fmt(triggerMcAbs)} ({triggerPct}% da meta de {fmt(d.budget_mc_abs ?? 0)})
           </div>
         </div>
       </div>
@@ -965,9 +966,9 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
           <strong>Fórmula:</strong> Bônus = Salário × Peso Métrica × Atingimento
         </div>
         <div style={{ marginBottom: 6 }}>
-          <strong>Trigger Receita/TCV:</strong> 85% da meta — abaixo disso = 0
+          <strong>Trigger Receita/TCV:</strong> {triggerPct}% da meta — abaixo disso = 0
           &nbsp;&nbsp;|&nbsp;&nbsp;
-          <strong>Trigger MC:</strong> 85% da meta absoluta — abaixo disso = 0 (Gatilho Mestre)
+          <strong>Trigger MC (Gatilho Mestre):</strong> {triggerPct}% da MC absoluta — abaixo disso = 0
         </div>
         <div>
           <strong>Pesos:</strong>&nbsp;
