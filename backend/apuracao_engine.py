@@ -2407,6 +2407,10 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
     _mc_metas   = d.get("mc_metas_dir", {})
     if nome_n in _mc_metas:
         _bgt_mc_abs = _mc_metas[nome_n]
+    # Override Q3 Henrique (Grupo Mult) — meta MC fixa conforme análise
+    # Meta = 4.114.765 → trigger automático = 4.114.765 × 90% = 3.703.288,50
+    if "HENRIQUE" in nome_n.upper():
+        _bgt_mc_abs = 4114765.0
 
     bgt_mc_pct      = _bgt_mc_abs / bgt_rec_q3 if bgt_rec_q3 else 0.0
     _trigger_mc_abs = _bgt_mc_abs * TRIGGER_REC_Q3
