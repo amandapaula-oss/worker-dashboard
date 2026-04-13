@@ -2302,6 +2302,47 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
                     realized_lb_ws[ws_k]  = realized_lb_ws.get(ws_k, 0.0)  + l_ws
             _cli_agg[cli_disp] = {"rec": real_r, "custo": real_cus, "lb": real_lb, "bgt": cli_bgt}
 
+    # Inclui clientes extras (sem budget no diretor) que pertencem aos AEs da vertical e tenham realizado.
+    # Dedup por valor: evita _match_cliente fuzzy capturar mesma linha RAC duas vezes.
+    if vertical:
+        ae_to_clients = d.get("ae_to_clients", {})
+        ae_gm_pos = pessoas[
+            (pessoas["Posicao"].str.upper().str.strip() == "AE_GM") |
+            (pessoas["Posicao"].str.upper().str.strip() == "AE")
+        ]
+        extras_norm: set[str] = set()
+        for _, _ae_p in ae_gm_pos.iterrows():
+            _ae_n = norm(str(_ae_p["Nome"]))
+            for _c in ae_to_clients.get(_ae_n, {}):
+                extras_norm.add(_c)
+        cobertos_norm = {norm(c) for c in _cli_agg.keys()}
+        valores_existentes = {round(agg["rec"], 2) for agg in _cli_agg.values() if agg["rec"] > 0}
+        for cli_n in extras_norm - cobertos_norm:
+            real_r = _match_cliente(cli_n, q3r["rac_by_client_nh"])
+            if real_r == 0.0:
+                real_r = _match_cliente(cli_n, q3r["rec_by_client_nh"])
+            if real_r <= 0:
+                continue
+            if round(real_r, 2) in valores_existentes:
+                continue
+            real_lb  = _match_cliente(cli_n, q3r["marg_by_client_nh"])
+            real_cus = _match_cliente(cli_n, q3r.get("custo_by_client_nh", {}))
+            real_rec_q3 += real_r
+            real_lb_q3  += real_lb
+            actual_rec_ws  = _match_cliente_ws(cli_n, q3r["rec_by_client_ws_nh"])
+            actual_marg_ws = _match_cliente_ws(cli_n, q3r["marg_by_client_ws_nh"])
+            actual_rec_total = sum(actual_rec_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4)
+            if actual_rec_total > 0:
+                for ws_k in WS_PESOS_Q4:
+                    r_ws = actual_rec_ws.get(ws_k, 0.0)
+                    l_ws = actual_marg_ws.get(ws_k, 0.0)
+                    if ws_k in WS_MB_BENCHMARK_Q4:
+                        l_ws = r_ws * WS_MB_BENCHMARK_Q4[ws_k]
+                    realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + r_ws
+                    realized_lb_ws[ws_k]  = realized_lb_ws.get(ws_k, 0.0)  + l_ws
+            _cli_agg[cli_n.upper()] = {"rec": real_r, "custo": real_cus, "lb": real_lb, "bgt": 0.0}
+            valores_existentes.add(round(real_r, 2))
+
     clientes_detalhe_dir = [
         {
             "cliente":    cli_d,
@@ -2344,11 +2385,8 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
         # Realized revenue uses client-level sum (same source as AEs) for consistency.
 
     _real_lb_sap = sum(realized_lb_ws.values()) if any(v != 0 for v in realized_lb_ws.values()) else real_lb_q3
-    # Despesas pessoas Q3: proporcional por receita (mesma Opção C do Q4).
-    # total_dir_rac_q3 = real_rec_q3 (Henrique é o único diretor em Q3).
-    _total_desp_q3  = d.get("total_despesa_pessoas_q3", 0.0)
-    _total_dir_q3   = real_rec_q3 if real_rec_q3 > 0 else 1.0
-    despesas_q3     = _total_desp_q3 * (real_rec_q3 / _total_dir_q3)  # = _total_desp_q3
+    # Despesas pessoas Q3 — Henrique (Grupo Mult): valor fixo conforme análise (R$ 445.246).
+    despesas_q3     = -445246.0
     _real_mc_abs    = _real_lb_sap + despesas_q3
     real_mc_pct     = _real_mc_abs / real_rec_q3 if real_rec_q3 else 0.0
 
