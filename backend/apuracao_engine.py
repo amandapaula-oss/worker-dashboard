@@ -337,6 +337,22 @@ def _load_all():
         except Exception:
             pass
 
+    # Override Grupo Mult — atribuição cliente→AE conforme análise do diretor.
+    # Inclui variantes do SAP (DIRECIONAL ENGENHARIA S/A, UNIMED BELO HORIZONTE
+    # COOPERATIVA D, LOJA ELETRICA LTDA) que não estão no cadastro de clientes.
+    _gm_overrides = {
+        "EDMILSON":                 ["ANGLO AMERICAN", "BBCE", "JSL", "KLABIN", "MRS", "NAGEM", "RUMO", "VLI"],
+        "GUILHERME":                ["DIRECIONAL", "DIRECIONAL ENGENHARIA S/A", "JEITTO", "MRV", "POLIEDRO"],
+        "DANILO DE SOUZA MACIEIRA": ["BANCO INTER", "CBMM", "CCPR", "LOJA ELETRICA", "LOJA ELETRICA LTDA",
+                                     "SADA", "UNIMED BH", "UNIMED BELO HORIZONTE COOPERATIVA D",
+                                     "UNIMED CURITIBA"],
+    }
+    for _ae_n_up, _cli_list in _gm_overrides.items():
+        _ae_key = norm(_ae_n_up)
+        _existing = _ae_to_clients.setdefault(_ae_key, {})
+        for _c in _cli_list:
+            _existing.setdefault(norm(_c), "Grupo Mult")
+
     marg_q4["pep_base"] = marg_q4["pep"].astype(str).str.split(".").str[0].str.strip()
     if "ws_key" not in marg_q4.columns:
         marg_q4["ws_key"] = "demais"
