@@ -2195,6 +2195,291 @@ def get_visao_master() -> list[dict]:
     return resultados
 
 
+# ─── Bônus Diretor Q3 ────────────────────────────────────────────────────────
+
+def calc_bonus_diretor_q3(nome: str) -> dict:
+    """Calcula bônus Q3 para DIRETOR. Estrutura análoga ao Q4 mas usando dados Q3."""
+    d   = _load_all()
+    q3r = _load_q3_realized()
+
+    nome_n  = norm(nome)
+    pessoas = d["pessoas"]
+    pessoa  = pessoas[pessoas["nome_norm"] == nome_n]
+    if pessoa.empty:
+        pessoa = pessoas[pessoas["nome_norm"].str.contains(nome_n.split()[0])]
+    if pessoa.empty:
+        raise ValueError(f"Diretor não encontrado: {nome}")
+    pessoa = pessoa.iloc[0]
+
+    salario = float(pessoa.get("Sal_Q3") or 0)
+    posicao = "DIRETOR"
+
+    pesos_row = d["pesos_m"][
+        (d["pesos_m"]["Periodo"] == "Quarter") &
+        (d["pesos_m"]["Posicao"].str.upper() == "DIRETOR")
+    ].iloc[0]
+    peso_tcv = float(pesos_row["TCV"] or 0)
+    peso_rec = float(pesos_row["Receita"] or 0)
+    peso_mc  = float(pesos_row["MC_pct"] or 0)
+    peso_lb  = float(pesos_row["MB_pct"] or 0)
+
+    vertical = DIRETOR_VERTICAL.get(nome_n, None)
+    bs_key   = VERTICAL_BS_MAP.get(vertical, vertical) if vertical else ""
+
+    # ─ TCV Q3 ─
+    bgt_tcv  = d["bgt_tcv"]
+    tcv_key  = DIRETOR_TCV_KEY.get(vertical, nome.split()[0]) if vertical else nome.split()[0]
+    tcv_rows = bgt_tcv[bgt_tcv["ae"].apply(lambda x: str(x).strip() if pd.notna(x) else "") == tcv_key]
+    bgt_tcv_q3  = float(tcv_rows[tcv_rows["descricao"].apply(lambda x: "receita" in str(x).lower())]["q3"].sum())
+    real_tcv_q3 = 0.0  # preenchido abaixo via nexus gross_rev
+
+    # ─ Budget Receita Q3 ─
+    bgt_rec = d["bgt_rec"]
+    if vertical:
+        rec_dir = bgt_rec[bgt_rec["bs"].str.lower() == bs_key.lower()].copy()
+        rec_dir = rec_dir[~rec_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)]
+    else:
+        rec_dir = pd.DataFrame()
+    bgt_rec_q3 = float(rec_dir["q3"].sum()) if not rec_dir.empty else 0.0
+
+    # ─ Budget LB Q3 ─
+    bgt_lb_df = d["bgt_lb"]
+    lb_dir    = bgt_lb_df[bgt_lb_df["bs"].str.lower() == bs_key.lower()].copy() if (vertical and bs_key) else pd.DataFrame()
+    if not lb_dir.empty:
+        lb_dir = lb_dir[~lb_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)]
+    bgt_lb_q3 = float(lb_dir["q3"].sum()) if not lb_dir.empty else 0.0
+
+    # ─ Realized Q3 via clientes da vertical ─
+    real_rec_q3 = 0.0
+    real_lb_q3  = 0.0
+    realized_rec_ws: dict = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    realized_lb_ws:  dict = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    _cli_agg:   dict = {}
+    _bgt_by_cli: dict = {}
+
+    if not rec_dir.empty:
+        grp = rec_dir.groupby("cliente_norm", as_index=False).agg(
+            cliente=("cliente", "first"), q3=("q3", "sum")
+        )
+        for _, r in grp.iterrows():
+            cli_n   = norm(r["cliente"])
+            if not cli_n:
+                continue
+            cli_disp = r["cliente"]
+            cli_bgt  = float(r["q3"])
+            _bgt_by_cli[cli_n] = (cli_disp, cli_bgt)
+
+            real_r   = _match_cliente(cli_n, q3r["rac_by_client_nh"])
+            if real_r == 0.0:
+                real_r = _match_cliente(cli_n, q3r["rec_by_client_nh"])
+            real_lb  = _match_cliente(cli_n, q3r["marg_by_client_nh"])
+            real_cus = _match_cliente(cli_n, q3r.get("custo_by_client_nh", {}))
+            real_rec_q3 += real_r
+            real_lb_q3  += real_lb
+
+            actual_rec_ws  = _match_cliente_ws(cli_n, q3r["rec_by_client_ws_nh"])
+            actual_marg_ws = _match_cliente_ws(cli_n, q3r["marg_by_client_ws_nh"])
+            actual_rec_total = sum(actual_rec_ws.get(ws_k, 0.0) for ws_k in WS_PESOS_Q4)
+            if actual_rec_total > 0:
+                for ws_k in WS_PESOS_Q4:
+                    r_ws = actual_rec_ws.get(ws_k, 0.0)
+                    l_ws = actual_marg_ws.get(ws_k, 0.0)
+                    if ws_k in WS_MB_BENCHMARK_Q4:
+                        l_ws = r_ws * WS_MB_BENCHMARK_Q4[ws_k]
+                    realized_rec_ws[ws_k] = realized_rec_ws.get(ws_k, 0.0) + r_ws
+                    realized_lb_ws[ws_k]  = realized_lb_ws.get(ws_k, 0.0)  + l_ws
+            _cli_agg[cli_disp] = {"rec": real_r, "custo": real_cus, "lb": real_lb, "bgt": cli_bgt}
+
+    clientes_detalhe_dir = [
+        {
+            "cliente":    cli_d,
+            "budget_rec": round(agg["bgt"], 2),
+            "real_rec":   round(agg["rec"], 2),
+            "real_custo": round(agg["custo"], 2),
+            "real_lb":    round(agg["lb"], 2),
+            "margem_pct": round(agg["lb"] / agg["rec"] * 100, 1) if agg["rec"] > 0 else None,
+        }
+        for cli_d, agg in _cli_agg.items()
+    ]
+    clientes_detalhe_dir.sort(key=lambda x: x["budget_rec"], reverse=True)
+
+    ating_rec = calc_atingimento(real_rec_q3, bgt_rec_q3, TRIGGER_REC_Q3)
+
+    # ─ Nexus Q3 para MC% ─
+    nexus    = d["nexus"]
+    nexus_q3 = nexus[nexus["Periodo"].isin(Q3_PERIODOS)]
+
+    gross_rev = real_payroll = real_third_party = real_other_costs = 0.0
+    real_payroll_exp = real_deductions = 0.0
+    bgt_gross = bgt_payroll = bgt_third_party = bgt_other_costs = bgt_payroll_exp = bgt_deductions = 0.0
+
+    if vertical and vertical in NEXUS_VERTICAL_MAP:
+        nexus_verticals = NEXUS_VERTICAL_MAP[vertical]
+        nq3_actual = nexus_q3[(nexus_q3["[Vertical]"].isin(nexus_verticals)) & (nexus_q3["[Tipo]"] == "Actual")]
+        nq3_budget = nexus_q3[(nexus_q3["[Vertical]"].isin(nexus_verticals)) & (nexus_q3["[Tipo]"] == "Budget")]
+    else:
+        nq3_actual = pd.DataFrame()
+        nq3_budget = pd.DataFrame()
+
+    if not nq3_actual.empty:
+        gross_rev        = float(nq3_actual[nq3_actual["Agrupador"] == "Gross revenue"]["[Valor]"].sum())
+        real_payroll     = float(nq3_actual[nq3_actual["Agrupador"] == "Payroll costs"]["[Valor]"].sum())
+        real_third_party = float(nq3_actual[nq3_actual["Agrupador"] == "Third-party costs"]["[Valor]"].sum())
+        real_other_costs = float(nq3_actual[nq3_actual["Agrupador"] == "Other costs"]["[Valor]"].sum())
+        real_payroll_exp = float(nq3_actual[nq3_actual["Agrupador"] == "Payroll expenses"]["[Valor]"].sum())
+        real_deductions  = float(nq3_actual[nq3_actual["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
+        if gross_rev > 0:
+            real_rec_q3 = float(gross_rev)
+            real_tcv_q3 = float(gross_rev)
+            ating_rec   = calc_atingimento(real_rec_q3, bgt_rec_q3, TRIGGER_REC_Q3)
+
+    _real_lb_sap = sum(realized_lb_ws.values()) if any(v != 0 for v in realized_lb_ws.values()) else real_lb_q3
+    _real_mc_abs = _real_lb_sap + real_payroll_exp + real_deductions
+    real_mc_pct  = _real_mc_abs / real_rec_q3 if real_rec_q3 else 0.0
+
+    if not nq3_budget.empty:
+        bgt_gross        = float(nq3_budget[nq3_budget["Agrupador"] == "Gross revenue"]["[Valor]"].sum())
+        bgt_payroll      = float(nq3_budget[nq3_budget["Agrupador"] == "Payroll costs"]["[Valor]"].sum())
+        bgt_third_party  = float(nq3_budget[nq3_budget["Agrupador"] == "Third-party costs"]["[Valor]"].sum())
+        bgt_other_costs  = float(nq3_budget[nq3_budget["Agrupador"] == "Other costs"]["[Valor]"].sum())
+        bgt_payroll_exp  = float(nq3_budget[nq3_budget["Agrupador"] == "Payroll expenses"]["[Valor]"].sum())
+        bgt_deductions   = float(nq3_budget[nq3_budget["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
+        if bgt_rec_q3 == 0 and bgt_gross > 0:
+            bgt_direct = bgt_payroll + bgt_third_party + bgt_other_costs
+            bgt_rec_q3 = float(bgt_gross)
+            bgt_lb_q3  = float(bgt_gross + bgt_direct)
+            ating_rec  = calc_atingimento(real_rec_q3, bgt_rec_q3, TRIGGER_REC_Q3)
+
+    _bgt_mc_abs = bgt_lb_q3 + bgt_payroll_exp + bgt_deductions
+    _mc_metas   = d.get("mc_metas_dir", {})
+    if nome_n in _mc_metas:
+        _bgt_mc_abs = _mc_metas[nome_n]
+
+    bgt_mc_pct      = _bgt_mc_abs / bgt_rec_q3 if bgt_rec_q3 else 0.0
+    _trigger_mc_abs = _bgt_mc_abs * TRIGGER_REC_Q3
+    mc_gate         = 1.0 if _real_mc_abs >= _trigger_mc_abs else 0.0
+    trigger_mc_pct_val = _trigger_mc_abs / bgt_rec_q3 if bgt_rec_q3 else 0.0
+    ating_mc        = calc_atingimento(_real_mc_abs, _bgt_mc_abs, 0.0) if _bgt_mc_abs > 0 else 0.0
+
+    # ─ TCV ating ─
+    if bgt_tcv_q3 > 0:
+        if real_tcv_q3 == 0.0:
+            real_tcv_q3 = real_rec_q3
+        ating_tcv = 1.0 if real_tcv_q3 >= bgt_tcv_q3 * TRIGGER_REC_Q3 else 0.0
+    else:
+        ating_tcv = 0.0
+
+    # ─ WS budget breakdown ─
+    if not rec_dir.empty:
+        _brd = rec_dir.copy()
+        _brd["ws_key"] = rec_dir["ws"].apply(_norm_ws)
+        bgt_rec_ws = _brd.groupby("ws_key")["q3"].sum().to_dict()
+    else:
+        bgt_rec_ws = {}
+    bgt_rec_ws["total"] = sum(v for k, v in bgt_rec_ws.items() if k != "total")
+
+    # ─ WS detalhe ─
+    dir_ws_weights    = d["pesos_ws_pessoa_q3"].get(norm(str(pessoa["Nome"])), dict(WS_PESOS_Q4))
+    detalhe_ws_dir    = []
+    bonus_rec_ws_total = 0.0
+    for ws_k, _default_peso in WS_PESOS_Q4.items():
+        peso_ws      = dir_ws_weights.get(ws_k, _default_peso)
+        bgt_r        = bgt_rec_ws.get(ws_k, 0.0)
+        real_r       = realized_rec_ws.get(ws_k, 0.0)
+        bgt_lb_ws_k  = bgt_r * (bgt_lb_q3 / bgt_rec_q3 if bgt_rec_q3 else 0.0)
+        real_lb_ws_k = realized_lb_ws.get(ws_k, 0.0)
+        bgt_mb_pct_ws  = round(bgt_lb_ws_k / bgt_r * 100, 2) if bgt_r > 0 else 0.0
+        real_mb_pct_ws = round(real_lb_ws_k / real_r * 100, 2) if real_r > 0 else 0.0
+        ating_r        = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q3) if bgt_r > 0 else 0.0
+        ating_lb_ws    = calc_atingimento(real_lb_ws_k, bgt_lb_ws_k, TRIGGER_REC_Q3) if bgt_lb_ws_k > 0 else 0.0
+        bonus_r        = Q3_QTDE * peso_ws * ating_r * salario * peso_rec
+        bonus_lb_ws    = Q3_QTDE * peso_ws * ating_lb_ws * salario * peso_lb
+        bonus_ws       = bonus_r + bonus_lb_ws
+        bonus_rec_ws_total += bonus_r
+        detalhe_ws_dir.append({
+            "ws":                  ws_k,
+            "peso_ws":             peso_ws,
+            "budget_rec":          round(bgt_r, 2),
+            "real_rec":            round(real_r, 2),
+            "trigger_rec_amount":  round(bgt_r * TRIGGER_REC_Q3, 2),
+            "receita_faltante":    round(max(0.0, bgt_r * TRIGGER_REC_Q3 - real_r), 2),
+            "ating_rec":           round(ating_r, 4),
+            "budget_mb_pct":       bgt_mb_pct_ws,
+            "trigger_mb_pct":      round(bgt_lb_ws_k * TRIGGER_REC_Q3 / bgt_r * 100 if bgt_r else 0, 2),
+            "real_mb_pct":         real_mb_pct_ws,
+            "mb_faltante":         round(max(0.0, bgt_lb_ws_k * TRIGGER_REC_Q3 - real_lb_ws_k), 2),
+            "ating_mb":            round(ating_lb_ws, 4),
+            "mb_gate":             1.0,
+            "aplica_gate_mb":      False,
+            "bonus_rec":           round(bonus_r, 2),
+            "bonus_mb":            round(bonus_lb_ws, 2),
+            "bonus_ws":            round(bonus_ws, 2),
+        })
+
+    real_lb_dir  = sum(realized_lb_ws.values())
+    ating_lb_dir = calc_atingimento(real_lb_dir, bgt_lb_q3, TRIGGER_REC_Q3) if bgt_lb_q3 > 0 else 0.0
+
+    # ─ Bônus ─
+    bonus_tcv   = Q3_QTDE * 1.0 * ating_tcv   * salario * peso_tcv
+    bonus_rec   = bonus_rec_ws_total
+    bonus_mc    = Q3_QTDE * 1.0 * ating_mc    * salario * peso_mc * mc_gate
+    bonus_lb    = Q3_QTDE * 1.0 * ating_lb_dir * salario * peso_lb
+    bonus_total = bonus_tcv + bonus_rec + bonus_mc + bonus_lb
+
+    return {
+        "nome":          pessoa["Nome"],
+        "posicao":       posicao,
+        "contrato":      str(pessoa.get("Contrato", "")),
+        "salario_q4":    salario,
+        "vertical":      vertical or "N/D",
+        "periodo":       "Q3 2025",
+        "mc_gate":       mc_gate,
+        "peso_tcv":      peso_tcv,
+        "peso_receita":  peso_rec,
+        "peso_mc":       peso_mc,
+        "peso_lb":       peso_lb,
+        "budget_lb_q4":      round(bgt_lb_q3, 2),
+        "real_lb_q4":        round(real_lb_dir, 2),
+        "ating_lb":          round(ating_lb_dir, 4),
+        "bonus_lb":          round(bonus_lb, 2),
+        "budget_tcv_q4":     round(bgt_tcv_q3, 2),
+        "real_tcv_q4":       round(real_tcv_q3, 2),
+        "ating_tcv":         round(ating_tcv, 4),
+        "budget_rec_q4":     round(bgt_rec_q3, 2),
+        "real_rec_q4":       round(real_rec_q3, 2),
+        "real_rec_sap":      round(real_rec_q3, 2),
+        "ating_rec":         round(ating_rec, 4),
+        "budget_mc_pct":     round(bgt_mc_pct * 100, 2),
+        "trigger_mc_pct":    round(trigger_mc_pct_val * 100, 2),
+        "real_mc_pct":       round(real_mc_pct * 100, 2),
+        "budget_mc_abs":     round(_bgt_mc_abs, 2),
+        "trigger_mc_abs":    round(_trigger_mc_abs, 2),
+        "real_mc_abs":       round(_real_mc_abs, 2),
+        "real_mb_pct":       round(_real_lb_sap / real_rec_q3 * 100, 2) if real_rec_q3 else 0.0,
+        "ating_mc":          round(ating_mc, 4),
+        "real_gross_rev":    round(gross_rev, 2),
+        "real_payroll":      round(real_payroll, 2),
+        "real_third_party":  round(real_third_party, 2),
+        "real_other_costs":  round(real_other_costs, 2),
+        "real_payroll_exp":  round(real_payroll_exp, 2),
+        "real_deductions":   round(real_deductions, 2),
+        "real_despesa_pessoas": 0.0,
+        "bgt_gross_rev":     round(bgt_gross, 2),
+        "bgt_payroll":       round(bgt_payroll, 2),
+        "bgt_third_party":   round(bgt_third_party, 2),
+        "bgt_other_costs":   round(bgt_other_costs, 2),
+        "bgt_payroll_exp":   round(bgt_payroll_exp, 2),
+        "bgt_deductions":    round(bgt_deductions, 2),
+        "bonus_tcv":         round(bonus_tcv, 2),
+        "bonus_rec":         round(bonus_rec, 2),
+        "bonus_mc":          round(bonus_mc, 2),
+        "bonus_lb":          round(bonus_lb, 2),
+        "bonus_total":       round(bonus_total, 2),
+        "detalhe_ws":        detalhe_ws_dir,
+        "clientes_detalhe":  clientes_detalhe_dir,
+    }
+
+
 # ─── Visão Master Q3 (apenas AE_GM) ──────────────────────────────────────────
 
 def get_visao_master_q3() -> list[dict]:
@@ -2258,6 +2543,59 @@ def get_visao_master_q3() -> list[dict]:
                 "tipo_calc": "Erro",
                 "erro":     str(e),
             })
+    # ── DIRETOR Q3 (Henrique / Grupo Mult) ─────────────────────────────────────
+    for _, p in pessoas[pessoas["Posicao"].str.upper().str.strip() == "DIRETOR"].iterrows():
+        nome   = p["Nome"]
+        nome_n = norm(nome)
+        if DIRETOR_VERTICAL.get(nome_n) != "Grupo Mult":
+            continue  # only Grupo Mult director in Q3
+        sal = float(p.get("Sal_Q3") or 0)
+        try:
+            res   = calc_bonus_diretor_q3(nome)
+            bgt_r = res["budget_rec_q4"] or 1
+            bgt_t = res["budget_tcv_q4"] or 1
+            bgt_mc_abs = res.get("budget_mc_abs") or 1
+            resultados.append({
+                "nome":      res["nome"],
+                "posicao":   "DIRETOR",
+                "contrato":  res["contrato"],
+                "vertical":  res.get("vertical", "Grupo Mult"),
+                "salario":   res["salario_q4"],
+                "bonus":     res["bonus_total"],
+                "ating_rec": res["ating_rec"],
+                "ating_mb":  None,
+                "ating_tcv": res["ating_tcv"],
+                "ating_mc":  res["ating_mc"],
+                "pct_rec":   round(res["real_rec_q4"] / bgt_r, 4),
+                "pct_mb":    None,
+                "pct_tcv":   round(res["real_tcv_q4"] / bgt_t, 4) if bgt_t else 0,
+                "pct_mc":    round(res["real_mc_abs"] / bgt_mc_abs, 4) if bgt_mc_abs else 0,
+                "mc_gate":   res["mc_gate"],
+                "gate_ok":   res["mc_gate"] == 1.0,
+                "tipo_calc": "Diretor",
+            })
+        except Exception as e:
+            resultados.append({
+                "nome":      nome,
+                "posicao":   "DIRETOR",
+                "contrato":  str(p.get("Contrato", "")),
+                "vertical":  "Grupo Mult",
+                "salario":   sal,
+                "bonus":     0.0,
+                "ating_rec": 0.0,
+                "ating_mb":  None,
+                "ating_tcv": None,
+                "ating_mc":  None,
+                "pct_rec":   None,
+                "pct_mb":    None,
+                "pct_tcv":   None,
+                "pct_mc":    None,
+                "mc_gate":   0.0,
+                "gate_ok":   False,
+                "tipo_calc": "Erro",
+                "erro":      str(e),
+            })
+
     return resultados
 
 

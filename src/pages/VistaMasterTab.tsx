@@ -560,6 +560,9 @@ function DetalheDrawer({ d }: { d: DetalheCalculo }) {
 // ─── Q3 Drawer container (apenas AE_GM) ──────────────────────────────────────
 
 function DetalheDrawerQ3({ d }: { d: DetalheCalculo }) {
+  if (d.posicao === "DIRETOR") {
+    return <DetalheDir d={d} />;
+  }
   return (
     <div>
       <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
@@ -1266,9 +1269,12 @@ type MasterRowQ3 = {
   ating_rec: number | null;
   ating_mb: number | null;
   ating_tcv: number | null;
+  ating_mc: number | null;
   pct_rec: number | null;
   pct_mb: number | null;
   pct_tcv: number | null;
+  pct_mc: number | null;
+  mc_gate: number | null;
   gate_ok: boolean;
   tipo_calc: string;
   erro?: string;
@@ -1338,16 +1344,19 @@ export function VistaMasterTabQ3() {
       render: (v: string) => <Tag color={contratoColor[v] || "default"}>{v}</Tag>,
     },
     {
-      title: "Gatilho LB",
+      title: "Gatilho",
       key: "gate_ok",
-      render: (_: any, row: MasterRowQ3) => (
-        <div style={{ textAlign: "center" }}>
-          {row.gate_ok
-            ? <CheckCircleFilled style={{ color: "#52c41a", fontSize: 18 }} />
-            : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 18 }} />
-          }
-        </div>
-      ),
+      render: (_: any, row: MasterRowQ3) => {
+        const ok = row.posicao === "DIRETOR" ? (row.mc_gate === 1.0) : row.gate_ok;
+        return (
+          <div style={{ textAlign: "center" }}>
+            {ok
+              ? <CheckCircleFilled style={{ color: "#52c41a", fontSize: 18 }} />
+              : <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 18 }} />
+            }
+          </div>
+        );
+      },
     },
     {
       title: "% TCV",
@@ -1363,6 +1372,12 @@ export function VistaMasterTabQ3() {
       title: "% MB",
       key: "pct_mb",
       render: (_: any, row: MasterRowQ3) => atCol(row.pct_mb),
+    },
+    {
+      title: "% MC",
+      key: "pct_mc",
+      render: (_: any, row: MasterRowQ3) =>
+        row.posicao === "DIRETOR" ? atCol(row.pct_mc) : <span style={{ color: "#ccc" }}>—</span>,
     },
     {
       title: "Bônus Q3",
@@ -1383,7 +1398,7 @@ export function VistaMasterTabQ3() {
   return (
     <div style={{ padding: "16px 0" }}>
       <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
-        <Tag color="geekblue" style={{ fontSize: 13 }}>Grupo Mult — AE_GM</Tag>
+        <Tag color="geekblue" style={{ fontSize: 13 }}>Grupo Mult — AE_GM + Diretor</Tag>
         <Button icon={<ReloadOutlined />} onClick={carregar} loading={loading}>
           Atualizar
         </Button>
@@ -1408,9 +1423,9 @@ export function VistaMasterTabQ3() {
           pagination={false}
           summary={() => (
             <Table.Summary.Row style={{ background: "#fafafa", fontWeight: 600 }}>
-              <Table.Summary.Cell index={0} colSpan={6}>Total ({data.length} pessoas)</Table.Summary.Cell>
-              <Table.Summary.Cell index={6} />
-              <Table.Summary.Cell index={7} align="right">
+              <Table.Summary.Cell index={0} colSpan={7}>Total ({data.length} pessoas)</Table.Summary.Cell>
+              <Table.Summary.Cell index={7} />
+              <Table.Summary.Cell index={8} align="right">
                 <span style={{ color: "#52c41a" }}>{fmt(totalBonus)}</span>
               </Table.Summary.Cell>
             </Table.Summary.Row>

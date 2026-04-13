@@ -1329,8 +1329,8 @@ def get_clt_data(meses: str = "", user=Depends(get_current_user)):
 # ── Apuração de Metas endpoints ───────────────────────────────────────────────
 
 from apuracao_engine import (
-    calc_bonus_ae, calc_bonus_ae_q3, calc_bonus_diretor, get_visao_master,
-    get_visao_master_q3, _load_all, norm as eng_norm
+    calc_bonus_ae, calc_bonus_ae_q3, calc_bonus_diretor, calc_bonus_diretor_q3,
+    get_visao_master, get_visao_master_q3, _load_all, norm as eng_norm
 )
 
 @app.get("/api/apuracao/pessoas")
@@ -1377,10 +1377,20 @@ def get_apuracao_calcular(nome: str, user=Depends(get_current_user)):
 
 @app.get("/api/apuracao/calcular-q3")
 def get_apuracao_calcular_q3(nome: str, user=Depends(get_current_user)):
-    """Calcula bônus Q3 para AE_GM (Grupo Mult)."""
+    """Calcula bônus Q3 para AE_GM ou DIRETOR (Grupo Mult)."""
     import traceback
     try:
-        result = calc_bonus_ae_q3(nome)
+        d = _load_all()
+        pessoas = d["pessoas"]
+        nome_n = eng_norm(nome)
+        pessoa = pessoas[pessoas["nome_norm"] == nome_n]
+        if pessoa.empty:
+            pessoa = pessoas[pessoas["nome_norm"].str.contains(nome_n.split()[0])]
+        pos = str(pessoa.iloc[0]["Posicao"]).upper().strip() if not pessoa.empty else ""
+        if pos == "DIRETOR":
+            result = calc_bonus_diretor_q3(nome)
+        else:
+            result = calc_bonus_ae_q3(nome)
         return JSONResponse(content=_sanitize(result))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{e} | {traceback.format_exc()}")
@@ -1545,8 +1555,9 @@ def _get_nova_base() -> pd.DataFrame:
         # Mapeia custo para custo_rateado (negativo) onde ainda está zerado:
         # CLTs/TDMs: custo_gerencial_sap + extras (billable e non-billable)
         # PJs: valor_liquido (positivo = custo)
-        sem_custo = df["custo_rateado"] == 0
         import numpy as np
+        mask_clt = pd.Series(False, index=df.index)
+        mask_pj  = pd.Series(False, index=df.index)
         # CLTs/TDMs: custo_gerencial_sap → custo_rateado (negativo)
         if "custo_gerencial_sap" in df.columns:
             custo_ger = df["custo_gerencial_sap"].fillna(0)
@@ -1559,6 +1570,28 @@ def _get_nova_base() -> pd.DataFrame:
             vl = df["valor_liquido"].fillna(0)
             mask_pj = (df["custo_rateado"] == 0) & (df["fonte"].astype(str) == "PJs") & (vl > 0)
             df["custo_rateado"] = np.where(mask_pj, -vl, df["custo_rateado"])
+
+        # Corrige valor_liquido para refletir P&L corretamente:
+        # 1. CLTs/PJs: Totalizador/valor_a_pagar estava no valor_liquido como custo positivo (errado)
+        #    → sobrescreve com receita + custo_rateado (negativo)
+        # 2. Demais linhas sem valor_liquido (custo_gerencial, racionais): preenche com receita + custo_rateado
+        if "valor_liquido" in df.columns:
+            rec = df["receita"].fillna(0)
+            cr  = df["custo_rateado"].fillna(0)
+            # Linhas cujo valor_liquido foi contaminado com custo bruto positivo (CLT/PJ)
+            df["valor_liquido"] = np.where(
+                mask_clt | mask_pj,
+                rec + cr,
+                df["valor_liquido"]
+            )
+            # Linhas onde valor_liquido = 0 mas há receita ou custo (custo_gerencial, racionais, etc.)
+            vl_zero = df["valor_liquido"] == 0
+            has_val = (rec != 0) | (cr != 0)
+            df["valor_liquido"] = np.where(
+                vl_zero & has_val,
+                rec + cr,
+                df["valor_liquido"]
+            )
 
         _cache["nova_base"] = df
     return _cache["nova_base"]
