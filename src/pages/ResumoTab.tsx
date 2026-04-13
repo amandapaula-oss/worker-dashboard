@@ -51,7 +51,8 @@ export default function ResumoTab({ apenasAtribuidos = false }: { apenasAtribuid
     if (apenasAtribuidos) params.apenas_atribuidos = "true";
     Promise.all([getMargemFilters(), getResumo(params)])
       .then(([f, d]: [any, any]) => {
-        setPeriodos(f.periodos);
+        const Q4_PERIODOS = ["2025-10", "2025-11", "2025-12"];
+        setPeriodos((f.periodos || []).filter((p: string) => Q4_PERIODOS.includes(p)));
         setEmpresas(f.empresas); setSelEmpresas(f.empresas);
         if (f.categorias_bu?.length) { setCategoriasBu(f.categorias_bu); setSelCategoriasBu(f.categorias_bu); }
         setRawData(d); setFiltersReady(true); initialLoad.current = false;

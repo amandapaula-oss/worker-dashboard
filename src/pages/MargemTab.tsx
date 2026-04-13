@@ -65,7 +65,8 @@ export default function MargemTab({ apenasAtribuidos = false }: { apenasAtribuid
   useEffect(() => {
     getMargemFilters()
       .then(f => {
-        setPeriodos(f.periodos);
+        const Q4_PERIODOS = ["2025-10", "2025-11", "2025-12"];
+        setPeriodos((f.periodos || []).filter((p: string) => Q4_PERIODOS.includes(p)));
         setEmpresas(f.empresas);
         setSelEmpresas(f.empresas);
         if (f.categorias_bu?.length) {
