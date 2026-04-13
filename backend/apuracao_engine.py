@@ -2328,10 +2328,8 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
         real_other_costs = float(nq3_actual[nq3_actual["Agrupador"] == "Other costs"]["[Valor]"].sum())
         real_payroll_exp = float(nq3_actual[nq3_actual["Agrupador"] == "Payroll expenses"]["[Valor]"].sum())
         real_deductions  = float(nq3_actual[nq3_actual["Agrupador"] == "Deductions and taxes"]["[Valor]"].sum())
-        if gross_rev > 0:
-            real_rec_q3 = float(gross_rev)
-            real_tcv_q3 = float(gross_rev)
-            ating_rec   = calc_atingimento(real_rec_q3, bgt_rec_q3, TRIGGER_REC_Q3)
+        # Nexus gross_rev is kept for display/MC breakdown only.
+        # Realized revenue uses client-level sum (same source as AEs) for consistency.
 
     _real_lb_sap = sum(realized_lb_ws.values()) if any(v != 0 for v in realized_lb_ws.values()) else real_lb_q3
     _real_mc_abs = _real_lb_sap + real_payroll_exp + real_deductions
@@ -2433,6 +2431,7 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
         "salario_q4":    salario,
         "vertical":      vertical or "N/D",
         "periodo":       "Q3 2025",
+        "trigger_rec":   TRIGGER_REC_Q3,
         "mc_gate":       mc_gate,
         "peso_tcv":      peso_tcv,
         "peso_receita":  peso_rec,
