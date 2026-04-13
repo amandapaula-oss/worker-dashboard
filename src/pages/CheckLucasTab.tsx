@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table, message, Card, Statistic } from "antd";
+import { Select, Table, message, Card, Statistic, Button } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import ErrorState from "../components/ErrorState";
+import { DownloadOutlined, FilterOutlined } from "@ant-design/icons";
 import { getRazaoFilters, getRazaoComparativo } from "../api";
+import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { exportTableToExcel } from "../utils/exportExcel";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
 
@@ -26,6 +28,7 @@ export default function CheckLucasTab() {
   const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
   const [empresas, setEmpresas]       = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
 
   const [rows, setRows]       = useState<any[]>([]);
@@ -68,7 +71,7 @@ export default function CheckLucasTab() {
   const totMargemRac   = sum("margem_rac");
   const totMargemRazao = sum("margem_razao");
 
-  const columns = [
+  const columnsDef = [
     {
       title: "Período", dataIndex: "periodo", key: "periodo", width: 100,
       sorter: (a: any, b: any) => String(a.periodo).localeCompare(String(b.periodo)),
@@ -156,6 +159,8 @@ export default function CheckLucasTab() {
     },
   ];
 
+  const [columns, colSettings] = useDraggableColumns(columnsDef, "check-lucas");
+
   const kpis = [
     { label: "Receita (RAC)",         value: totReceita,               sub: `Razão: ${brl(totRecRazao)}`,          color: theme.text },
     { label: "Δ Receita",             value: totReceita - totRecRazao, sub: "RAC − Razão",                         color: Math.abs(totReceita - totRecRazao) < 1 ? "#888" : totReceita > totRecRazao ? "#0a7a3e" : "#c0392b" },
@@ -170,20 +175,29 @@ export default function CheckLucasTab() {
   return (
     <div>
       {/* Filtros */}
-      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Período</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
-            onChange={v => setSelPeriodos(v)}
-            options={periodos.map(p => ({ label: p, value: p }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Empresa</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas}
-            onChange={v => setSelEmpresas(v)}
-            options={empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
-        </div>
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center" }}>
+        <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
+          type={selPeriodos.length < periodos.length || selEmpresas.length < empresas.length ? "primary" : "default"}
+          style={{ marginLeft: "auto" }}>
+          Filtros{showFilters ? " ▲" : " ▼"}
+        </Button>
       </div>
+      {showFilters && (
+        <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Período</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
+              onChange={v => setSelPeriodos(v)}
+              options={periodos.map(p => ({ label: p, value: p }))} maxTagCount="responsive" />
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Empresa</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas}
+              onChange={v => setSelEmpresas(v)}
+              options={empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
+          </div>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
@@ -225,6 +239,13 @@ export default function CheckLucasTab() {
             ...rows.map((d, i) => ({ ...d, key: i })),
           ]}
           columns={columns}
+          title={() => (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+              {colSettings}
+              <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                onClick={() => exportTableToExcel(columns, rows, "comparativo_rac_razao")}>Excel</Button>
+            </div>
+          )}
           pagination={false}
           size="small"
           scroll={{ x: "max-content" }}

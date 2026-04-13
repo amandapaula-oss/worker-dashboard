@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Select, Table, Spin, message, Button, Breadcrumb, Input } from "antd";
-import { HomeOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
+import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined, FilterOutlined } from "@ant-design/icons";
 import { getRacFilters, getRacProjetos, getRacPessoas, getRacPessoaProjetos } from "../api";
 import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { exportTableToExcel } from "../utils/exportExcel";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
 
@@ -19,7 +20,6 @@ export default function RacTab() {
   const [filters, setFilters] = useState<{ periodos: string[]; empresas: string[]; tipos: string[] }>({
     periodos: [], empresas: [], tipos: [],
   });
-  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [selTipos, setSelTipos]       = useState<string[]>([]);
   const [filtersReady, setFiltersReady] = useState(false);
@@ -37,13 +37,13 @@ export default function RacTab() {
   const [searchCliente, setSearchCliente] = useState("");
   const [searchPep, setSearchPep]         = useState("");
   const [searchPessoa, setSearchPessoa]   = useState("");
+  const [showFilters, setShowFilters]     = useState(false);
 
   // load filters + initial data in parallel
   useEffect(() => {
     Promise.all([getRacFilters(), getRacProjetos({}), getRacPessoas({})])
       .then(([f, proj, pess]) => {
         setFilters(f);
-        setSelPeriodos(f.periodos);
         setSelEmpresas(f.empresas);
         setSelTipos(f.tipos);
         setProjetos(proj);
@@ -60,7 +60,6 @@ export default function RacTab() {
     if (!filtersReady || initialLoad.current || selectedPep) return;
     setLoading(true);
     const params: Record<string, string> = {};
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selTipos.length)    params.tipos    = selTipos.join(",");
     getRacProjetos(params)
@@ -68,20 +67,19 @@ export default function RacTab() {
       .catch(() => message.error("Erro ao carregar projetos"))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas, selTipos, selectedPep]);
+  }, [filtersReady, selEmpresas, selTipos, selectedPep]);
 
   // load all pessoas (for search) or specific PEP (for drill-down)
   useEffect(() => {
     if (!filtersReady || (initialLoad.current && !selectedPep)) return;
     const params: Record<string, string> = {};
     if (selectedPep) params.pep = selectedPep.pep;
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     getRacPessoas(params)
       .then(d => setPessoas(d))
       .catch(() => message.error("Erro ao carregar pessoas"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selectedPep, selPeriodos, selEmpresas]);
+  }, [filtersReady, selectedPep, selEmpresas]);
 
   // load projetos for a selected pessoa
   useEffect(() => {
@@ -90,14 +88,13 @@ export default function RacTab() {
     const params: Record<string, string> = {};
     if (selectedPessoa.cpf) params.cpf = selectedPessoa.cpf;
     else if (selectedPessoa.numero_pessoal) params.numero_pessoal = selectedPessoa.numero_pessoal;
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     getRacPessoaProjetos(params)
       .then(d => setPessoaProjetos(d))
       .catch(() => message.error("Erro ao carregar projetos da pessoa"))
       .finally(() => setLoadingPessoaProj(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPessoa, selPeriodos, selEmpresas]);
+  }, [selectedPessoa, selEmpresas]);
 
   const colProjetos = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 200 },
@@ -179,9 +176,9 @@ export default function RacTab() {
   const totalPessoas  = filteredPessoas.reduce((s, r) => s + r.valor_liquido, 0);
   const totalPessoaProj = pessoaProjetos.reduce((s, r) => s + (Number(r.valor_liquido) || 0), 0);
 
-  const draggableProjetos     = useDraggableColumns(colProjetos);
-  const draggablePessoas      = useDraggableColumns(colPessoas);
-  const draggablePessoaProj   = useDraggableColumns(colPessoaProjetos);
+  const [draggableProjetos,   settingsProjetos]   = useDraggableColumns(colProjetos, "rac-projetos");
+  const [draggablePessoas,    settingsPessoas]    = useDraggableColumns(colPessoas, "rac-pessoas");
+  const [draggablePessoaProj, settingsPessoaProj] = useDraggableColumns(colPessoaProjetos, "rac-pessoa-proj");
 
   const breadcrumb = [
     {
@@ -210,41 +207,42 @@ export default function RacTab() {
   return (
     <div>
       {/* Filtros */}
-      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={labelStyle}>Período</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos} onChange={v => { setSelPeriodos(v); setSelectedPep(null); setSelectedPessoa(null); }}
-            options={filters.periodos.map(p => ({ label: p, value: p }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Empresa</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas} onChange={v => { setSelEmpresas(v); setSelectedPep(null); setSelectedPessoa(null); }}
-            options={filters.empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 0, minWidth: 200 }}>
-          <div style={labelStyle}>Tipo</div>
-          <Select mode="multiple" style={{ width: "100%" }} value={selTipos} onChange={v => { setSelTipos(v); setSelectedPep(null); setSelectedPessoa(null); }}
-            options={filters.tipos.map(t => ({ label: t, value: t }))} maxTagCount="responsive" />
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Cliente</div>
-          <Input allowClear placeholder="Buscar cliente..."
-            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
-            value={searchCliente} onChange={e => { setSearchCliente(e.target.value); setSelectedPep(null); setSelectedPessoa(null); }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Projeto (PEP)</div>
-          <Input allowClear placeholder="Buscar PEP..."
-            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
-            value={searchPep} onChange={e => { setSearchPep(e.target.value); setSelectedPep(null); setSelectedPessoa(null); }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={labelStyle}>Pessoa (nome, CPF ou ID)</div>
-          <Input allowClear placeholder="Buscar pessoa..."
-            prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
-            value={searchPessoa} onChange={e => { setSearchPessoa(e.target.value); setSelectedPessoa(null); }} />
-        </div>
+      <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center" }}>
+        <Input allowClear placeholder="Buscar cliente..."
+          prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+          style={{ flex: 1 }}
+          value={searchCliente} onChange={e => { setSearchCliente(e.target.value); setSelectedPep(null); setSelectedPessoa(null); }} />
+        <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
+          type={selEmpresas.length < filters.empresas.length || selTipos.length < filters.tipos.length || searchPep.trim() || searchPessoa.trim() ? "primary" : "default"}>
+          Filtros{showFilters ? " ▲" : " ▼"}
+        </Button>
       </div>
+      {showFilters && (
+        <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Empresa</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas} onChange={v => { setSelEmpresas(v); setSelectedPep(null); setSelectedPessoa(null); }}
+              options={filters.empresas.map(e => ({ label: e, value: e }))} maxTagCount="responsive" />
+          </div>
+          <div style={{ flex: 0, minWidth: 200 }}>
+            <div style={labelStyle}>Tipo</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selTipos} onChange={v => { setSelTipos(v); setSelectedPep(null); setSelectedPessoa(null); }}
+              options={filters.tipos.map(t => ({ label: t, value: t }))} maxTagCount="responsive" />
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Projeto (PEP)</div>
+            <Input allowClear placeholder="Buscar PEP..."
+              prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+              value={searchPep} onChange={e => { setSearchPep(e.target.value); setSelectedPep(null); setSelectedPessoa(null); }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={labelStyle}>Pessoa (nome, CPF ou ID)</div>
+            <Input allowClear placeholder="Buscar pessoa..."
+              prefix={<SearchOutlined style={{ color: "#aab4cc" }} />}
+              value={searchPessoa} onChange={e => { setSearchPessoa(e.target.value); setSelectedPessoa(null); }} />
+          </div>
+        </div>
+      )}
 
       {/* Breadcrumb */}
       <Breadcrumb items={breadcrumb} style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 8, padding: "0.6rem 1rem", marginBottom: 16 }} />
@@ -259,6 +257,13 @@ export default function RacTab() {
             <Table
               dataSource={[{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", valor_liquido: totalPessoaProj, _isTotal:true }, ...pessoaProjetos.map((d,i)=>({...d,key:i}))]}
               columns={draggablePessoaProj}
+              title={() => (
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+                  {settingsPessoaProj}
+                  <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                    onClick={() => exportTableToExcel(draggablePessoaProj, pessoaProjetos, "rac_projetos_pessoa")}>Excel</Button>
+                </div>
+              )}
               pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
               size="small"
               scroll={{ x: "max-content" }}
@@ -279,6 +284,13 @@ export default function RacTab() {
           <Table
             dataSource={[{ key:"__t__", numero_pessoal:"TOTAL", cpf:"", nome:"", empresa:"", valor_liquido: totalPessoas, _isTotal:true }, ...filteredPessoas.map((d,i)=>({...d,key:i}))]}
             columns={draggablePessoas}
+            title={() => (
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+                {settingsPessoas}
+                <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                  onClick={() => exportTableToExcel(draggablePessoas, filteredPessoas, "rac_pessoas")}>Excel</Button>
+              </div>
+            )}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
@@ -293,6 +305,13 @@ export default function RacTab() {
         <Table
           dataSource={[{ key:"__t__", pep:"TOTAL", nome_cliente:"", empresa:"", valor_liquido: totalProjetos, _isTotal:true }, ...filteredProjetos.map((d,i)=>({...d,key:i}))]}
           columns={draggableProjetos}
+          title={() => (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+              {settingsProjetos}
+              <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                onClick={() => exportTableToExcel(draggableProjetos, filteredProjetos, "rac_projetos")}>Excel</Button>
+            </div>
+          )}
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
           scroll={{ x: "max-content" }}

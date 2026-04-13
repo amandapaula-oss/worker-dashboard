@@ -560,9 +560,7 @@ function DetalheDrawer({ d }: { d: DetalheCalculo }) {
 // ─── Q3 Drawer container (apenas AE_GM) ──────────────────────────────────────
 
 function DetalheDrawerQ3({ d }: { d: DetalheCalculo }) {
-  if (d.posicao === "DIRETOR") {
-    return <DetalheDir d={d} />;
-  }
+  const isDir = d.posicao === "DIRETOR";
   return (
     <div>
       <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
@@ -570,8 +568,11 @@ function DetalheDrawerQ3({ d }: { d: DetalheCalculo }) {
         <Descriptions.Item label="Contrato">{d.contrato}</Descriptions.Item>
         <Descriptions.Item label="Salário Q3">{fmt(d.salario_q4)}</Descriptions.Item>
         <Descriptions.Item label="Período">{d.periodo}</Descriptions.Item>
+        {isDir && d.vertical && (
+          <Descriptions.Item label="Vertical" span={2}>{d.vertical}</Descriptions.Item>
+        )}
       </Descriptions>
-      <DetalheAE d={d} periodoLabel="Q3" />
+      {isDir ? <DetalheDir d={d} /> : <DetalheAE d={d} periodoLabel="Q3" />}
       <Divider />
       <div style={{ textAlign: "right", fontSize: 18, fontWeight: 700, color: "#52c41a" }}>
         Bônus Total Q3: {fmt(d.bonus_total)}
@@ -937,7 +938,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
 
   return (
     <div>
-      <ResultadoBox bonusTotal={d.bonus_total ?? 0} salario={d.salario_q4 ?? 0} />
+      <ResultadoBox bonusTotal={d.bonus_total ?? 0} salario={d.salario_q4 ?? 0} periodo={d.periodo} />
       {/* ── Gatilho Mestre ── */}
       <Divider>Gatilho Mestre — MC% (Margem de Contribuição)</Divider>
       <div style={{

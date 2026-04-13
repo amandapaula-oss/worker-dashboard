@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Select, Table } from "antd";
+import { Select, Table, Button } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
+import { DownloadOutlined } from "@ant-design/icons";
 import { getCltData } from "../api";
+import { useDraggableColumns } from "../hooks/useDraggableColumns";
+import { exportTableToExcel } from "../utils/exportExcel";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
 
@@ -33,7 +36,7 @@ export default function CltTab() {
     getCltData(params).then(d => { setData(d.data || []); setLoading(false); });
   }, [selMeses, meses]);
 
-  const columns = [
+  const columnsDef = [
     {
       title: "Empresa",
       dataIndex: "empresa",
@@ -53,6 +56,8 @@ export default function CltTab() {
       ),
     },
   ];
+
+  const [columns, colSettings] = useDraggableColumns(columnsDef, "clt");
 
   return (
     <div>
@@ -74,6 +79,13 @@ export default function CltTab() {
         <Table
           dataSource={data.map((d, i) => ({ ...d, key: i }))}
           columns={columns}
+          title={() => (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+              {colSettings}
+              <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                onClick={() => exportTableToExcel(columns, data, "clt")}>Excel</Button>
+            </div>
+          )}
           pagination={false}
           size="small"
           scroll={{ x: "max-content" }}
