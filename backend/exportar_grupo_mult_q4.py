@@ -69,6 +69,23 @@ def main():
         lambda x: base_to_canonical.get(x, x)
     )
 
+    # Após normalização, exige que o cliente final pertença a Grupo Mult.
+    # Match flexível: aceita nomes canônicos OU variantes do SAP que tenham o
+    # nome_base como prefixo/palavra-chave (ex: "UNIMED BELO HORIZONTE COOPERATIVA D"
+    # casa com "UNIMED BELO HORIZONTE"). Whitelist explícita para clientes que vêm
+    # do SAP com nome diferente do cadastro (ex: "DIRECIONAL ENGENHARIA S/A").
+    aliases_gm = sorted({s.upper().strip() for s in (nomes_gm | nomes_base) if s}, key=len, reverse=True)
+    extras_aceitos = {"DIRECIONAL ENGENHARIA S/A"}
+    def _is_gm(nc: str) -> bool:
+        nc_u = str(nc).upper().strip()
+        if nc_u in extras_aceitos:
+            return True
+        for a in aliases_gm:
+            if nc_u == a or nc_u.startswith(a + " "):
+                return True
+        return False
+    q4_gm = q4_gm[q4_gm["nome_cliente"].apply(_is_gm)].copy()
+
     # adiciona ae do clientes
     ae_map = gm.drop_duplicates("nome_cliente").set_index("nome_cliente")["ae"]
     q4_gm["ae"] = q4_gm["nome_cliente"].map(ae_map)
@@ -81,7 +98,27 @@ def main():
     sheet1["receita"]       = pd.to_numeric(sheet1["receita"],       errors="coerce").fillna(0)
     sheet1["custo_rateado"] = pd.to_numeric(sheet1["custo_rateado"], errors="coerce").fillna(0)
     sheet1["horas"]         = pd.to_numeric(sheet1["horas"],         errors="coerce").fillna(0)
-    sheet1["margem"]        = sheet1["receita"] + sheet1["custo_rateado"]
+
+    # Fallback: quando projetos tem receita > 0 mas custo = 0, soma o custo
+    # do mesmo PEP/período em margem_pessoas (caso Loja Eletrica Q4)
+    pess_pre = pd.read_excel(p("operacional.xlsx"), sheet_name="margem_pessoas", dtype={"pep": str})
+    pess_pre["periodo"]  = pess_pre["periodo"].astype(str).str.strip()
+    pess_pre["pep_base"] = pess_pre["pep"].astype(str).str.split(".").str[0].str.strip()
+    pess_pre["custo_rateado"] = pd.to_numeric(pess_pre["custo_rateado"], errors="coerce").fillna(0)
+    pess_pre["horas"]         = pd.to_numeric(pess_pre["horas"],         errors="coerce").fillna(0)
+    custo_pessoas = pess_pre.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
+    horas_pessoas = pess_pre.groupby(["pep_base", "periodo"])["horas"].sum().to_dict()
+
+    sheet1["pep_base"] = sheet1["pep"].astype(str).str.split(".").str[0].str.strip()
+    _mask_fb = (sheet1["receita"] > 0) & (sheet1["custo_rateado"] == 0)
+    for idx in sheet1[_mask_fb].index:
+        key = (sheet1.at[idx, "pep_base"], sheet1.at[idx, "periodo"])
+        if key in custo_pessoas and custo_pessoas[key] != 0:
+            sheet1.at[idx, "custo_rateado"] = custo_pessoas[key]
+            if sheet1.at[idx, "horas"] == 0 and key in horas_pessoas:
+                sheet1.at[idx, "horas"] = horas_pessoas[key]
+    sheet1 = sheet1.drop(columns=["pep_base"])
+    sheet1["margem"] = sheet1["receita"] + sheet1["custo_rateado"]
     sheet1 = sheet1.sort_values(["nome_cliente", "pep", "periodo"])
 
     # ── Pessoas por PEP (margem_pessoas) ────────────────────────────────────

@@ -1521,6 +1521,87 @@ NEXUS_VERTICAL_MAP = {
 }
 
 
+@lru_cache(maxsize=1)
+def _load_grupo_mult_q4_carteira():
+    """Replica a lógica do exportar_grupo_mult_q4.py para gerar carteira/WS
+    do diretor Grupo Mult Q4 a partir de operacional/projetos filtrado.
+    Retorna: (cli_agg, rec_ws, lb_ws, total_rec, total_rec_sap)."""
+    DIR = os.path.dirname(__file__)
+    clientes_df = pd.read_excel(os.path.join(DIR, "parametros.xlsx"), sheet_name="clientes", dtype=str)
+    gm = clientes_df[clientes_df["bu"].str.strip() == "Grupo Mult"].copy()
+    nomes_gm = set(gm["nome_cliente"].dropna().str.strip())
+    nomes_base = set()
+    for nb in gm["nome_base"].dropna().str.strip():
+        for alias in nb.split("|"):
+            alias = alias.strip()
+            if alias:
+                nomes_base.add(alias)
+    todos_nomes = nomes_gm | nomes_base
+    base_to_canonical = {}
+    for _, row in clientes_df.iterrows():
+        nc = str(row["nome_cliente"]).strip()
+        nb = str(row["nome_base"]).strip() if pd.notna(row["nome_base"]) else ""
+        if nc and nb:
+            for alias in nb.split("|"):
+                alias = alias.strip()
+                if alias:
+                    base_to_canonical[alias] = nc
+    proj = pd.read_excel(os.path.join(DIR, "operacional.xlsx"), sheet_name="projetos", dtype={"pep": str})
+    proj["periodo"] = proj["periodo"].astype(str).str.strip()
+    proj["nome_cliente"] = proj["nome_cliente"].astype(str).str.strip()
+    q4 = proj[proj["periodo"].isin(Q4_PERIODOS)].copy()
+    q4["pep_base"] = q4["pep"].astype(str).str.split(".").str[0].str.strip()
+    pep_vert = pd.read_excel(os.path.join(DIR, "parametros.xlsx"), sheet_name="pep_vertical", dtype=str)
+    pep_vert.columns = [c.strip() for c in pep_vert.columns]
+    vert_col = [c for c in pep_vert.columns if c.lower() in ("vertical", "vertice", "vertical_bu", "bu")][0]
+    pep_vert["pep"] = pep_vert["pep"].str.strip()
+    peps_override_gm = set(pep_vert[pep_vert[vert_col].str.strip() == "Grupo Mult"]["pep"])
+    q4_gm = q4[q4["nome_cliente"].isin(todos_nomes) | q4["pep_base"].isin(peps_override_gm)].copy()
+    q4_gm["nome_cliente"] = q4_gm["nome_cliente"].map(lambda x: base_to_canonical.get(x, x))
+    aliases_gm = sorted({s.upper().strip() for s in (nomes_gm | nomes_base) if s}, key=len, reverse=True)
+    extras_aceitos = {"DIRECIONAL ENGENHARIA S/A"}
+    def _is_gm(nc: str) -> bool:
+        nc_u = str(nc).upper().strip()
+        if nc_u in extras_aceitos:
+            return True
+        for a in aliases_gm:
+            if nc_u == a or nc_u.startswith(a + " "):
+                return True
+        return False
+    q4_gm = q4_gm[q4_gm["nome_cliente"].apply(_is_gm)].copy()
+    q4_gm["receita"]       = pd.to_numeric(q4_gm["receita"],       errors="coerce").fillna(0)
+    q4_gm["custo_rateado"] = pd.to_numeric(q4_gm["custo_rateado"], errors="coerce").fillna(0)
+    pess = pd.read_excel(os.path.join(DIR, "operacional.xlsx"), sheet_name="margem_pessoas", dtype={"pep": str})
+    pess["periodo"]  = pess["periodo"].astype(str).str.strip()
+    pess["pep_base"] = pess["pep"].astype(str).str.split(".").str[0].str.strip()
+    pess["custo_rateado"] = pd.to_numeric(pess["custo_rateado"], errors="coerce").fillna(0)
+    custo_pess = pess.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
+    _mask = (q4_gm["receita"] > 0) & (q4_gm["custo_rateado"] == 0)
+    for idx in q4_gm[_mask].index:
+        key = (q4_gm.at[idx, "pep_base"], q4_gm.at[idx, "periodo"])
+        if key in custo_pess and custo_pess[key] != 0:
+            q4_gm.at[idx, "custo_rateado"] = custo_pess[key]
+    q4_gm["margem"] = q4_gm["receita"] + q4_gm["custo_rateado"]
+    q4_gm["ws_key"] = q4_gm["categoria_bu"].apply(_norm_ws) if "categoria_bu" in q4_gm.columns else "apps"
+    cli_agg: dict = {}
+    for _, r in q4_gm.iterrows():
+        cli = r["nome_cliente"]
+        if cli not in cli_agg:
+            cli_agg[cli] = {"rec": 0.0, "custo": 0.0, "lb": 0.0}
+        cli_agg[cli]["rec"]   += float(r["receita"])
+        cli_agg[cli]["custo"] += float(r["custo_rateado"])
+        cli_agg[cli]["lb"]    += float(r["margem"])
+    rec_ws = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    lb_ws  = {ws_k: 0.0 for ws_k in WS_PESOS_Q4}
+    for _, r in q4_gm.iterrows():
+        ws = r["ws_key"]
+        if ws in rec_ws:
+            rec_ws[ws] += float(r["receita"])
+            lb_ws[ws]  += float(r["margem"])
+    total = float(q4_gm["receita"].sum())
+    return cli_agg, rec_ws, lb_ws, total, total
+
+
 def calc_bonus_diretor(nome: str) -> dict:
     d = _load_all()
     pessoas = d["pessoas"]
@@ -1651,6 +1732,16 @@ def calc_bonus_diretor(nome: str) -> dict:
         _cli_agg[cli_disp]["rec"]   += pep_rac
         _cli_agg[cli_disp]["custo"] += pep_custo
         _cli_agg[cli_disp]["lb"]    += pep_lb_total
+
+    # Override Henrique (Grupo Mult): usa mesma fonte/filtro do exporter
+    # (operacional/projetos filtrado por clientes Grupo Mult de parametros/clientes).
+    # Garante que a soma da carteira e do WS batam com o arquivo grupo_mult_q4.xlsx.
+    if vertical == "Grupo Mult" and "HENRIQUE" in nome_n.upper():
+        try:
+            _cli_agg, realized_rec_ws_dir, realized_lb_ws_dir, real_rec_q4, _sap_rec_total = \
+                _load_grupo_mult_q4_carteira()
+        except Exception:
+            pass
 
     clientes_detalhe_dir = [
         {
