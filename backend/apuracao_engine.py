@@ -2479,11 +2479,11 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
     real_lb_dir  = sum(realized_lb_ws.values())
     ating_lb_dir = calc_atingimento(real_lb_dir, bgt_lb_q3, TRIGGER_REC_Q3) if bgt_lb_q3 > 0 else 0.0
 
-    # ─ Bônus ─
-    bonus_tcv   = Q3_QTDE * 1.0 * ating_tcv   * salario * peso_tcv
-    bonus_rec   = bonus_rec_ws_total
-    bonus_mc    = Q3_QTDE * 1.0 * ating_mc    * salario * peso_mc * mc_gate
-    bonus_lb    = Q3_QTDE * 1.0 * ating_lb_dir * salario * peso_lb
+    # ─ Bônus — Q3 diretor: se MC gate não atingido, NADA é pago ─
+    bonus_tcv   = Q3_QTDE * 1.0 * ating_tcv   * salario * peso_tcv * mc_gate
+    bonus_rec   = bonus_rec_ws_total                                * mc_gate
+    bonus_mc    = Q3_QTDE * 1.0 * ating_mc    * salario * peso_mc  * mc_gate
+    bonus_lb    = Q3_QTDE * 1.0 * ating_lb_dir * salario * peso_lb * mc_gate
     bonus_total = bonus_tcv + bonus_rec + bonus_mc + bonus_lb
 
     return {

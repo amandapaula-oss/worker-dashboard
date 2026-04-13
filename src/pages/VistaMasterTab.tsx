@@ -1140,9 +1140,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
           rows.push({ key: "custo", linha: "Custo Direto (Projetos)", tipo: "despesa", bgt: 0, real: custoProjetos, pct: rec ? `${(custoProjetos/rec*100).toFixed(1)}%` : null });
         }
         rows.push({ key: "lb",   linha: "Lucro Bruto (MB)",            tipo: "mb",      bgt: bgtLb,   real: lb,   pct: rec ? `${(lb/rec*100).toFixed(1)}%` : null });
-        if (!isQ3 || hasNexusCosts) {
-          rows.push({ key: "desp", linha: "Despesas Pessoas",           tipo: "despesa", bgt: bgtDesp, real: desp, pct: null });
-        }
+        rows.push({ key: "desp", linha: "Despesas Pessoas",             tipo: "despesa", bgt: bgtDesp, real: desp, pct: null });
         rows.push({ key: "mc", linha: "Margem de Contribuição (MC)",   tipo: "mc",      bgt: bgtMc,   real: mc,   pct: rec ? `${(mc/rec*100).toFixed(1)}%` : null });
 
         const periodo_label = isQ3 ? "Q3 2025" : "Q4 2025";
