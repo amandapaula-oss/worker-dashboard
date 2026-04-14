@@ -1825,6 +1825,9 @@ def calc_bonus_diretor(nome: str) -> dict:
         _total_desp_p  = d.get("total_despesa_pessoas_q4", 0.0)
         _total_dir_rac = d.get("total_dir_rac_q4", 0.0)
         despesas = _total_desp_p * (_real_rec_sap / _total_dir_rac) if _total_dir_rac else 0.0
+        # Override Henrique (Grupo Mult) — usa mesmo valor de despesas do Q3
+        if vertical == "Grupo Mult" and "HENRIQUE" in nome_n.upper():
+            despesas = -445246.0
         # MC% = (LB SAP + Despesas pessoas) / Receita SAP
         real_mc_pct = (_real_lb_sap + despesas) / _real_rec_sap if _real_rec_sap else 0.0
         # Diretor é responsável pela vertical inteira → usar nexus gross_rev como realizado
@@ -1837,6 +1840,8 @@ def calc_bonus_diretor(nome: str) -> dict:
         _total_desp_p  = d.get("total_despesa_pessoas_q4", 0.0)
         _total_dir_rac = d.get("total_dir_rac_q4", 0.0)
         despesas = _total_desp_p * (_real_rec_sap / _total_dir_rac) if _total_dir_rac else 0.0
+        if vertical == "Grupo Mult" and "HENRIQUE" in nome_n.upper():
+            despesas = -445246.0
         real_mc_pct = (_real_lb_sap + despesas) / _real_rec_sap if _real_rec_sap else 0.0
 
     # Budget MC%: bgt_lb / bgt_rec para a vertical

@@ -117,8 +117,12 @@ def linhas_diretor(res: dict) -> list[dict]:
     custo_nexus = (res.get("real_payroll", 0) or 0) \
                 + (res.get("real_third_party", 0) or 0) \
                 + (res.get("real_other_costs", 0) or 0)   # valores negativos
-    despesas    = (res.get("real_payroll_exp", 0) or 0) \
-                + (res.get("real_deductions", 0) or 0)     # valores negativos
+    # Despesas: usa Opção C (real_despesa_pessoas) — mesma fonte do MC% no PDF.
+    # Fallback para Nexus bruto se Opção C não estiver disponível.
+    despesas    = res.get("real_despesa_pessoas")
+    if despesas is None:
+        despesas = (res.get("real_payroll_exp", 0) or 0) \
+                 + (res.get("real_deductions", 0) or 0)     # valores negativos
     mb_nexus    = gross_rev + custo_nexus                  # Receita - |Custo|
     mc_nexus    = mb_nexus + despesas                      # MB - |Despesas|
 
