@@ -1913,7 +1913,7 @@ def calc_bonus_diretor(nome: str) -> dict:
             real_mb_pct_ws = 0.0
         ating_r   = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q4) if bgt_r > 0 else 0.0
         ating_lb_ws = calc_atingimento(real_lb_ws, bgt_lb_ws, TRIGGER_REC_Q4) if bgt_lb_ws > 0 else 0.0
-        bonus_ws  = round(Q4_QTDE * salario * peso_rec * peso_ws * ating_r, 2)
+        bonus_ws  = round(Q4_QTDE * salario * peso_rec * peso_ws * ating_r * mc_gate, 2)
         bonus_rec_ws_total += bonus_ws
         detalhe_ws_dir.append({
             "ws":           ws_k,
@@ -2565,8 +2565,8 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
         real_mb_pct_ws = round(real_lb_ws_k / real_r * 100, 2) if real_r > 0 else 0.0
         ating_r        = calc_atingimento(real_r, bgt_r, TRIGGER_REC_Q3) if bgt_r > 0 else 0.0
         ating_lb_ws    = calc_atingimento(real_lb_ws_k, bgt_lb_ws_k, TRIGGER_REC_Q3) if bgt_lb_ws_k > 0 else 0.0
-        bonus_r        = Q3_QTDE * peso_ws * ating_r * salario * peso_rec
-        bonus_lb_ws    = Q3_QTDE * peso_ws * ating_lb_ws * salario * peso_lb
+        bonus_r        = Q3_QTDE * peso_ws * ating_r * salario * peso_rec * mc_gate
+        bonus_lb_ws    = Q3_QTDE * peso_ws * ating_lb_ws * salario * peso_lb * mc_gate
         bonus_ws       = bonus_r + bonus_lb_ws
         bonus_rec_ws_total += bonus_r
         detalhe_ws_dir.append({
