@@ -1935,10 +1935,11 @@ def calc_bonus_diretor(nome: str) -> dict:
 
     # ─ Bônus ─
     # mc_gate bloqueia apenas o bonus_mc; rec, tcv e lb são independentes
-    bonus_tcv = Q4_QTDE * 1.0 * ating_tcv    * salario * peso_tcv
-    bonus_rec = bonus_rec_ws_total
+    # Q4 diretor: se MC gate não atingido, NADA é pago (mesmo que Q3)
+    bonus_tcv = Q4_QTDE * 1.0 * ating_tcv    * salario * peso_tcv * mc_gate
+    bonus_rec = bonus_rec_ws_total                                * mc_gate
     bonus_mc  = Q4_QTDE * 1.0 * ating_mc     * salario * peso_mc  * mc_gate
-    bonus_lb  = Q4_QTDE * 1.0 * ating_lb_dir * salario * peso_lb
+    bonus_lb  = Q4_QTDE * 1.0 * ating_lb_dir * salario * peso_lb  * mc_gate
 
     bonus_total = bonus_tcv + bonus_rec + bonus_mc + bonus_lb
 

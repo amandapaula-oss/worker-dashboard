@@ -49,7 +49,7 @@ def linhas_ae(res: dict) -> list[dict]:
     ])
 
     for w in res.get("detalhe_ws", []):
-        ws       = w["ws"].upper()
+        ws       = "Cloud/Cyber" if str(w["ws"]).lower() == "cloud" else str(w["ws"]).upper()
         real_rec = w["real_rec"]
         real_lb  = w.get("real_lb_financeiro") if w.get("real_lb_financeiro") is not None else round(real_rec * w["real_mb_pct"] / 100, 2)
         real_custo = w.get("real_custo_financeiro")  # custo_rateado real (negativo)
@@ -96,7 +96,7 @@ def linhas_diretor(res: dict) -> list[dict]:
 
     # ── por WS (SAP/RAC-based) ──────────────────────────────────────────────
     for w in res.get("detalhe_ws", []):
-        ws       = w["ws"].upper()
+        ws       = "Cloud/Cyber" if str(w["ws"]).lower() == "cloud" else str(w["ws"]).upper()
         real_rec = w["real_rec"]
         real_lb  = w.get("real_lb_ws", round(real_rec * w["real_mb_pct"] / 100, 2))
         custo_v  = round(real_rec - real_lb, 2)
@@ -113,18 +113,23 @@ def linhas_diretor(res: dict) -> list[dict]:
                      "Categoria": cat, "Valor_Q4": val})
 
     # ── Nexus: custos, despesas, MB e MC ────────────────────────────────────
-    gross_rev   = res.get("real_gross_rev", 0) or 0
-    custo_nexus = (res.get("real_payroll", 0) or 0) \
-                + (res.get("real_third_party", 0) or 0) \
-                + (res.get("real_other_costs", 0) or 0)   # valores negativos
-    # Despesas: usa Opção C (real_despesa_pessoas) — mesma fonte do MC% no PDF.
-    # Fallback para Nexus bruto se Opção C não estiver disponível.
+    # Para diretores: usa receita SAP curada e LB da engine (mesma fonte do PDF/UI),
+    # não os agregados brutos da vertical inteira. Garante consistência apuração ↔ PDF.
+    gross_rev   = res.get("real_rec_sap") or res.get("real_rec_q4") or res.get("real_gross_rev", 0) or 0
+    lb_engine   = res.get("real_lb_q4")
     despesas    = res.get("real_despesa_pessoas")
     if despesas is None:
         despesas = (res.get("real_payroll_exp", 0) or 0) \
-                 + (res.get("real_deductions", 0) or 0)     # valores negativos
-    mb_nexus    = gross_rev + custo_nexus                  # Receita - |Custo|
-    mc_nexus    = mb_nexus + despesas                      # MB - |Despesas|
+                 + (res.get("real_deductions", 0) or 0)
+    if lb_engine is not None:
+        mb_nexus    = lb_engine
+        custo_nexus = mb_nexus - gross_rev   # negativo (custo direto implícito)
+    else:
+        custo_nexus = (res.get("real_payroll", 0) or 0) \
+                    + (res.get("real_third_party", 0) or 0) \
+                    + (res.get("real_other_costs", 0) or 0)
+        mb_nexus    = gross_rev + custo_nexus
+    mc_nexus    = mb_nexus + despesas
 
     for cat, val in [
         ("Receita",  gross_rev),
