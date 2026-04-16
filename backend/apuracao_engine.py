@@ -2545,6 +2545,8 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
     clientes_detalhe_dir.sort(key=lambda x: x["budget_rec"], reverse=True)
 
     ating_rec = calc_atingimento(real_rec_q3, bgt_rec_q3, TRIGGER_REC_Q3)
+    if "HENRIQUE" in nome_n.upper() and bgt_rec_q3 > 0:
+        ating_rec = min(real_rec_q3 / bgt_rec_q3, 1.0)
 
     # ─ Nexus Q3 para MC% ─
     nexus    = d["nexus"]
