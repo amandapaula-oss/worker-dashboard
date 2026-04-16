@@ -1745,8 +1745,9 @@ def calc_bonus_diretor(nome: str) -> dict:
         rec_dir = bgt_rec[bgt_rec["bs"].str.lower() == bs_key.lower()].copy()
         # Exclui linhas placeholder ("Cliente 1", "Cliente 2", ...) — são pipeline/estimativas
         # que não representam clientes reais e inflam o budget tornando o trigger inalcançável
-        _placeholder_mask = rec_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)
-        rec_dir = rec_dir[~_placeholder_mask]
+        if vertical != "Grupo Mult":
+            _ph = rec_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)
+            rec_dir = rec_dir[~_ph]
     else:
         bs_key = ""
         rec_dir = pd.DataFrame()
@@ -1920,9 +1921,9 @@ def calc_bonus_diretor(nome: str) -> dict:
     bgt_lb  = d["bgt_lb"]
     lb_dir  = bgt_lb[bgt_lb["bs"].str.lower() == bs_key.lower()].copy() if (vertical and bs_key) else pd.DataFrame()
     # Exclui placeholders "Cliente N" do LB também (mesma lógica do budget receita)
-    if not lb_dir.empty:
-        _lb_placeholder_mask = lb_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)
-        lb_dir = lb_dir[~_lb_placeholder_mask]
+    if not lb_dir.empty and vertical != "Grupo Mult":
+        _lbp = lb_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)
+        lb_dir = lb_dir[~_lbp]
     bgt_lb_q4  = float(lb_dir["q4"].sum()) if not lb_dir.empty else 0.0
     bgt_gross = bgt_payroll = bgt_third_party = bgt_other_costs = bgt_payroll_exp = bgt_deductions = 0.0
     if bgt_rec_q4 == 0 and not nq4_budget.empty:
