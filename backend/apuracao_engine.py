@@ -1668,8 +1668,12 @@ def _load_grupo_mult_q4_carteira():
         key = (q4_gm.at[idx, "pep_base"], q4_gm.at[idx, "periodo"])
         if key in custo_pess and custo_pess[key] != 0:
             q4_gm.at[idx, "custo_rateado"] = custo_pess[key]
-    q4_gm["margem"] = q4_gm["receita"] + q4_gm["custo_rateado"]
     q4_gm["ws_key"] = q4_gm["categoria_bu"].apply(_norm_ws) if "categoria_bu" in q4_gm.columns else "apps"
+    _m2 = (q4_gm["receita"] > 0) & (q4_gm["custo_rateado"] == 0)
+    for idx in q4_gm[_m2].index:
+        _b = WS_MB_BENCHMARK_Q4.get(q4_gm.at[idx, "ws_key"], 0.35)
+        q4_gm.at[idx, "custo_rateado"] = float(q4_gm.at[idx, "receita"]) * -(1 - _b)
+    q4_gm["margem"] = q4_gm["receita"] + q4_gm["custo_rateado"]
     cli_agg: dict = {}
     for _, r in q4_gm.iterrows():
         cli = r["nome_cliente"]
