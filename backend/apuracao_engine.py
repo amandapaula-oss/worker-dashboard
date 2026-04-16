@@ -1210,16 +1210,16 @@ def _load_q3_realized():
     # Override Q3 Klabin
     _kl = norm("KLABIN")
     if _kl in rec_by_client_nh:
-        rac_by_client_nh[_kl]  = 1305793.22
-        rec_by_client_nh[_kl]  = 1305793.22
-        custo_by_client_nh[_kl] = -664445.62
-        marg_by_client_nh[_kl] = 1305793.22 - 664445.62
+        rac_by_client_nh[_kl]  = 1393163.36
+        rec_by_client_nh[_kl]  = 1393163.36
+        custo_by_client_nh[_kl] = -708130.69
+        marg_by_client_nh[_kl] = 1393163.36 - 708130.69
         for _k in list(rec_by_client_ws_nh):
             if _k[0] == _kl: rec_by_client_ws_nh[_k] = 0
         for _k in list(marg_by_client_ws_nh):
             if _k[0] == _kl: marg_by_client_ws_nh[_k] = 0
-        rec_by_client_ws_nh[(_kl, "apps")]  = 1305793.22
-        marg_by_client_ws_nh[(_kl, "apps")] = 1305793.22 - 664445.62
+        rec_by_client_ws_nh[(_kl, "apps")]  = 1393163.36
+        marg_by_client_ws_nh[(_kl, "apps")] = 1393163.36 - 708130.69
 
     return {
         "rac_by_client_nh":      rac_by_client_nh,
