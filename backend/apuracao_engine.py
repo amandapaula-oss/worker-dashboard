@@ -2436,7 +2436,8 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
     bgt_rec = d["bgt_rec"]
     if vertical:
         rec_dir = bgt_rec[bgt_rec["bs"].str.lower() == bs_key.lower()].copy()
-        rec_dir = rec_dir[~rec_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)]
+        if vertical != "Grupo Mult":
+            rec_dir = rec_dir[~rec_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)]
     else:
         rec_dir = pd.DataFrame()
     bgt_rec_q3 = float(rec_dir["q3"].sum()) if not rec_dir.empty else 0.0
@@ -2444,7 +2445,7 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
     # ─ Budget LB Q3 ─
     bgt_lb_df = d["bgt_lb"]
     lb_dir    = bgt_lb_df[bgt_lb_df["bs"].str.lower() == bs_key.lower()].copy() if (vertical and bs_key) else pd.DataFrame()
-    if not lb_dir.empty:
+    if not lb_dir.empty and vertical != "Grupo Mult":
         lb_dir = lb_dir[~lb_dir["cliente"].str.strip().str.match(r"^Cliente\s+\d+$", na=False)]
     bgt_lb_q3 = float(lb_dir["q3"].sum()) if not lb_dir.empty else 0.0
 
