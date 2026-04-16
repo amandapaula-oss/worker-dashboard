@@ -1131,7 +1131,7 @@ function DetalheDir({ d }: { d: DetalheCalculo }) {
         const bgtRec  = d.budget_rec_q4 ?? 0;
         const bgtLb   = d.budget_lb_q4 ?? 0;
         const bgtDesp = (d.bgt_payroll_exp ?? 0) + (d.bgt_deductions ?? 0);
-        const bgtMc   = bgtLb + bgtDesp;
+        const bgtMc   = d.budget_mc_abs != null && d.budget_mc_abs !== 0 ? d.budget_mc_abs : bgtLb + bgtDesp;
 
         const rows: any[] = [
           { key: "rec",  linha: "Receita",                    tipo: "receita", bgt: bgtRec, real: rec, pct: null },
