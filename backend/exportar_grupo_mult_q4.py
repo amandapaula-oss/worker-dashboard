@@ -89,6 +89,16 @@ def main():
     # adiciona ae do clientes
     ae_map = gm.drop_duplicates("nome_cliente").set_index("nome_cliente")["ae"]
     q4_gm["ae"] = q4_gm["nome_cliente"].map(ae_map)
+    _ae_override = {
+        "DIRECIONAL ENGENHARIA S/A":           "GUILHERME",
+        "UNIMED BELO HORIZONTE COOPERATIVA D": "DANILO DE SOUZA MACIEIRA",
+        "LOJA ELETRICA LTDA":                  "DANILO DE SOUZA MACIEIRA",
+    }
+    _mask_noae = q4_gm["ae"].isna() | (q4_gm["ae"].astype(str).str.strip() == "")
+    for idx in q4_gm[_mask_noae].index:
+        _cli = str(q4_gm.at[idx, "nome_cliente"]).strip().upper()
+        if _cli in _ae_override:
+            q4_gm.at[idx, "ae"] = _ae_override[_cli]
 
     sheet1 = q4_gm[[
         "periodo", "empresa", "pep", "nome_cliente", "ae",
