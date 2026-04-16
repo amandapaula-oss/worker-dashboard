@@ -987,8 +987,10 @@ def calc_bonus_ae(nome: str) -> dict:
         # Lookup por pessoa (ex: "Edmilson", "Guilherme"); fallback para vertical
         _tcv_key = pessoa["Nome"].strip().split()[0].capitalize()
         real_tcv_q4_ae = float(d["tcv_real"].get(_tcv_key, d["tcv_real"].get("Grupo Mult", 0.0)))
-        if "DANILO" in str(pessoa["Nome"]).upper(): real_tcv_q4_ae = 1920586.08
-        if "GUILHERME" in str(pessoa["Nome"]).upper(): real_tcv_q4_ae = 2107682.06
+        _pn = str(pessoa["Nome"]).upper()
+        if "DANILO" in _pn: real_tcv_q4_ae = 2253508.32
+        if "GUILHERME" in _pn: real_tcv_q4_ae = 2129339.52
+        if "EDMILSON" in _pn: real_tcv_q4_ae = 971559.12
         ating_tcv_ae   = calc_atingimento(real_tcv_q4_ae, bgt_tcv_q4_ae, TRIGGER_REC_Q4)
         bonus_tcv_ae   = Q4_QTDE * ating_tcv_ae * salario * peso_tcv
         bonus_total   += bonus_tcv_ae
