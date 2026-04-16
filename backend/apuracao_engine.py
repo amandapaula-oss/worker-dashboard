@@ -27,6 +27,52 @@ def norm(s: str) -> str:
     return re.sub(r"\s+", " ", s)
 
 
+GM_METAS_REF = os.path.join(DIR, "metas_gm_ref.xlsx")
+
+
+def _apply_gm_metas_override(bgt_rec, bgt_lb):
+    if not os.path.exists(GM_METAS_REF):
+        return bgt_rec, bgt_lb
+    try:
+        _r = pd.read_excel(GM_METAS_REF)
+        _r = _r[_r["Tipo"].isin(["Receita", "LB"])].copy()
+        _r["cliente"]      = _r["Cliente"].astype(str).str.strip()
+        _r["cliente_norm"] = _r["cliente"].apply(norm)
+        _r["ws"]           = _r["WS"].astype(str).str.strip()
+        _r["ae_q3"]        = _r["AE Q3"].astype(str).str.strip()
+        _r["ae_q4"]        = _r["AE Q4"].astype(str).str.strip()
+        _q3 = [pd.Timestamp(y) for y in ("2025-07-01","2025-08-01","2025-09-01")]
+        _q4 = [pd.Timestamp(y) for y in ("2025-10-01","2025-11-01","2025-12-01")]
+        _cq3 = [c for c in _r.columns if hasattr(c, "year") and c in _q3]
+        _cq4 = [c for c in _r.columns if hasattr(c, "year") and c in _q4]
+        if not (_cq3 and _cq4):
+            return bgt_rec, bgt_lb
+        _r["q3"] = _r[_cq3].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+        _r["q4"] = _r[_cq4].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+        bgt_rec = bgt_rec[bgt_rec["bs"].astype(str).str.lower().str.strip() != "grupo mult"].copy()
+        bgt_lb  = bgt_lb[bgt_lb["bs"].astype(str).str.lower().str.strip() != "grupo mult"].copy()
+        for _src, _dst in [("Receita", "Receita"), ("LB", "Margem")]:
+            _sub = _r[_r["Tipo"] == _src]
+            _new = pd.DataFrame({
+                "tipo":         _dst,
+                "bs":           "Grupo Mult",
+                "ae_q3":        _sub["ae_q3"].where(_sub["ae_q3"].str.lower() != "nan", None),
+                "ae_q4":        _sub["ae_q4"].where(_sub["ae_q4"].str.lower() != "nan", None),
+                "cliente":      _sub["cliente"],
+                "cliente_norm": _sub["cliente_norm"],
+                "ws":           _sub["ws"],
+                "q3":           _sub["q3"],
+                "q4":           _sub["q4"],
+            })
+            if _dst == "Receita":
+                bgt_rec = pd.concat([bgt_rec, _new], ignore_index=True)
+            else:
+                bgt_lb = pd.concat([bgt_lb, _new], ignore_index=True)
+    except Exception:
+        pass
+    return bgt_rec, bgt_lb
+
+
 # ─── Carregamento de dados ────────────────────────────────────────────────────
 
 @lru_cache(maxsize=1)
@@ -41,6 +87,7 @@ def _load_all():
     _budget   = _param.parse("budget")
     bgt_rec   = _budget[_budget["tipo"] == "Receita"].copy()
     bgt_lb    = _budget[_budget["tipo"] == "Margem"].copy()
+    bgt_rec, bgt_lb = _apply_gm_metas_override(bgt_rec, bgt_lb)
     bgt_tcv   = _param.parse("budget_tcv")
     _real_df  = _param.parse("realizados_manual")
     tcv_real_map    = dict(zip(_real_df[_real_df["tipo"] == "TCV_Q4"]["ae_ou_vertical"],
