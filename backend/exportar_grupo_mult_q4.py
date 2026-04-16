@@ -131,10 +131,9 @@ def main():
     _mask_fb2 = (sheet1["receita"] > 0) & (sheet1["custo_rateado"] == 0)
     for idx in sheet1[_mask_fb2].index:
         ws = _ws_key_local(sheet1.at[idx, "categoria_bu"])
-        bench = WS_MB_BENCHMARK.get(ws)
-        if bench is not None:
-            rec = float(sheet1.at[idx, "receita"])
-            sheet1.at[idx, "custo_rateado"] = rec * -(1 - bench)
+        bench = WS_MB_BENCHMARK.get(ws, 0.35)  # Apps: default 35% (mesmo do engine)
+        rec = float(sheet1.at[idx, "receita"])
+        sheet1.at[idx, "custo_rateado"] = rec * -(1 - bench)
 
     sheet1 = sheet1.drop(columns=["pep_base"])
     sheet1["margem"] = sheet1["receita"] + sheet1["custo_rateado"]
