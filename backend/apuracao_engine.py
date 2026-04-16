@@ -405,7 +405,19 @@ def _load_all():
     _pv_raw["ws_key"] = _pv_raw.get("categoria_bu", pd.Series("demais", index=_pv_raw.index)).apply(
         lambda x: _norm_ws(str(x)) if pd.notna(x) and str(x).strip() else "demais"
     )
-    _pv_raw["margem"] = _pv_raw["receita"].fillna(0) + _pv_raw["custo_rateado"].fillna(0)
+    _pv_raw["receita"]       = pd.to_numeric(_pv_raw["receita"], errors="coerce").fillna(0)
+    _pv_raw["custo_rateado"] = pd.to_numeric(_pv_raw["custo_rateado"], errors="coerce").fillna(0)
+    if not margem_pess.empty:
+        _cp = margem_pess.copy()
+        _cp["pep_base"] = _cp["pep"].astype(str).str.split(".").str[0].str.strip()
+        _cp["custo_rateado"] = pd.to_numeric(_cp["custo_rateado"], errors="coerce").fillna(0)
+        _custo_pess = _cp.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
+        _pv_mask = (_pv_raw["receita"] > 0) & (_pv_raw["custo_rateado"] == 0)
+        for _idx in _pv_raw[_pv_mask].index:
+            _k = (_pv_raw.at[_idx, "pep_base"], _pv_raw.at[_idx, "periodo"])
+            if _k in _custo_pess and _custo_pess[_k] != 0:
+                _pv_raw.at[_idx, "custo_rateado"] = _custo_pess[_k]
+    _pv_raw["margem"] = _pv_raw["receita"] + _pv_raw["custo_rateado"]
     rec_by_client_vert_nh   = _pv_raw.groupby(["nome_norm", "vert"])["receita"].sum().to_dict()
     marg_by_client_vert_nh  = _pv_raw.groupby(["nome_norm", "vert"])["margem"].sum().to_dict()
     custo_by_client_vert_nh = _pv_raw.groupby(["nome_norm", "vert"])["custo_rateado"].sum().to_dict()
