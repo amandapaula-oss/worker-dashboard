@@ -417,6 +417,12 @@ def _load_all():
             _k = (_pv_raw.at[_idx, "pep_base"], _pv_raw.at[_idx, "periodo"])
             if _k in _custo_pess and _custo_pess[_k] != 0:
                 _pv_raw.at[_idx, "custo_rateado"] = _custo_pess[_k]
+    _pv_mask2 = (_pv_raw["receita"] > 0) & (_pv_raw["custo_rateado"] == 0)
+    for _idx in _pv_raw[_pv_mask2].index:
+        _wsk = _pv_raw.at[_idx, "ws_key"]
+        _bench = WS_MB_BENCHMARK_Q4.get(_wsk, 0.35)
+        _rec = float(_pv_raw.at[_idx, "receita"])
+        _pv_raw.at[_idx, "custo_rateado"] = _rec * -(1 - _bench)
     _pv_raw["margem"] = _pv_raw["receita"] + _pv_raw["custo_rateado"]
     rec_by_client_vert_nh   = _pv_raw.groupby(["nome_norm", "vert"])["receita"].sum().to_dict()
     marg_by_client_vert_nh  = _pv_raw.groupby(["nome_norm", "vert"])["margem"].sum().to_dict()
