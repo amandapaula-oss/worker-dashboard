@@ -2604,9 +2604,9 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
 
     bgt_mc_pct      = _bgt_mc_abs / bgt_rec_q3 if bgt_rec_q3 else 0.0
     _trigger_mc_abs = _bgt_mc_abs * TRIGGER_REC_Q3
-    mc_gate         = 1.0 if _real_mc_abs >= _trigger_mc_abs else 0.0
     if "HENRIQUE" in nome_n.upper():
-        mc_gate = 1.0
+        _trigger_mc_abs = 3668490.0
+    mc_gate         = 1.0 if _real_mc_abs >= _trigger_mc_abs else 0.0
     trigger_mc_pct_val = _trigger_mc_abs / bgt_rec_q3 if bgt_rec_q3 else 0.0
     ating_mc        = calc_atingimento(_real_mc_abs, _bgt_mc_abs, 0.0) if _bgt_mc_abs > 0 else 0.0
 
