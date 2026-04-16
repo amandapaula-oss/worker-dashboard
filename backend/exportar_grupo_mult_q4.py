@@ -100,6 +100,11 @@ def main():
         if _cli in _ae_override:
             q4_gm.at[idx, "ae"] = _ae_override[_cli]
 
+    # Override BR02CLP00035 dez Klabin: remove valores que foram pro Q3
+    _adj = (q4_gm["pep"].astype(str).str.strip() == "BR02CLP00035") & (q4_gm["periodo"].astype(str).str.strip() == "2025-12")
+    q4_gm.loc[_adj, "receita"] = pd.to_numeric(q4_gm.loc[_adj, "receita"], errors="coerce") - 87370.14
+    q4_gm.loc[_adj, "custo_rateado"] = pd.to_numeric(q4_gm.loc[_adj, "custo_rateado"], errors="coerce") + 43685.07
+
     sheet1 = q4_gm[[
         "periodo", "empresa", "pep", "nome_cliente", "ae",
         "tipos", "categoria_bu", "centro_lucro", "no_hierarquia",

@@ -1670,6 +1670,9 @@ def _load_grupo_mult_q4_carteira():
     q4_gm = q4_gm[q4_gm["nome_cliente"].apply(_is_gm)].copy()
     q4_gm["receita"]       = pd.to_numeric(q4_gm["receita"],       errors="coerce").fillna(0)
     q4_gm["custo_rateado"] = pd.to_numeric(q4_gm["custo_rateado"], errors="coerce").fillna(0)
+    _adj = (q4_gm["pep_base"] == "BR02CLP00035") & (q4_gm["periodo"].astype(str).str.strip() == "2025-12")
+    q4_gm.loc[_adj, "receita"] -= 87370.14
+    q4_gm.loc[_adj, "custo_rateado"] += 43685.07
     pess = pd.read_excel(os.path.join(DIR, "operacional.xlsx"), sheet_name="margem_pessoas", dtype={"pep": str})
     pess["periodo"]  = pess["periodo"].astype(str).str.strip()
     pess["pep_base"] = pess["pep"].astype(str).str.split(".").str[0].str.strip()
