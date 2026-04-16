@@ -33,6 +33,8 @@ def norm(s: str) -> str:
 def _load_all():
     _param    = pd.ExcelFile(os.path.join(DIR, "parametros.xlsx"))
     pessoas   = _param.parse("pessoas")
+    _dan_mask = pessoas["Nome"].astype(str).str.upper().str.contains("DANILO DE SOUZA MACIEIRA", na=False)
+    pessoas.loc[_dan_mask, "Posicao"] = "AE_GM"
     pesos_m   = _param.parse("pesos_meta")
     pesos_ws  = _param.parse("pesos_ws")
     triggers  = _param.parse("triggers")
