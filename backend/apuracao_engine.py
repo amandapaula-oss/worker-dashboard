@@ -731,11 +731,9 @@ def calc_bonus_ae(nome: str) -> dict:
         _vert_ovr = _cli_vert_ae.get(cli_n)
         _owner = _find_owner(cli_n)
         if _vert_ovr:
-            # Usa receita filtrada pela vertical do AE para evitar contabilizar
-            # PEPs de outras verticais (ex: KLABIN Multisector para AE de Grupo Mult)
             real_rec   = d.get("rec_by_client_vert_nh",   {}).get((cli_n, _vert_ovr), 0.0)
             real_lb    = d.get("marg_by_client_vert_nh",  {}).get((cli_n, _vert_ovr), 0.0)
-            real_custo = d.get("custo_by_client_vert_nh", {}).get((cli_n, _vert_ovr), 0.0)
+            real_custo = _match_cliente(cli_n, d["custo_by_client_nh"])
         elif (_owner and _owner != pessoa_nome_n) or (posicao == "AE_GM" and not _vert_ovr):
             # Cliente pertence a outro AE, ou para AE_GM não está mapeado na vertical
             # — não creditar receita real a este AE
@@ -849,6 +847,9 @@ def calc_bonus_ae(nome: str) -> dict:
                 realized_lb_ws[ws_k] = realized_lb_ws.get(ws_k, 0.0) + _ws_lb
                 cli_bonus_lb += _ws_lb
 
+        if _vert_ovr and real_custo != 0 and abs(real_custo) > abs(cli_custo_fin):
+            cli_custo_fin = real_custo
+            cli_lb_fin = real_rec + real_custo
         real_lb_financeiro   += cli_lb_fin
         real_custo_total_fin += cli_custo_fin
         margem_pct_visual = cli_lb_fin / real_rec if real_rec > 0 else None
