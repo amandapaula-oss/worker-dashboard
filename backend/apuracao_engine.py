@@ -134,6 +134,8 @@ def _load_all():
         row["nome_norm"]: {"meta_lb": float(row["meta_lb"] or 0), "trigger_lb": float(row["trigger_lb"] or 0)}
         for _, row in lb_trigger_df.iterrows()
     }
+    lb_trigger_map[norm("Edmilson")] = {"meta_lb": 1997253.58, "trigger_lb": 1697665.54}
+    lb_trigger_map[norm("DANILO DE SOUZA MACIEIRA")] = {"meta_lb": 2054689.13, "trigger_lb": 1746485.76}
     mc_metas_dir: dict = {}
     _mc_df = _param.parse("mc_dir")
     for _, _row in _mc_df.iterrows():
