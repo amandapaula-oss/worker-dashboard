@@ -1995,7 +1995,7 @@ def calc_bonus_diretor(nome: str) -> dict:
     trigger_mc_pct_val = _trigger_mc_abs / bgt_rec_q4 if bgt_rec_q4 else 0.0
 
     # Atingimento: compara valor absoluto (R$), sem patamar mínimo (trigger=0)
-    ating_mc = calc_atingimento(_real_mc_abs, _bgt_mc_abs, 0.0) if _bgt_mc_abs > 0 else 0.0
+    ating_mc = min(_real_mc_abs / _bgt_mc_abs, 1.0) if _bgt_mc_abs > 0 else 0.0
 
     # ─ WS breakdown — Parte 2: detalhe_ws_dir (bgt_lb_q4 já disponível) ─
     dir_ws_weights = d["pesos_ws_pessoa"].get(norm(str(pessoa["Nome"])), dict(WS_PESOS_Q4))
@@ -2636,7 +2636,7 @@ def calc_bonus_diretor_q3(nome: str) -> dict:
         _trigger_mc_abs = 3668490.0
     mc_gate         = 1.0 if _real_mc_abs >= _trigger_mc_abs else 0.0
     trigger_mc_pct_val = _trigger_mc_abs / bgt_rec_q3 if bgt_rec_q3 else 0.0
-    ating_mc        = calc_atingimento(_real_mc_abs, _bgt_mc_abs, 0.0) if _bgt_mc_abs > 0 else 0.0
+    ating_mc        = min(_real_mc_abs / _bgt_mc_abs, 1.0) if _bgt_mc_abs > 0 else 0.0
 
     # ─ TCV ating ─
     if bgt_tcv_q3 > 0:
