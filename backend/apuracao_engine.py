@@ -1690,14 +1690,18 @@ def _load_grupo_mult_q4_carteira():
     pess["periodo"]  = pess["periodo"].astype(str).str.strip()
     pess["pep_base"] = pess["pep"].astype(str).str.split(".").str[0].str.strip()
     pess["custo_rateado"] = pd.to_numeric(pess["custo_rateado"], errors="coerce").fillna(0)
+    _pess_xl = pd.ExcelFile(os.path.join(DIR, "pessoas.xlsx"))
+    _rp = _pess_xl.parse("relacao_pessoas").astype({"CPF / Worker ID": str})
+    _cpf_custo = set(_rp[_rp["classificacao"] == "custo"]["CPF / Worker ID"].str.strip())
+    pess = pess[pess["cpf"].astype(str).str.strip().isin(_cpf_custo)]
     custo_pess = pess.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
-    _mask = (q4_gm["receita"] > 0) & (q4_gm["custo_rateado"] == 0)
+    _mask = (q4_gm["receita"] != 0) & (q4_gm["custo_rateado"] == 0)
     for idx in q4_gm[_mask].index:
         key = (q4_gm.at[idx, "pep_base"], q4_gm.at[idx, "periodo"])
         if key in custo_pess and custo_pess[key] != 0:
             q4_gm.at[idx, "custo_rateado"] = custo_pess[key]
     q4_gm["ws_key"] = q4_gm["categoria_bu"].apply(_norm_ws) if "categoria_bu" in q4_gm.columns else "apps"
-    _m2 = (q4_gm["receita"] > 0) & (q4_gm["custo_rateado"] == 0)
+    _m2 = (q4_gm["receita"] != 0) & (q4_gm["custo_rateado"] == 0)
     for idx in q4_gm[_m2].index:
         _b = WS_MB_BENCHMARK_Q4.get(q4_gm.at[idx, "ws_key"], 0.35)
         q4_gm.at[idx, "custo_rateado"] = float(q4_gm.at[idx, "receita"]) * -(1 - _b)
