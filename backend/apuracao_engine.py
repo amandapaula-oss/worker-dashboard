@@ -927,6 +927,8 @@ def calc_bonus_ae(nome: str) -> dict:
         # ─ Gate LB por WS: trigger proporcional ao budget LB desta WS ─
         bgt_lb_ws_k = bgt_lb_ws.get(ws_k, 0.0)
         trigger_lb_ws_k = round(bgt_lb_ws_k * _trigger_ratio, 2) if bgt_lb_ws_k > 0 else 0.0
+        if "EDMILSON" in pessoa_nome_n.upper() and ws_k == "apps":
+            trigger_lb_ws_k = 1530000.0
         real_lb_fin_ws_k = realized_lb_gate_ws.get(ws_k, 0.0)  # apenas clientes com budget LB > 0
         lb_gate_ws = 1 if (trigger_lb_ws_k <= 0 or real_lb_fin_ws_k >= trigger_lb_ws_k) else 0
 
