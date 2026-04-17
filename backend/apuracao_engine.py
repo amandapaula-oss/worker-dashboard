@@ -145,6 +145,10 @@ def _load_all():
 
     rac_q4   = rac[rac["periodo"].isin(Q4_PERIODOS)].copy()
     marg_q4  = margem[margem["periodo"].isin(Q4_PERIODOS)].copy()
+    # Ajuste BR02CLP00035 dez Klabin — remove valores transferidos ao Q3
+    _adj_kl = (marg_q4["pep"].astype(str).str.strip() == "BR02CLP00035") & (marg_q4["periodo"].astype(str).str.strip() == "2025-12")
+    marg_q4.loc[_adj_kl, "receita"] = pd.to_numeric(marg_q4.loc[_adj_kl, "receita"], errors="coerce") - 87370.14
+    marg_q4.loc[_adj_kl, "custo_rateado"] = pd.to_numeric(marg_q4.loc[_adj_kl, "custo_rateado"], errors="coerce") + 43685.07
     # Inicializa margem = receita + custo_rateado para todos os projetos.
     # Necessário para linhas de Apps com custo_rateado != 0, que não passam pelo
     # benchmark loop nem pelo apps-zero-mask, e ficariam com margem=NaN no groupby.
@@ -452,6 +456,9 @@ def _load_all():
     )
     _pv_raw["receita"]       = pd.to_numeric(_pv_raw["receita"], errors="coerce").fillna(0)
     _pv_raw["custo_rateado"] = pd.to_numeric(_pv_raw["custo_rateado"], errors="coerce").fillna(0)
+    _adj_pv = (_pv_raw["pep_base"] == "BR02CLP00035") & (_pv_raw["periodo"].astype(str).str.strip() == "2025-12")
+    _pv_raw.loc[_adj_pv, "receita"] -= 87370.14
+    _pv_raw.loc[_adj_pv, "custo_rateado"] += 43685.07
     if not margem_pess.empty:
         _cp = margem_pess.copy()
         _cp["pep_base"] = _cp["pep"].astype(str).str.split(".").str[0].str.strip()
