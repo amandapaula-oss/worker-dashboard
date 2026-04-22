@@ -1665,6 +1665,8 @@ def get_nova_base_resumo(
 
     df[group_col] = df[group_col].fillna("").astype(str).str.strip()
     df["periodo"]  = df["periodo"].fillna("").astype(str).str.strip()
+    if group_col == "macro_area":
+        df.loc[df[group_col] == "", group_col] = "Projetos"
     df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
 
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
