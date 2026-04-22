@@ -101,15 +101,15 @@ SAP_ID      = "1Lm-G9ZJUC2Hzc9iIKIb6LCemYJqtzNQO"
 NEXUS_ID    = "1BBjfSYTGLAeuxMih4CDMgyfmVDGfkxkW"
 
 COMPANY_NAMES = {
-    "BR02": "FCamara", "BRO2": "FCamara",
-    "BR03": "Omnik",
-    "BR04": "Nação Digital",
-    "BR05": "SGA", "BR06": "Dojo",
-    "BR07": "Hyper", "BR0C": "Hyper",
-    "BR08": "Dojo", "Omnik": "Dojo",
-    "BR09": "NextGen",
+    "BR02": "BR02 FCamara", "BRO2": "BR02 FCamara", "FCamara": "BR02 FCamara",
+    "BR03": "BR03 Omnik", "Omnik": "BR03 Omnik",
+    "BR04": "BR04 Nação Digital", "Nação Digital": "BR04 Nação Digital",
+    "BR05": "BR05 SGA", "SGA": "BR05 SGA",
+    "BR07": "BR07 Hyper", "BR0C": "BR0C Hyper", "Hyper": "BR07 Hyper",
+    "BR08": "BR08 Dojo", "Dojo": "BR08 Dojo",
+    "BR09": "BR09 NextGen", "NextGen": "BR09 NextGen",
 }
-SAP_NAMES = {"BR02": "FCamara", "BR07": "Hyper", "BR09": "NextGen"}
+SAP_NAMES = {"BR02": "BR02 FCamara", "BR07": "BR07 Hyper", "BR09": "BR09 NextGen"}
 
 def get_nomes() -> dict:
     if _cache["nomes"] is None:
@@ -1593,6 +1593,8 @@ def _get_nova_base() -> pd.DataFrame:
                 df["valor_liquido"]
             )
 
+        if "empresa" in df.columns:
+            df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
