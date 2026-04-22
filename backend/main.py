@@ -1760,7 +1760,8 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
     if periodos:    df = filt("periodo", periodos)
     if empresas:    df = filt("empresa", empresas)
     if fontes:      df = filt("fonte", fontes)
-    if macro_areas: df = filt("macro_area", macro_areas)
+    # macro_areas filtra só despesas (linhas com macro_area); receita/custo direto não têm macro_area
+    _macro_area_filter = [v.strip() for v in macro_areas.split(",") if v.strip()] if macro_areas else []
 
     df = df.copy()
     for col in ["receita", "custo_rateado", "valor_liquido"]:
@@ -1830,6 +1831,8 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
 
     # ── Despesas por Macro Área: custo_gerencial COM macro_area ───────────────
     df_cg_desp = df[df["_is_cg"] & df["_has_ma"]]
+    if _macro_area_filter:
+        df_cg_desp = df_cg_desp[df_cg_desp["macro_area"].isin(_macro_area_filter)]
     if not df_cg_desp.empty:
         agg_ma_raw = (
             df_cg_desp
