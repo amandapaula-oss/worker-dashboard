@@ -46,7 +46,7 @@ const brl = (v: number) =>
 const ALL_METRICS = ["receita", "custo", "margem", "margem_pct", "valor_liquido", "horas"] as const;
 type Metric = typeof ALL_METRICS[number];
 const METRIC_LABELS: Record<Metric, string> = {
-  receita: "Receita", custo: "Custo", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Vlr Líquido", horas: "Horas",
+  receita: "Receita", custo: "Custo", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", horas: "Horas",
 };
 
 function MargemTag({ value }: { value: number | null | undefined }) {
@@ -199,7 +199,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       { metric: "custo",         title: "Custo",      width: 130 },
       { metric: "margem",        title: "Margem",     width: 130 },
       { metric: "margem_pct",    title: "%",          width: 75, renderFn: "pct" },
-      { metric: "valor_liquido", title: "Vlr Líq.",   width: 130 },
+      { metric: "valor_liquido", title: "Lucro Bruto", width: 130 },
       { metric: "horas",         title: "Horas",      width: 90  },
     ];
 
