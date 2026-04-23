@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Table, Select, Space, Typography, Tag, Button } from "antd";
 import { FilterOutlined, DownloadOutlined } from "@ant-design/icons";
-import { getNovaBaseFilters, getNovaBaseData } from "../api";
+import { getNovaBaseFilters, getNovaBaseData, downloadNovaBase } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
 import { theme } from "../theme";
 import { exportTableToExcel } from "../utils/exportExcel";
@@ -145,8 +145,7 @@ export default function NovaBaseTab() {
             onClick={async () => {
               setDownloadingAll(true);
               try {
-                const all = await getNovaBaseData({});
-                exportTableToExcel(columns, all, "nova_base_completa");
+                await downloadNovaBase();
               } catch {} finally { setDownloadingAll(false); }
             }}>
             Baixar Base Completa

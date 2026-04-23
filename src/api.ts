@@ -246,6 +246,20 @@ export async function getNovaBaseMargemClienteDetalhe(params: Record<string, str
   return apiFetch(`/api/nova-base/margem/cliente-detalhe${buildQuery(params)}`);
 }
 
+export async function downloadNovaBase(): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/nova-base/download`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "nova_base_completa.xlsx";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function clearNovaBaseCache(): Promise<any> {
   return apiFetch("/api/nova-base/clear-cache", { method: "POST" });
 }

@@ -1941,6 +1941,28 @@ def get_nova_base_margem_cliente_detalhe(
     return _sanitize(agg.to_dict(orient="records"))
 
 
+@app.get("/api/nova-base/download")
+def download_nova_base(user=Depends(get_current_user)):
+    """Baixa base completa como Excel."""
+    import io
+    from fastapi.responses import StreamingResponse
+    df = _get_nova_base().copy()
+    cols = [c for c in [
+        "fonte", "periodo", "empresa", "pep", "pep_base", "nome_pessoa",
+        "nome_cliente", "tipo_contrato", "classificacao", "categoria_bu",
+        "vertical", "area", "macro_area",
+        "receita", "custo_rateado", "horas", "margem", "valor_liquido",
+    ] if c in df.columns]
+    df = df[cols]
+    buf = io.BytesIO()
+    df.to_excel(buf, index=False, sheet_name="Nova Base", engine="openpyxl")
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=nova_base_completa.xlsx"},
+    )
+
 @app.get("/api/nova-base/data")
 def get_nova_base_data(
     periodos: str = "",
