@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Table, Spin, Button, Input, Breadcrumb, Card, Statistic, Select } from "antd";
+import { Table, Spin, Button, Input, Breadcrumb, Card, Statistic, Select, Segmented } from "antd";
 import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined, FilterOutlined } from "@ant-design/icons";
+import { periodoLabel } from "../utils/format";
 import { getNovaBaseFilters, getNovaBaseMargemClientes, getNovaBaseMargemClienteDetalhe } from "../api";
 import { exportTableToExcel } from "../utils/exportExcel";
 import { toTitleCase } from "../utils/format";
@@ -24,12 +25,14 @@ function MargemTag({ value }: { value: number | null | undefined }) {
 
 export default function NovaBaseMargemTab() {
   const [filters, setFilters]         = useState<any>({});
+  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [selVerticais, setSelVerticais] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading]         = useState(true);
   const [clientes, setClientes]       = useState<any[]>([]);
   const [search, setSearch]           = useState("");
+  const [viewMode, setViewMode]       = useState<string>("Consolidado");
 
   // Drill-down
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null);
@@ -43,13 +46,15 @@ export default function NovaBaseMargemTab() {
   const loadClientes = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = {};
+    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selVerticais.length) params.verticais = selVerticais.join(",");
+    if (viewMode === "Por Mês") params.breakdown = "true";
     getNovaBaseMargemClientes(params)
       .then(setClientes)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selEmpresas, selVerticais]);
+  }, [selPeriodos, selEmpresas, selVerticais, viewMode]);
 
   useEffect(() => { loadClientes(); }, [loadClientes]);
 
@@ -57,6 +62,7 @@ export default function NovaBaseMargemTab() {
     setSelectedCliente(nome);
     setLoadingDetalhe(true);
     const params: Record<string, string> = { nome_cliente: nome };
+    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
     if (selEmpresas.length) params.empresas = selEmpresas.join(",");
     if (selVerticais.length) params.verticais = selVerticais.join(",");
     getNovaBaseMargemClienteDetalhe(params)
@@ -79,6 +85,11 @@ export default function NovaBaseMargemTab() {
   const totPct  = totRec !== 0 ? totMar / totRec : 0;
 
   const clienteCols: any[] = [
+    ...(viewMode === "Por Mês" ? [{
+      title: "Período", dataIndex: "periodo", key: "periodo", width: 100,
+      sorter: (a: any, b: any) => String(a.periodo).localeCompare(String(b.periodo)),
+      render: (v: string) => periodoLabel ? periodoLabel(v) : v,
+    }] : []),
     {
       title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente",
       fixed: "left" as const, width: 220,
@@ -193,19 +204,25 @@ export default function NovaBaseMargemTab() {
       <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center" }}>
         <Input prefix={<SearchOutlined />} placeholder="Buscar cliente..." value={search}
           onChange={e => setSearch(e.target.value)} style={{ maxWidth: 300 }} allowClear />
+        <Segmented options={["Consolidado", "Por Mês"]} value={viewMode} onChange={v => setViewMode(v as string)} />
         <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
-          type={selEmpresas.length > 0 || selVerticais.length > 0 ? "primary" : "default"} style={{ marginLeft: "auto" }}>
+          type={selPeriodos.length > 0 || selEmpresas.length > 0 || selVerticais.length > 0 ? "primary" : "default"} style={{ marginLeft: "auto" }}>
           Filtros{showFilters ? " ▲" : " ▼"}
         </Button>
       </div>
       {showFilters && (
         <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Período</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
+              onChange={setSelPeriodos} options={opt(filters.periodos || [])} maxTagCount="responsive" placeholder="Todos" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
             <div style={labelStyle}>Empresa</div>
             <Select mode="multiple" style={{ width: "100%" }} value={selEmpresas}
-              onChange={setSelEmpresas} options={opt(filters.empresas)} maxTagCount="responsive" placeholder="Todas" allowClear />
+              onChange={setSelEmpresas} options={opt(filters.empresas || [])} maxTagCount="responsive" placeholder="Todas" allowClear />
           </div>
-          <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ flex: 1, minWidth: 150 }}>
             <div style={labelStyle}>Vertical</div>
             <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
               onChange={setSelVerticais} options={opt(filters.verticais || [])} maxTagCount="responsive" placeholder="Todas" allowClear />

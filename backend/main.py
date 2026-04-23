@@ -1863,6 +1863,7 @@ def get_nova_base_resumo(
 @app.get("/api/nova-base/margem/clientes")
 def get_nova_base_margem_clientes(
     periodos: str = "", empresas: str = "", verticais: str = "",
+    breakdown: bool = False,
     user=Depends(get_current_user)
 ):
     from datetime import datetime
@@ -1875,14 +1876,14 @@ def get_nova_base_margem_clientes(
         df = df[df["empresa"].isin([v.strip() for v in empresas.split(",")])]
     if verticais:
         df = df[df["vertical"].isin([v.strip() for v in verticais.split(",")])]
-    # Filtra apenas linhas com receita ou custo (projetos/racionais)
     for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
         if col not in df.columns:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     df = df[df["nome_cliente"].fillna("").astype(str).str.strip().ne("")]
     df["margem"] = df["receita"] + df["custo_rateado"]
-    agg = df.groupby("nome_cliente", as_index=False).agg(
+    group_keys = ["nome_cliente", "periodo"] if breakdown else ["nome_cliente"]
+    agg = df.groupby(group_keys, as_index=False).agg(
         receita       = ("receita",       "sum"),
         custo_rateado = ("custo_rateado", "sum"),
         horas         = ("horas",         "sum"),
