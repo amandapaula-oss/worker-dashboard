@@ -1667,6 +1667,21 @@ def get_nova_base_resumo(
     df["periodo"]  = df["periodo"].fillna("").astype(str).str.strip()
     if group_col == "macro_area":
         df.loc[df[group_col] == "", group_col] = "Projetos"
+    if group_col == "vertical":
+        _NG_BUS = {"BU Retail", "BU Health", "BU Finance", "BU Multisector", "BU Logistics"}
+        def _bu_group(row):
+            v = str(row.get("vertical", "")).strip()
+            e = str(row.get("empresa", "")).strip()
+            if v in ("", "nan", "None"):
+                v = ""
+            if v in _NG_BUS:
+                return f"NG | {v}"
+            if "Hyper" in e or "BR07" in e or "BR0C" in e:
+                return "Hyper"
+            if v:
+                return f"Outros | {v}"
+            return "Outros"
+        df[group_col] = df.apply(_bu_group, axis=1)
     df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
 
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
