@@ -85,11 +85,6 @@ export default function NovaBaseMargemTab() {
   const totPct  = totRec !== 0 ? totMar / totRec : 0;
 
   const clienteCols: any[] = [
-    ...(viewMode === "Por Mês" ? [{
-      title: "Período", dataIndex: "periodo", key: "periodo", width: 100,
-      sorter: (a: any, b: any) => String(a.periodo).localeCompare(String(b.periodo)),
-      render: (v: string) => periodoLabel ? periodoLabel(v) : v,
-    }] : []),
     {
       title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente",
       fixed: "left" as const, width: 220,
@@ -100,6 +95,11 @@ export default function NovaBaseMargemTab() {
       ),
       sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
     },
+    ...(viewMode === "Por Mês" ? [{
+      title: "Período", dataIndex: "periodo", key: "periodo", width: 100,
+      sorter: (a: any, b: any) => String(a.periodo).localeCompare(String(b.periodo)),
+      render: (v: string) => periodoLabel(v),
+    }] : []),
     { title: "Receita", dataIndex: "receita", align: "right" as const, width: 150,
       sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
       render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
