@@ -1609,7 +1609,7 @@ def get_nova_base_filters(user=Depends(get_current_user)):
         if col not in df.columns:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-    period_totals = df.groupby("periodo")[["receita","custo_rateado","valor_liquido","horas"]].sum().abs().sum(axis=1)
+    period_totals = df.groupby("periodo")[["receita","custo_rateado","horas"]].sum().abs().sum(axis=1)
     periodos_com_dados = set(period_totals[period_totals > 0].index)
     df = df[df["periodo"].isin(periodos_com_dados)]
     def uniq(col):
@@ -1679,7 +1679,7 @@ def get_nova_base_resumo(
 
     # Remove períodos sem nenhum dado real (todos os valores zerados)
     if not periodos:
-        periodo_totals = agg.groupby("periodo")[["receita","custo_rateado","horas","valor_liquido"]].sum().abs().sum(axis=1)
+        periodo_totals = agg.groupby("periodo")[["receita","custo_rateado","horas"]].sum().abs().sum(axis=1)
         periodos_com_dados = periodo_totals[periodo_totals > 0].index
         agg = agg[agg["periodo"].isin(periodos_com_dados)]
 
