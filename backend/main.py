@@ -1559,6 +1559,8 @@ def _get_nova_base() -> pd.DataFrame:
                 for col in NUM_COLS:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+                if "vertical" in df.columns:
+                    df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
             except Exception as e:
@@ -1642,6 +1644,8 @@ def _get_nova_base() -> pd.DataFrame:
 
         if "empresa" in df.columns:
             df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+        if "vertical" in df.columns:
+            df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
