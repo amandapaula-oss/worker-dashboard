@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Table, Spin, Button, Input, Breadcrumb, Card, Statistic, Select, Segmented } from "antd";
-import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined, FilterOutlined } from "@ant-design/icons";
+import { Table, Spin, Button, Input, Breadcrumb, Card, Statistic, Select, Segmented, Popover, Checkbox } from "antd";
+import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined, FilterOutlined, SettingOutlined } from "@ant-design/icons";
 import { periodoLabel } from "../utils/format";
 import { getNovaBaseFilters, getNovaBaseMargemClientes, getNovaBaseMargemClienteDetalhe } from "../api";
 import { exportTableToExcel } from "../utils/exportExcel";
@@ -13,6 +13,12 @@ const brl = (v: number) =>
 const labelStyle: React.CSSProperties = {
   color: theme.text, fontSize: "0.8rem", fontWeight: 600,
   textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
+};
+
+const ALL_METRICS = ["receita", "custo_rateado", "margem", "margem_pct", "horas"] as const;
+type Metric = typeof ALL_METRICS[number];
+const METRIC_LABELS: Record<Metric, string> = {
+  receita: "Receita", custo_rateado: "Custo Rateado", margem: "Margem", margem_pct: "Margem %", horas: "Horas",
 };
 
 function MargemTag({ value }: { value: number | null | undefined }) {
@@ -38,6 +44,23 @@ export default function NovaBaseMargemTab() {
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null);
   const [detalhe, setDetalhe]         = useState<any[]>([]);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+
+  const [visibleMetrics, setVisibleMetrics] = useState<Set<Metric>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("tbl:nb-margem-cli-metrics") || "null");
+      if (Array.isArray(saved)) return new Set(saved as Metric[]);
+    } catch {}
+    return new Set<Metric>(ALL_METRICS);
+  });
+  const toggleMetric = (m: Metric) => {
+    setVisibleMetrics(prev => {
+      const next = new Set(prev);
+      if (next.has(m)) { if (next.size > 1) next.delete(m); }
+      else next.add(m);
+      localStorage.setItem("tbl:nb-margem-cli-metrics", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
 
   useEffect(() => {
     getNovaBaseFilters().then(f => setFilters(f)).catch(() => {});
@@ -105,26 +128,27 @@ export default function NovaBaseMargemTab() {
         render: (v: string) => v ? periodoLabel(v) : "—",
       });
     }
-    cols.push(
-      { title: "Receita", dataIndex: "receita", key: "receita", align: "right" as const, width: 150,
+    const metricCols: Record<Metric, any> = {
+      receita: { title: "Receita", dataIndex: "receita", key: "receita", align: "right" as const, width: 150,
         sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
         render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
-      { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", align: "right" as const, width: 150,
+      custo_rateado: { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", align: "right" as const, width: 150,
         sorter: (a: any, b: any) => (a.custo_rateado || 0) - (b.custo_rateado || 0),
         render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
-      { title: "Margem", dataIndex: "margem", key: "margem", align: "right" as const, width: 150,
+      margem: { title: "Margem", dataIndex: "margem", key: "margem", align: "right" as const, width: 150,
         sorter: (a: any, b: any) => (a.margem || 0) - (b.margem || 0),
         render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
-      { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", align: "right" as const, width: 100,
+      margem_pct: { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", align: "right" as const, width: 100,
         sorter: (a: any, b: any) => (a.margem_pct || 0) - (b.margem_pct || 0),
         render: (v: any) => <MargemTag value={v} /> },
-      { title: "Horas", dataIndex: "horas", key: "horas", align: "right" as const, width: 100,
+      horas: { title: "Horas", dataIndex: "horas", key: "horas", align: "right" as const, width: 100,
         sorter: (a: any, b: any) => (a.horas || 0) - (b.horas || 0),
         render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
-    );
+    };
+    ALL_METRICS.forEach(m => { if (visibleMetrics.has(m)) cols.push(metricCols[m]); });
     return cols;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMensal]);
+  }, [isMensal, visibleMetrics]);
 
   const detalheCols: any[] = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 160,
@@ -256,26 +280,50 @@ export default function NovaBaseMargemTab() {
 
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
         <Table dataSource={filteredClientes.map((d, i) => ({ ...d, key: `${d.nome_cliente}_${d.periodo || ""}_${i}` }))} columns={clienteCols}
-          size="small" pagination={{ pageSize: 50, showSizeChanger: true }}
+          size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["20", "50", "100", "200"] }}
           scroll={{ x: 900 }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
           title={() => (
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "0 0 4px" }}>
+              <span style={{ color: "#6b7fa3", fontSize: "0.75rem", marginRight: 2, lineHeight: "24px" }}>Métricas:</span>
+              <Popover trigger="click" placement="bottomRight" title="Métricas visíveis"
+                content={
+                  <div style={{ minWidth: 140 }}>
+                    {ALL_METRICS.map(m => (
+                      <div key={m} style={{ padding: "3px 0" }}>
+                        <Checkbox checked={visibleMetrics.has(m)} onChange={() => toggleMetric(m)}>
+                          {METRIC_LABELS[m]}
+                        </Checkbox>
+                      </div>
+                    ))}
+                  </div>
+                }
+              >
+                <Button icon={<SettingOutlined />} size="small" type="text" style={{ color: "#6b7fa3" }} />
+              </Popover>
               <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
                 onClick={() => exportTableToExcel(clienteCols, filteredClientes, "nova_base_margem_clientes")}>Excel</Button>
             </div>
           )}
-          summary={() => (
-            <Table.Summary.Row style={{ fontWeight: 700, background: "#dce6f7" }}>
-              <Table.Summary.Cell index={0}>TOTAL ({filteredClientes.length})</Table.Summary.Cell>
-              {isMensal && <Table.Summary.Cell index={1} />}
-              <Table.Summary.Cell index={isMensal ? 2 : 1} align="right">{brl(totRec)}</Table.Summary.Cell>
-              <Table.Summary.Cell index={isMensal ? 3 : 2} align="right"><span style={{ color: "#c0392b" }}>{brl(totCus)}</span></Table.Summary.Cell>
-              <Table.Summary.Cell index={isMensal ? 4 : 3} align="right"><span style={{ color: totMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(totMar)}</span></Table.Summary.Cell>
-              <Table.Summary.Cell index={isMensal ? 5 : 4} align="right"><MargemTag value={totPct} /></Table.Summary.Cell>
-              <Table.Summary.Cell index={isMensal ? 6 : 5} align="right">—</Table.Summary.Cell>
-            </Table.Summary.Row>
-          )}
+          summary={() => {
+            const cells: React.ReactNode[] = [];
+            let idx = 0;
+            cells.push(<Table.Summary.Cell key="lbl" index={idx++}>TOTAL ({filteredClientes.length})</Table.Summary.Cell>);
+            if (isMensal) cells.push(<Table.Summary.Cell key="per" index={idx++} />);
+            ALL_METRICS.forEach(m => {
+              if (!visibleMetrics.has(m)) return;
+              if (m === "receita") cells.push(<Table.Summary.Cell key={m} index={idx++} align="right">{brl(totRec)}</Table.Summary.Cell>);
+              else if (m === "custo_rateado") cells.push(<Table.Summary.Cell key={m} index={idx++} align="right"><span style={{ color: "#c0392b" }}>{brl(totCus)}</span></Table.Summary.Cell>);
+              else if (m === "margem") cells.push(<Table.Summary.Cell key={m} index={idx++} align="right"><span style={{ color: totMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(totMar)}</span></Table.Summary.Cell>);
+              else if (m === "margem_pct") cells.push(<Table.Summary.Cell key={m} index={idx++} align="right"><MargemTag value={totPct} /></Table.Summary.Cell>);
+              else if (m === "horas") cells.push(<Table.Summary.Cell key={m} index={idx++} align="right">—</Table.Summary.Cell>);
+            });
+            return (
+              <Table.Summary.Row style={{ fontWeight: 700, background: "#dce6f7" }}>
+                {cells}
+              </Table.Summary.Row>
+            );
+          }}
         />
       )}
     </div>
