@@ -62,11 +62,6 @@ function NovaBaseUploadButton() {
       <Button icon={<ReloadOutlined />} loading={clearing} onClick={handleClearCache} size="small">
         Atualizar Dados
       </Button>
-      <Upload beforeUpload={handleUpload} showUploadList={false} accept=".csv,.xlsx,.xls">
-        <Button icon={<UploadOutlined />} loading={uploading} type="primary" ghost size="small">
-          Upload Nova Base
-        </Button>
-      </Upload>
     </div>
   );
 }
