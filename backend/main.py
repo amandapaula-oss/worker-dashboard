@@ -1685,6 +1685,86 @@ def get_nova_base_resumo(
 
     return _sanitize(agg.to_dict(orient="records"))
 
+@app.get("/api/nova-base/margem/clientes")
+def get_nova_base_margem_clientes(
+    periodos: str = "", empresas: str = "", verticais: str = "",
+    user=Depends(get_current_user)
+):
+    from datetime import datetime
+    df = _get_nova_base().copy()
+    if not periodos:
+        df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
+    else:
+        df = df[df["periodo"].isin([v.strip() for v in periodos.split(",")])]
+    if empresas:
+        df = df[df["empresa"].isin([v.strip() for v in empresas.split(",")])]
+    if verticais:
+        df = df[df["vertical"].isin([v.strip() for v in verticais.split(",")])]
+    # Filtra apenas linhas com receita ou custo (projetos/racionais)
+    for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    df = df[df["nome_cliente"].fillna("").astype(str).str.strip().ne("")]
+    df["margem"] = df["receita"] + df["custo_rateado"]
+    agg = df.groupby("nome_cliente", as_index=False).agg(
+        receita       = ("receita",       "sum"),
+        custo_rateado = ("custo_rateado", "sum"),
+        horas         = ("horas",         "sum"),
+        margem        = ("margem",        "sum"),
+    )
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+    )
+    agg = agg.sort_values("receita", ascending=False)
+    return _sanitize(agg.to_dict(orient="records"))
+
+
+@app.get("/api/nova-base/margem/cliente-detalhe")
+def get_nova_base_margem_cliente_detalhe(
+    nome_cliente: str = "",
+    periodos: str = "", empresas: str = "", verticais: str = "",
+    user=Depends(get_current_user)
+):
+    from datetime import datetime
+    df = _get_nova_base().copy()
+    if not periodos:
+        df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
+    else:
+        df = df[df["periodo"].isin([v.strip() for v in periodos.split(",")])]
+    if empresas:
+        df = df[df["empresa"].isin([v.strip() for v in empresas.split(",")])]
+    if verticais:
+        df = df[df["vertical"].isin([v.strip() for v in verticais.split(",")])]
+    for col in ["receita", "custo_rateado", "horas"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    if nome_cliente:
+        df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
+    df["margem"] = df["receita"] + df["custo_rateado"]
+    df["pep_base"] = df["pep"].astype(str).str.split(".").str[0].str.strip() if "pep" in df.columns else ""
+    group_keys = ["pep_base", "nome_cliente", "empresa"]
+    for k in ["categoria_bu", "vertical"]:
+        if k in df.columns:
+            group_keys.append(k)
+    for k in group_keys:
+        if k in df.columns:
+            df[k] = df[k].fillna("")
+    agg = df.groupby(group_keys, as_index=False).agg(
+        receita       = ("receita",       "sum"),
+        custo_rateado = ("custo_rateado", "sum"),
+        horas         = ("horas",         "sum"),
+        margem        = ("margem",        "sum"),
+    )
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+    )
+    agg = agg.rename(columns={"pep_base": "pep"})
+    agg = agg.sort_values("receita", ascending=False)
+    return _sanitize(agg.to_dict(orient="records"))
+
+
 @app.get("/api/nova-base/data")
 def get_nova_base_data(
     periodos: str = "",
@@ -1852,3 +1932,73 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
                     rows.append({"name": f"  {ma}", "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(sub_cus)})
 
     return _sanitize({"rows": rows, "columns": columns})
+
+
+@app.get("/api/nova-base/margem-cliente")
+def get_nova_base_margem_cliente(
+    periodos: str = "",
+    empresas: str = "",
+    fontes: str = "",
+    verticais: str = "",
+    macro_areas: str = "",
+    tipos_contrato: str = "",
+    classificacoes: str = "",
+    breakdown: bool = False,
+    user=Depends(get_current_user)
+):
+    from datetime import datetime
+    df = _get_nova_base().copy()
+
+    if not periodos:
+        current_period = datetime.now().strftime("%Y-%m")
+        df = df[df["periodo"].fillna("").astype(str) <= current_period]
+
+    def filt(col, param):
+        vals = [v.strip() for v in param.split(",") if v.strip()]
+        if vals and col in df.columns:
+            return df[df[col].astype(str).str.strip().isin(vals)].copy()
+        return df
+
+    if periodos:       df = filt("periodo", periodos)
+    if empresas:       df = filt("empresa", empresas)
+    if fontes:         df = filt("fonte", fontes)
+    if verticais:      df = filt("vertical", verticais)
+    if macro_areas:    df = filt("macro_area", macro_areas)
+    if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
+    if classificacoes: df = filt("classificacao", classificacoes)
+
+    df = df.copy()
+    for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    # Calcula margem = receita + custo_rateado (custo já é negativo)
+    df["_margem"] = df["receita"] + df["custo_rateado"]
+
+    # Normaliza campos de agrupamento
+    for col in ["nome_cliente", "pep_base", "empresa", "vertical", "fonte", "periodo"]:
+        if col in df.columns:
+            df[col] = df[col].fillna("").astype(str).str.strip()
+
+    # Filtra linhas sem cliente
+    df = df[df["nome_cliente"].ne("")]
+
+    if breakdown:
+        group_keys = ["periodo", "pep_base", "nome_cliente", "empresa", "vertical", "fonte"]
+    else:
+        group_keys = ["pep_base", "nome_cliente", "empresa", "vertical", "fonte"]
+
+    group_keys = [k for k in group_keys if k in df.columns]
+
+    agg = df.groupby(group_keys, as_index=False).agg(
+        receita       = ("receita",       "sum"),
+        custo_rateado = ("custo_rateado", "sum"),
+        horas         = ("horas",         "sum"),
+        margem        = ("_margem",       "sum"),
+    )
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+    )
+    agg = agg.sort_values("receita", ascending=False)
+    return _sanitize(agg.fillna("").to_dict(orient="records"))

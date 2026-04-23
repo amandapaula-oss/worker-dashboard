@@ -17,6 +17,7 @@ import ResumoTab from "./ResumoTab";
 import ClientesTab from "./ClientesTab";
 import NovaBaseTab from "./NovaBaseTab";
 import NovaBaseResumoTab, { NovaDreTab } from "./NovaBaseResumoTab";
+import NovaBaseMargemTab from "./NovaBaseMargemTab";
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -300,6 +301,7 @@ export default function Dashboard() {
               items={[
                 { key: "resumoEmp", label: <span><FileTextOutlined /> Resumo por Empresa</span>, children: <NovaBaseResumoTab agruparPor="empresa" /> },
                 { key: "resumoBU",  label: <span><ApartmentOutlined /> Resumo por BU</span>,    children: <NovaBaseResumoTab agruparPor="vertical" /> },
+                { key: "margemCli", label: <span><FundOutlined /> Margem por Cliente</span>,   children: <NovaBaseMargemTab /> },
                 { key: "empresa",   label: <span><BankOutlined /> DRE por Empresa</span>,       children: <NovaDreTab /> },
                 { key: "fonte",     label: <span><HeatMapOutlined /> P&L por Fonte</span>,      children: <NovaBaseResumoTab agruparPor="fonte" /> },
                 { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
