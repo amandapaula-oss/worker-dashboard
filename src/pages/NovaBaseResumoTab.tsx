@@ -43,11 +43,19 @@ const labelStyle: React.CSSProperties = {
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const ALL_METRICS = ["receita", "custo", "valor_liquido", "horas"] as const;
+const ALL_METRICS = ["receita", "custo", "margem", "margem_pct", "valor_liquido", "horas"] as const;
 type Metric = typeof ALL_METRICS[number];
 const METRIC_LABELS: Record<Metric, string> = {
-  receita: "Receita", custo: "Custo", valor_liquido: "Vlr Líquido", horas: "Horas",
+  receita: "Receita", custo: "Custo", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Vlr Líquido", horas: "Horas",
 };
+
+function MargemTag({ value }: { value: number | null | undefined }) {
+  if (value === null || value === undefined) return <span style={{ color: "#aaa" }}>—</span>;
+  const v = Number(value) * 100;
+  const color = v >= 30 ? "#0a7a3e" : v >= 10 ? "#856404" : "#c0392b";
+  const bg    = v >= 30 ? "#d4edda" : v >= 10 ? "#fff3cd" : "#fde8e8";
+  return <span style={{ background: bg, color, fontWeight: 700, padding: "2px 8px", borderRadius: 4, fontSize: "0.85rem" }}>{v.toFixed(1)}%</span>;
+}
 
 const AGRUPAR_LABELS: Record<string, string> = {
   empresa: "Empresa", fonte: "Fonte", macro_area: "Macro Área",
@@ -118,17 +126,31 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       e[`${r.periodo}_valor_liquido`] = (e[`${r.periodo}_valor_liquido`] || 0) + (Number(r.valor_liquido) || 0);
       e[`${r.periodo}_horas`]         = (e[`${r.periodo}_horas`]         || 0) + (Number(r.horas)         || 0);
     }
-    return Array.from(map.values()).map(r => ({
-      ...r,
-      total_receita:       periodos.reduce((s, p) => s + (r[`${p}_receita`]       || 0), 0),
-      total_custo:         periodos.reduce((s, p) => s + (r[`${p}_custo`]         || 0), 0),
-      total_valor_liquido: periodos.reduce((s, p) => s + (r[`${p}_valor_liquido`] || 0), 0),
-      total_horas:         periodos.reduce((s, p) => s + (r[`${p}_horas`]         || 0), 0),
-    })).sort((a, b) => b.total_valor_liquido - a.total_valor_liquido);
+    return Array.from(map.values()).map(r => {
+      periodos.forEach(p => {
+        r[`${p}_margem`] = (r[`${p}_receita`] || 0) + (r[`${p}_custo`] || 0);
+        const rec = r[`${p}_receita`] || 0;
+        r[`${p}_margem_pct`] = rec !== 0 ? r[`${p}_margem`] / rec : null;
+      });
+      const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
+      const tot_cus = periodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
+      const tot_mar = tot_rec + tot_cus;
+      return {
+        ...r,
+        total_receita:       tot_rec,
+        total_custo:         tot_cus,
+        total_margem:        tot_mar,
+        total_margem_pct:    tot_rec !== 0 ? tot_mar / tot_rec : null,
+        total_valor_liquido: periodos.reduce((s, p) => s + (r[`${p}_valor_liquido`] || 0), 0),
+        total_horas:         periodos.reduce((s, p) => s + (r[`${p}_horas`]         || 0), 0),
+      };
+    }).sort((a, b) => b.total_receita - a.total_receita);
   }, [rawData, periodos]);
 
   const totReceita = pivotData.reduce((s, r) => s + (r.total_receita || 0), 0);
   const totCusto   = pivotData.reduce((s, r) => s + (r.total_custo   || 0), 0);
+  const totMargem  = totReceita + totCusto;
+  const totPct     = totReceita !== 0 ? totMargem / totReceita : 0;
   const totVL      = pivotData.reduce((s, r) => s + (r.total_valor_liquido || 0), 0);
   const totHoras   = pivotData.reduce((s, r) => s + (r.total_horas   || 0), 0);
 
@@ -136,12 +158,16 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     const totRow: any = {
       key: "__t__", grupo: "TOTAL",
       total_receita: totReceita, total_custo: totCusto,
+      total_margem: totMargem, total_margem_pct: totPct,
       total_valor_liquido: totVL, total_horas: totHoras,
       _isTotal: true,
     };
     periodos.forEach(p => {
       totRow[`${p}_receita`]       = pivotData.reduce((s, r) => s + (r[`${p}_receita`]       || 0), 0);
       totRow[`${p}_custo`]         = pivotData.reduce((s, r) => s + (r[`${p}_custo`]         || 0), 0);
+      totRow[`${p}_margem`]        = (totRow[`${p}_receita`] || 0) + (totRow[`${p}_custo`] || 0);
+      const rec = totRow[`${p}_receita`] || 0;
+      totRow[`${p}_margem_pct`]    = rec !== 0 ? totRow[`${p}_margem`] / rec : null;
       totRow[`${p}_valor_liquido`] = pivotData.reduce((s, r) => s + (r[`${p}_valor_liquido`] || 0), 0);
       totRow[`${p}_horas`]         = pivotData.reduce((s, r) => s + (r[`${p}_horas`]         || 0), 0);
     });
@@ -149,7 +175,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   }, [pivotData, periodos, totReceita, totCusto, totVL, totHoras]);
 
   const columnsDef = useMemo(() => {
-    type MetricKey = "receita" | "custo" | "valor_liquido" | "horas";
+    type MetricKey = "receita" | "custo" | "margem" | "margem_pct" | "valor_liquido" | "horas";
     const colDef = (prefix: string, metric: MetricKey, bold: boolean) => {
       const isHoras = metric === "horas";
       return {
@@ -168,9 +194,11 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       };
     };
 
-    const metricChildDefs: { metric: MetricKey; title: string; width: number }[] = [
+    const metricChildDefs: { metric: MetricKey; title: string; width: number; renderFn?: string }[] = [
       { metric: "receita",       title: "Receita",    width: 140 },
       { metric: "custo",         title: "Custo",      width: 130 },
+      { metric: "margem",        title: "Margem",     width: 130 },
+      { metric: "margem_pct",    title: "%",          width: 75, renderFn: "pct" },
       { metric: "valor_liquido", title: "Vlr Líq.",   width: 130 },
       { metric: "horas",         title: "Horas",      width: 90  },
     ];
@@ -178,7 +206,25 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     const children = (prefix: string, bold: boolean) =>
       metricChildDefs
         .filter(m => visibleMetrics.has(m.metric))
-        .map(m => ({ ...colDef(prefix, m.metric, bold), title: m.title, width: m.width }));
+        .map(m => {
+          if (m.renderFn === "pct") {
+            return {
+              dataIndex: `${prefix}_${m.metric}`,
+              key: `${prefix}_${m.metric}`,
+              title: m.title, width: m.width,
+              align: "right" as const,
+              sorter: (a: any, b: any) => (Number(a[`${prefix}_${m.metric}`]) || 0) - (Number(b[`${prefix}_${m.metric}`]) || 0),
+              render: (v: any) => <MargemTag value={v} />,
+            };
+          }
+          const col = colDef(prefix, m.metric as any, bold);
+          if (m.metric === "margem") {
+            return { ...col, title: m.title, width: m.width,
+              render: (v: number) => <span style={{ fontWeight: bold ? 700 : 600, color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(v || 0)}</span>,
+            };
+          }
+          return { ...col, title: m.title, width: m.width };
+        });
 
     const periodoCols = periodos.map(p => ({
       title: periodoLabel ? periodoLabel(p) : p,
@@ -246,8 +292,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         {[
           { label: "Receita Total",   value: brl(totReceita), color: theme.text },
           { label: "Custo Total",     value: brl(totCusto),   color: totCusto   < 0 ? "#c0392b" : theme.text },
-          { label: "Vlr Líquido",     value: brl(totVL),      color: totVL      < 0 ? "#c0392b" : "#0a7a3e" },
-          { label: "Total de Horas",  value: totHoras.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }), color: theme.text },
+          { label: "Margem Bruta",    value: brl(totMargem),  color: totMargem  < 0 ? "#c0392b" : "#0a7a3e" },
+          { label: "Margem %",        value: `${(totPct * 100).toFixed(1)}%`, color: totPct < 0.1 ? "#c0392b" : totPct < 0.3 ? "#856404" : "#0a7a3e" },
         ].map(k => (
           <Card key={k.label}
             style={{ flex: 1, minWidth: 160, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}

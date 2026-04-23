@@ -298,6 +298,7 @@ export default function Dashboard() {
               size="large"
               destroyInactiveTabPane
               items={[
+                { key: "resumoEmp", label: <span><FileTextOutlined /> Resumo por Empresa</span>, children: <NovaBaseResumoTab agruparPor="empresa" /> },
                 { key: "empresa",   label: <span><BankOutlined /> DRE por Empresa</span>,       children: <NovaDreTab /> },
                 { key: "fonte",     label: <span><HeatMapOutlined /> P&L por Fonte</span>,      children: <NovaBaseResumoTab agruparPor="fonte" /> },
                 { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
