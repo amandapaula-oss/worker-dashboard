@@ -44,6 +44,7 @@ export default function NovaBaseTab() {
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState<string | null>(null);
   const [filtersReady, setFiltersReady]     = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
   useEffect(() => {
     getNovaBaseFilters()
@@ -136,9 +137,19 @@ export default function NovaBaseTab() {
             onChange={setSelClassif} options={opt(filters.classificacoes ?? [])}
             maxTagCount="responsive" placeholder="Todas" allowClear />
         </div>
-        <div style={{ display: "flex", alignItems: "flex-end" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
           <Button icon={<DownloadOutlined />} onClick={() => exportTableToExcel(columns, rows, "nova_base")}>
-            Exportar
+            Exportar Filtrado
+          </Button>
+          <Button icon={<DownloadOutlined />} type="primary" ghost loading={downloadingAll}
+            onClick={async () => {
+              setDownloadingAll(true);
+              try {
+                const all = await getNovaBaseData({});
+                exportTableToExcel(columns, all, "nova_base_completa");
+              } catch {} finally { setDownloadingAll(false); }
+            }}>
+            Baixar Base Completa
           </Button>
         </div>
       </div>
