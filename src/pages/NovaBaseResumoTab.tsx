@@ -318,6 +318,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
           columns={columnsDef}
           rowKey="key"
           size="small"
+          bordered
           pagination={false}
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
