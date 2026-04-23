@@ -1892,8 +1892,8 @@ def get_nova_base_margem_clientes(
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
-    has_value = (agg["receita"].abs() > 0.01) | (agg["custo_rateado"].abs() > 0.01) | (agg["horas"].abs() > 0.01)
-    agg = agg[has_value]
+    agg = agg[agg["receita"].abs() > 0.01]
+    agg = agg[agg["nome_cliente"].astype(str).str.strip().ne("0")]
     agg = agg.sort_values("receita", ascending=False)
     return _sanitize(agg.to_dict(orient="records"))
 
