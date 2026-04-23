@@ -1765,6 +1765,11 @@ async def upload_nova_base_file(
     return {"status": "ok", "rows_inserted": inserted, "upload_id": upload_id, "filename": fname}
 
 
+@app.post("/api/nova-base/clear-cache")
+def clear_nova_base_cache(user=Depends(get_current_user)):
+    _cache["nova_base"] = None
+    return {"status": "ok", "message": "Cache limpo. Próxima chamada recarrega do Supabase."}
+
 @app.get("/api/nova-base/filters")
 def get_nova_base_filters(user=Depends(get_current_user)):
     from datetime import datetime

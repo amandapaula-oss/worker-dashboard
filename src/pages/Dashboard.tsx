@@ -18,7 +18,8 @@ import ClientesTab from "./ClientesTab";
 import NovaBaseTab from "./NovaBaseTab";
 import NovaBaseResumoTab, { NovaDreTab } from "./NovaBaseResumoTab";
 import NovaBaseMargemTab from "./NovaBaseMargemTab";
-import { uploadNovaBase } from "../api";
+import { uploadNovaBase, clearNovaBaseCache } from "../api";
+import { ReloadOutlined } from "@ant-design/icons";
 
 function NovaBaseUploadButton() {
   const [uploading, setUploading] = React.useState(false);
@@ -43,8 +44,24 @@ function NovaBaseUploadButton() {
     });
     return false;
   };
+  const [clearing, setClearing] = React.useState(false);
+  const handleClearCache = async () => {
+    setClearing(true);
+    try {
+      await clearNovaBaseCache();
+      Modal.success({ title: "Cache limpo", content: "Dados serão recarregados do Supabase." });
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (e: any) {
+      Modal.error({ title: "Erro", content: e.message });
+    } finally {
+      setClearing(false);
+    }
+  };
   return (
-    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8 }}>
+      <Button icon={<ReloadOutlined />} loading={clearing} onClick={handleClearCache} size="small">
+        Atualizar Dados
+      </Button>
       <Upload beforeUpload={handleUpload} showUploadList={false} accept=".csv,.xlsx,.xls">
         <Button icon={<UploadOutlined />} loading={uploading} type="primary" ghost size="small">
           Upload Nova Base
