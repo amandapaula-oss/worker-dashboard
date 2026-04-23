@@ -256,16 +256,20 @@ export default function NovaBaseMargemTab() {
                 onClick={() => exportTableToExcel(clienteCols, filteredClientes, "nova_base_margem_clientes")}>Excel</Button>
             </div>
           )}
-          summary={() => (
-            <Table.Summary.Row style={{ fontWeight: 700, background: "#dce6f7" }}>
-              <Table.Summary.Cell index={0}>TOTAL ({filteredClientes.length})</Table.Summary.Cell>
-              <Table.Summary.Cell index={1} align="right">{brl(totRec)}</Table.Summary.Cell>
-              <Table.Summary.Cell index={2} align="right"><span style={{ color: "#c0392b" }}>{brl(totCus)}</span></Table.Summary.Cell>
-              <Table.Summary.Cell index={3} align="right"><span style={{ color: totMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(totMar)}</span></Table.Summary.Cell>
-              <Table.Summary.Cell index={4} align="right"><MargemTag value={totPct} /></Table.Summary.Cell>
-              <Table.Summary.Cell index={5} align="right">—</Table.Summary.Cell>
-            </Table.Summary.Row>
-          )}
+          summary={() => {
+            let idx = 0;
+            return (
+              <Table.Summary.Row style={{ fontWeight: 700, background: "#dce6f7" }}>
+                {viewMode === "Por Mês" && <Table.Summary.Cell index={idx++} />}
+                <Table.Summary.Cell index={idx++}>TOTAL ({filteredClientes.length})</Table.Summary.Cell>
+                <Table.Summary.Cell index={idx++} align="right">{brl(totRec)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={idx++} align="right"><span style={{ color: "#c0392b" }}>{brl(totCus)}</span></Table.Summary.Cell>
+                <Table.Summary.Cell index={idx++} align="right"><span style={{ color: totMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(totMar)}</span></Table.Summary.Cell>
+                <Table.Summary.Cell index={idx++} align="right"><MargemTag value={totPct} /></Table.Summary.Cell>
+                <Table.Summary.Cell index={idx++} align="right">—</Table.Summary.Cell>
+              </Table.Summary.Row>
+            );
+          }}
         />
       )}
     </div>
