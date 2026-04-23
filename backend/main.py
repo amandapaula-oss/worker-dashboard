@@ -11,6 +11,17 @@ import gdown
 import os
 import math
 import traceback
+import httpx
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+def _supabase_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
 
 def _sanitize(obj):
     """Recursively replace NaN/Inf with None so JSON serialization never fails."""
@@ -1509,17 +1520,53 @@ def get_exportar_xlsx(user=Depends(get_current_user)):
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _nova_base_lock = __import__("threading").Lock()
 
+def _load_nova_base_supabase() -> pd.DataFrame:
+    """Fetch all rows from Supabase nova_base table."""
+    url = f"{SUPABASE_URL}/rest/v1/nova_base"
+    headers = _supabase_headers()
+    all_rows = []
+    page_size = 1000
+    offset = 0
+    client = httpx.Client(timeout=30)
+    while True:
+        r = client.get(f"{url}?select=*&order=id&offset={offset}&limit={page_size}", headers=headers)
+        if r.status_code != 200:
+            raise RuntimeError(f"Supabase error {r.status_code}: {r.text[:200]}")
+        data = r.json()
+        all_rows.extend(data)
+        if len(data) < page_size:
+            break
+        offset += page_size
+    client.close()
+    print(f"[nova_base] loaded {len(all_rows)} rows from Supabase")
+    return pd.DataFrame(all_rows)
+
+
 def _get_nova_base() -> pd.DataFrame:
     if _cache["nova_base"] is not None:
         return _cache["nova_base"]
-    with _nova_base_lock:                          # apenas uma thread carrega por vez
-        if _cache["nova_base"] is not None:        # double-check após adquirir o lock
+    with _nova_base_lock:
+        if _cache["nova_base"] is not None:
             return _cache["nova_base"]
-        # Prefere parquet (7x mais rápido); fallback para xlsx
+
+        # Tenta Supabase primeiro; fallback para CSV local
+        if SUPABASE_URL and SUPABASE_KEY:
+            try:
+                df = _load_nova_base_supabase()
+                NUM_COLS = ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
+                            "taxa_hora", "hour_price", "gross_revenue",
+                            "custo_gerencial_sap", "custo_h_hora_extra", "custo_h_sobreaviso"]
+                for col in NUM_COLS:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+                _cache["nova_base"] = df
+                return _cache["nova_base"]
+            except Exception as e:
+                print(f"[nova_base] Supabase error, falling back to CSV: {e}")
+
         xlsx_path = os.path.join(_BASE_DIR, "base_2026.xlsx")
         if not os.path.exists(xlsx_path):
             xlsx_path = os.path.join(_BASE_DIR, "..", "base_2026.xlsx")
-
         csv_path = os.path.join(_BASE_DIR, "base_2026.csv")
         if not os.path.exists(csv_path):
             csv_path = os.path.join(_BASE_DIR, "..", "base_2026.csv")
@@ -1597,6 +1644,122 @@ def _get_nova_base() -> pd.DataFrame:
             df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
         _cache["nova_base"] = df
     return _cache["nova_base"]
+
+@app.post("/api/nova-base/upload")
+async def upload_nova_base(user=Depends(get_current_user)):
+    """Upload CSV/Excel to replace nova_base data in Supabase."""
+    from fastapi import UploadFile, File
+    # Re-declare to get file from request
+    pass
+
+# Actual upload with File dependency
+from fastapi import UploadFile, File as FastFile
+
+@app.post("/api/nova-base/upload-file")
+async def upload_nova_base_file(
+    file: UploadFile = FastFile(...),
+    user=Depends(get_current_user)
+):
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise HTTPException(400, "Supabase not configured")
+    import uuid, io, math
+    import numpy as np
+    content = await file.read()
+    fname = file.filename or ""
+    if fname.endswith(".csv"):
+        df = pd.read_csv(io.BytesIO(content), dtype=str, low_memory=False)
+    elif fname.endswith((".xlsx", ".xls")):
+        df = pd.read_excel(io.BytesIO(content), dtype=str)
+    else:
+        raise HTTPException(400, f"Formato não suportado: {fname}. Use .csv ou .xlsx")
+
+    # Validate required columns
+    required = {"periodo", "empresa", "receita"}
+    missing = required - set(df.columns)
+    if missing:
+        raise HTTPException(400, f"Colunas obrigatórias ausentes: {missing}")
+
+    # Apply same transformations as seed
+    NUM_COLS = ["receita", "custo_rateado", "horas", "margem", "valor_liquido", "valor",
+                "taxa_hora", "hour_price", "gross_revenue",
+                "custo_gerencial_sap", "custo_h_hora_extra", "custo_h_sobreaviso"]
+    for col in NUM_COLS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        else:
+            df[col] = 0.0
+
+    mask_clt = pd.Series(False, index=df.index)
+    mask_pj  = pd.Series(False, index=df.index)
+    if "custo_gerencial_sap" in df.columns:
+        custo_ger = df["custo_gerencial_sap"].fillna(0)
+        custo_ext = df.get("custo_h_hora_extra", pd.Series(0, index=df.index)).fillna(0)
+        custo_sob = df.get("custo_h_sobreaviso", pd.Series(0, index=df.index)).fillna(0)
+        mask_clt = (df["custo_rateado"] == 0) & (custo_ger != 0)
+        df["custo_rateado"] = np.where(mask_clt, -(custo_ger + custo_ext + custo_sob), df["custo_rateado"])
+    if "valor_liquido" in df.columns and "fonte" in df.columns:
+        vl = df["valor_liquido"].fillna(0)
+        mask_pj = (df["custo_rateado"] == 0) & (df["fonte"].astype(str) == "PJs") & (vl > 0)
+        df["custo_rateado"] = np.where(mask_pj, -vl, df["custo_rateado"])
+    if "valor_liquido" in df.columns:
+        rec = df["receita"].fillna(0)
+        cr  = df["custo_rateado"].fillna(0)
+        df["valor_liquido"] = np.where(mask_clt | mask_pj, rec + cr, df["valor_liquido"])
+        vl_zero = df["valor_liquido"] == 0
+        has_val = (rec != 0) | (cr != 0)
+        df["valor_liquido"] = np.where(vl_zero & has_val, rec + cr, df["valor_liquido"])
+    df["margem"] = df["receita"] + df["custo_rateado"]
+    if "empresa" in df.columns:
+        df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
+
+    # Clean for JSON
+    NEEDED_COLS = [c for c in df.columns if c in [
+        "fonte", "fonte_dados", "periodo", "empresa", "pep", "pep_base",
+        "nome_pessoa", "nome_cliente", "tipos", "categoria_bu", "no_hierarquia",
+        "vertical", "stream", "agrupador", "area", "macro_area",
+        "tipo_contrato", "classificacao", "billable_category",
+    ] + NUM_COLS]
+    df = df[[c for c in NEEDED_COLS if c in df.columns]]
+    df = df.where(pd.notnull(df), None)
+    for c in NUM_COLS:
+        if c in df.columns:
+            df[c] = df[c].apply(lambda v: None if v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else round(float(v), 2))
+    for c in df.columns:
+        if c not in NUM_COLS:
+            df[c] = df[c].apply(lambda v: str(v).strip() if v is not None else None)
+
+    upload_id = str(uuid.uuid4())
+    headers = {**_supabase_headers(), "Prefer": "return=minimal"}
+    url = f"{SUPABASE_URL}/rest/v1/nova_base"
+    client = httpx.Client(timeout=30)
+
+    # Delete all existing rows
+    r = client.delete(f"{url}?id=gt.0", headers=headers)
+    if r.status_code not in (200, 204):
+        client.close()
+        raise HTTPException(500, f"Erro ao limpar dados: {r.text[:200]}")
+
+    # Insert in batches
+    batch_size = 500
+    rows = df.to_dict(orient="records")
+    for row in rows:
+        row["upload_id"] = upload_id
+        row["uploaded_by"] = user.get("sub", "unknown") if isinstance(user, dict) else "unknown"
+    inserted = 0
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i:i+batch_size]
+        r = client.post(url, headers=headers, json=batch)
+        if r.status_code not in (200, 201):
+            client.close()
+            raise HTTPException(500, f"Erro batch {i//batch_size}: {r.text[:200]}")
+        inserted += len(batch)
+    client.close()
+
+    # Invalidate cache
+    _cache["nova_base"] = None
+
+    return {"status": "ok", "rows_inserted": inserted, "upload_id": upload_id, "filename": fname}
+
 
 @app.get("/api/nova-base/filters")
 def get_nova_base_filters(user=Depends(get_current_user)):

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Switch, theme as antdTheme } from "antd";
+import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Switch, theme as antdTheme, Upload, Modal } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined } from "@ant-design/icons";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined, UploadOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
@@ -18,6 +18,41 @@ import ClientesTab from "./ClientesTab";
 import NovaBaseTab from "./NovaBaseTab";
 import NovaBaseResumoTab, { NovaDreTab } from "./NovaBaseResumoTab";
 import NovaBaseMargemTab from "./NovaBaseMargemTab";
+import { uploadNovaBase } from "../api";
+
+function NovaBaseUploadButton() {
+  const [uploading, setUploading] = React.useState(false);
+  const handleUpload = (file: File) => {
+    Modal.confirm({
+      title: "Substituir dados da Nova Base?",
+      content: `Arquivo: ${file.name}. Todos os dados atuais serão substituídos.`,
+      okText: "Sim, substituir",
+      cancelText: "Cancelar",
+      onOk: async () => {
+        setUploading(true);
+        try {
+          const r = await uploadNovaBase(file);
+          Modal.success({ title: "Upload concluído", content: `${r.rows_inserted} linhas inseridas.` });
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (e: any) {
+          Modal.error({ title: "Erro no upload", content: e.message });
+        } finally {
+          setUploading(false);
+        }
+      },
+    });
+    return false;
+  };
+  return (
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+      <Upload beforeUpload={handleUpload} showUploadList={false} accept=".csv,.xlsx,.xls">
+        <Button icon={<UploadOutlined />} loading={uploading} type="primary" ghost size="small">
+          Upload Nova Base
+        </Button>
+      </Upload>
+    </div>
+  );
+}
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -293,8 +328,10 @@ export default function Dashboard() {
           )}
 
           {section === "nova_base" && (
+            <>
+            <NovaBaseUploadButton />
             <Tabs
-              defaultActiveKey="empresa"
+              defaultActiveKey="resumoEmp"
               type="card"
               size="large"
               destroyInactiveTabPane
@@ -308,6 +345,7 @@ export default function Dashboard() {
                 { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
               ]}
             />
+            </>
           )}
 
           {section === "cockpit" && (

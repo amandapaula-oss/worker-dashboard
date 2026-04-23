@@ -246,6 +246,18 @@ export async function getNovaBaseMargemClienteDetalhe(params: Record<string, str
   return apiFetch(`/api/nova-base/margem/cliente-detalhe${buildQuery(params)}`);
 }
 
+export async function uploadNovaBase(file: File): Promise<any> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE_URL}/api/nova-base/upload-file`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function updateClienteAe(nome_cliente: string, ae: string) {
   return apiFetch("/api/clientes/ae", {
     method: "POST",
