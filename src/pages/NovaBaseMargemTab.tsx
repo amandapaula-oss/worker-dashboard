@@ -84,38 +84,47 @@ export default function NovaBaseMargemTab() {
   const totMar  = totRec + totCus;
   const totPct  = totRec !== 0 ? totMar / totRec : 0;
 
-  const clienteCols: any[] = [
-    {
-      title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente",
-      fixed: "left" as const, width: 220,
-      render: (v: string) => (
-        <Button type="link" style={{ padding: 0, fontWeight: 600 }} onClick={() => abrirCliente(v)}>
-          {toTitleCase(v)}
-        </Button>
-      ),
-      sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
-    },
-    ...(viewMode === "Por Mês" ? [{
-      title: "Período", dataIndex: "periodo", key: "periodo", width: 100,
-      sorter: (a: any, b: any) => String(a.periodo).localeCompare(String(b.periodo)),
-      render: (v: string) => periodoLabel(v),
-    }] : []),
-    { title: "Receita", dataIndex: "receita", align: "right" as const, width: 150,
-      sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
-      render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
-    { title: "Custo Rateado", dataIndex: "custo_rateado", align: "right" as const, width: 150,
-      sorter: (a: any, b: any) => (a.custo_rateado || 0) - (b.custo_rateado || 0),
-      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
-    { title: "Margem", dataIndex: "margem", align: "right" as const, width: 150,
-      sorter: (a: any, b: any) => (a.margem || 0) - (b.margem || 0),
-      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
-    { title: "Margem %", dataIndex: "margem_pct", align: "right" as const, width: 100,
-      sorter: (a: any, b: any) => (a.margem_pct || 0) - (b.margem_pct || 0),
-      render: (v: any) => <MargemTag value={v} /> },
-    { title: "Horas", dataIndex: "horas", align: "right" as const, width: 100,
-      sorter: (a: any, b: any) => (a.horas || 0) - (b.horas || 0),
-      render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
-  ];
+  const isMensal = viewMode === "Por Mês";
+
+  const clienteCols = useMemo(() => {
+    const cols: any[] = [
+      {
+        title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", width: 220,
+        render: (v: string) => (
+          <Button type="link" style={{ padding: 0, fontWeight: 600 }} onClick={() => abrirCliente(v)}>
+            {toTitleCase(v)}
+          </Button>
+        ),
+        sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
+      },
+    ];
+    if (isMensal) {
+      cols.push({
+        title: "Período", dataIndex: "periodo", key: "periodo", width: 100,
+        sorter: (a: any, b: any) => String(a.periodo || "").localeCompare(String(b.periodo || "")),
+        render: (v: string) => v ? periodoLabel(v) : "—",
+      });
+    }
+    cols.push(
+      { title: "Receita", dataIndex: "receita", key: "receita", align: "right" as const, width: 150,
+        sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
+        render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
+      { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", align: "right" as const, width: 150,
+        sorter: (a: any, b: any) => (a.custo_rateado || 0) - (b.custo_rateado || 0),
+        render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
+      { title: "Margem", dataIndex: "margem", key: "margem", align: "right" as const, width: 150,
+        sorter: (a: any, b: any) => (a.margem || 0) - (b.margem || 0),
+        render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
+      { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", align: "right" as const, width: 100,
+        sorter: (a: any, b: any) => (a.margem_pct || 0) - (b.margem_pct || 0),
+        render: (v: any) => <MargemTag value={v} /> },
+      { title: "Horas", dataIndex: "horas", key: "horas", align: "right" as const, width: 100,
+        sorter: (a: any, b: any) => (a.horas || 0) - (b.horas || 0),
+        render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
+    );
+    return cols;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMensal]);
 
   const detalheCols: any[] = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 160,
@@ -246,9 +255,9 @@ export default function NovaBaseMargemTab() {
       </div>
 
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
-        <Table dataSource={filteredClientes.map((d, i) => ({ ...d, key: i }))} columns={clienteCols}
+        <Table dataSource={filteredClientes.map((d, i) => ({ ...d, key: `${d.nome_cliente}_${d.periodo || ""}_${i}` }))} columns={clienteCols}
           size="small" pagination={{ pageSize: 50, showSizeChanger: true }}
-          scroll={{ x: "max-content" }}
+          scroll={{ x: 900 }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
           title={() => (
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -256,20 +265,17 @@ export default function NovaBaseMargemTab() {
                 onClick={() => exportTableToExcel(clienteCols, filteredClientes, "nova_base_margem_clientes")}>Excel</Button>
             </div>
           )}
-          summary={() => {
-            let idx = 0;
-            return (
-              <Table.Summary.Row style={{ fontWeight: 700, background: "#dce6f7" }}>
-                {viewMode === "Por Mês" && <Table.Summary.Cell index={idx++} />}
-                <Table.Summary.Cell index={idx++}>TOTAL ({filteredClientes.length})</Table.Summary.Cell>
-                <Table.Summary.Cell index={idx++} align="right">{brl(totRec)}</Table.Summary.Cell>
-                <Table.Summary.Cell index={idx++} align="right"><span style={{ color: "#c0392b" }}>{brl(totCus)}</span></Table.Summary.Cell>
-                <Table.Summary.Cell index={idx++} align="right"><span style={{ color: totMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(totMar)}</span></Table.Summary.Cell>
-                <Table.Summary.Cell index={idx++} align="right"><MargemTag value={totPct} /></Table.Summary.Cell>
-                <Table.Summary.Cell index={idx++} align="right">—</Table.Summary.Cell>
-              </Table.Summary.Row>
-            );
-          }}
+          summary={() => (
+            <Table.Summary.Row style={{ fontWeight: 700, background: "#dce6f7" }}>
+              <Table.Summary.Cell index={0}>TOTAL ({filteredClientes.length})</Table.Summary.Cell>
+              {isMensal && <Table.Summary.Cell index={1} />}
+              <Table.Summary.Cell index={isMensal ? 2 : 1} align="right">{brl(totRec)}</Table.Summary.Cell>
+              <Table.Summary.Cell index={isMensal ? 3 : 2} align="right"><span style={{ color: "#c0392b" }}>{brl(totCus)}</span></Table.Summary.Cell>
+              <Table.Summary.Cell index={isMensal ? 4 : 3} align="right"><span style={{ color: totMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(totMar)}</span></Table.Summary.Cell>
+              <Table.Summary.Cell index={isMensal ? 5 : 4} align="right"><MargemTag value={totPct} /></Table.Summary.Cell>
+              <Table.Summary.Cell index={isMensal ? 6 : 5} align="right">—</Table.Summary.Cell>
+            </Table.Summary.Row>
+          )}
         />
       )}
     </div>
