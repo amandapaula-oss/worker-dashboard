@@ -58,7 +58,7 @@ function MargemTag({ value }: { value: number | null | undefined }) {
 }
 
 const AGRUPAR_LABELS: Record<string, string> = {
-  empresa: "Empresa", fonte: "Fonte", macro_area: "Macro Área",
+  empresa: "Empresa", fonte: "Fonte", macro_area: "Macro Área", vertical: "BU",
 };
 
 export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparPor?: string }) {

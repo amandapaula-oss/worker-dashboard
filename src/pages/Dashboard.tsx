@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Switch, theme as antdTheme } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined } from "@ant-design/icons";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
@@ -299,6 +299,7 @@ export default function Dashboard() {
               destroyInactiveTabPane
               items={[
                 { key: "resumoEmp", label: <span><FileTextOutlined /> Resumo por Empresa</span>, children: <NovaBaseResumoTab agruparPor="empresa" /> },
+                { key: "resumoBU",  label: <span><ApartmentOutlined /> Resumo por BU</span>,    children: <NovaBaseResumoTab agruparPor="vertical" /> },
                 { key: "empresa",   label: <span><BankOutlined /> DRE por Empresa</span>,       children: <NovaDreTab /> },
                 { key: "fonte",     label: <span><HeatMapOutlined /> P&L por Fonte</span>,      children: <NovaBaseResumoTab agruparPor="fonte" /> },
                 { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
