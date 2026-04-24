@@ -1562,17 +1562,32 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     if "fonte" not in df.columns:
         return df
 
-    # Normaliza chave pessoa: CPF (só dígitos, 11+) ou nome uppercase
+    # Normaliza 3 identificadores por linha: CPF (só dígitos), nome uppercase, numero_pessoal
     cpf_raw = df.get("cpf", pd.Series([""] * len(df), index=df.index)).astype(str)
     cpf_digits = cpf_raw.str.replace(r"[^\d]", "", regex=True)
-    nome_norm = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index)).astype(str).str.upper().str.strip()
-    df["_pk"] = np.where(
-        cpf_digits.str.len() >= 11,
-        "cpf:" + cpf_digits,
-        np.where(nome_norm.str.len() > 0, "nome:" + nome_norm, None)
-    )
-
+    df["_cpf"] = np.where(cpf_digits.str.len() >= 11, cpf_digits, "")
+    nome_raw = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index)).astype(str).str.upper().str.strip()
+    df["_nome"] = np.where(nome_raw.isin(["", "NAN", "NONE"]), "", nome_raw)
+    id_raw = df.get("numero_pessoal", pd.Series([""] * len(df), index=df.index)).astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+    df["_id"] = np.where(id_raw.isin(["", "nan", "NaN", "None"]), "", id_raw)
     df["_periodo_str"] = df["periodo"].astype(str)
+
+    # Lookup nome→cpf (pra casar linhas sem CPF com linhas que têm CPF+nome da mesma pessoa)
+    nome_has_cpf = df[(df["_cpf"] != "") & (df["_nome"] != "")]
+    nome_lookup = (nome_has_cpf.groupby(["_periodo_str", "_nome"])["_cpf"].first()
+                   .rename("_mapped_cpf").reset_index())
+    df = df.merge(nome_lookup, on=["_periodo_str", "_nome"], how="left")
+    df["_mapped_cpf"] = df["_mapped_cpf"].fillna("")
+
+    # Cascata: CPF próprio → CPF via nome → nome → id
+    df["_pk"] = np.where(
+        df["_cpf"] != "", "cpf:" + df["_cpf"],
+        np.where(df["_mapped_cpf"] != "", "cpf:" + df["_mapped_cpf"],
+            np.where(df["_nome"] != "", "nome:" + df["_nome"],
+                np.where(df["_id"] != "", "id:" + df["_id"], None)
+            )
+        )
+    )
 
     is_custo_pessoa = df["fonte"].astype(str).isin(["CLTs", "PJs"]) & df["_pk"].notna()
     is_rac         = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
@@ -1628,7 +1643,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[mask_rac_aloca, "valor_liquido"] = df.loc[mask_rac_aloca, "margem"]
         df.loc[mask_pessoa_rateada, "valor_liquido"] = 0
 
-    df = df.drop(columns=["_pk", "_periodo_str", "_pessoa_custo_total", "_pessoa_horas_total"], errors="ignore")
+    df = df.drop(columns=[
+        "_pk", "_periodo_str", "_pessoa_custo_total", "_pessoa_horas_total",
+        "_cpf", "_nome", "_id", "_mapped_cpf",
+    ], errors="ignore")
     return df
 
 
