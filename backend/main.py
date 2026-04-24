@@ -1667,6 +1667,8 @@ def _get_nova_base() -> pd.DataFrame:
                 for col in NUM_COLS:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+                if "empresa" in df.columns:
+                    df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
                 if "vertical" in df.columns:
                     df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
                 df = _aplicar_rateio_custos(df)
