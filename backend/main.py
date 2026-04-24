@@ -1636,66 +1636,56 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    # Fonte de custo: prefere CLTs/PJs; usa custo_gerencial como fallback
-    # para períodos onde CLTs/PJs não existem (ex: Mapa Pessoas só de Jan,
-    # mas Gerencial tem todos os meses)
+    # ─── Fonte de custo: custo_project (taxa_hora × horas) ───
+    # custo_project tem uma linha por (pessoa, pep, periodo) com taxa_hora + horas_apontadas
+    # = custo direto imputado ao PEP. Vale pra todos os meses com dados (2025-07 em diante).
+    is_cp = df["fonte"].astype(str) == "custo_project"
+    is_rac = df["fonte"].astype(str) == "racionais"
+
+    # 1. Em linhas de custo_project: custo = -taxa × horas
+    taxa = pd.to_numeric(df.get("taxa_hora", pd.Series(0, index=df.index)), errors="coerce").fillna(0) if "taxa_hora" in df.columns else pd.Series(0, index=df.index)
+    hrs = pd.to_numeric(df.get("horas", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    df.loc[is_cp, "custo_rateado"] = -(taxa[is_cp] * hrs[is_cp])
+
+    # 2. Linhas de racionais ganham o custo via lookup por (pessoa, pep, periodo)
+    cp_pep_custo = (df[is_cp & df["_pk"].notna()]
+                    .groupby(["_pk", "_periodo_str", "pep"])["custo_rateado"].sum()
+                    .rename("_custo_pep").reset_index())
+    df = df.merge(cp_pep_custo, on=["_pk", "_periodo_str", "pep"], how="left")
+    df["_custo_pep"] = df["_custo_pep"].fillna(0)
+
+    is_rac = df["fonte"].astype(str) == "racionais"
+    mask_rac_custo = is_rac & (df["_custo_pep"] != 0)
+    df.loc[mask_rac_custo, "custo_rateado"] = df.loc[mask_rac_custo, "_custo_pep"]
+    df.loc[mask_rac_custo, "tag_rateio"] = "Custo via custo_project (taxa_hora x horas apontadas)"
+    df.loc[is_rac & ~mask_rac_custo, "tag_rateio"] = "Receita sem custo em custo_project"
+
+    # 3. Linhas de CLT/PJ/custo_gerencial: converter em resíduo (custo_total - custo_apontado)
+    # Custo apontado total da pessoa no período = soma de custo_project da pessoa no período
+    cp_pessoa_custo = (df[is_cp & df["_pk"].notna()]
+                       .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
+                       .rename("_custo_apontado").reset_index())
+    df = df.merge(cp_pessoa_custo, on=["_pk", "_periodo_str"], how="left")
+    df["_custo_apontado"] = df["_custo_apontado"].fillna(0)
+
+    # Pra evitar double-count em Jan: em Jan, preferir CLTs+PJs como custo total;
+    # nos outros meses, custo_gerencial é o total.
     periodos_com_clt = set(df.loc[df["fonte"].astype(str).isin(["CLTs", "PJs"]), "_periodo_str"].unique())
-    is_custo_pessoa = df["_pk"].notna() & (
+    is_custo_total_primary = df["_pk"].notna() & (
         df["fonte"].astype(str).isin(["CLTs", "PJs"]) |
         ((df["fonte"].astype(str) == "custo_gerencial") & ~df["_periodo_str"].isin(periodos_com_clt))
     )
-    is_rac = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
 
-    # Custo total por (pessoa, periodo)
-    custo_sum = (df[is_custo_pessoa]
-                 .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
-                 .rename("_pessoa_custo_total").reset_index())
-    horas_sum = (df[is_rac]
-                 .groupby(["_pk", "_periodo_str"])["horas"].sum()
-                 .rename("_pessoa_horas_total").reset_index())
-
-    df = df.merge(custo_sum, on=["_pk", "_periodo_str"], how="left")
-    df = df.merge(horas_sum, on=["_pk", "_periodo_str"], how="left")
-    df["_pessoa_custo_total"] = df["_pessoa_custo_total"].fillna(0)
-    df["_pessoa_horas_total"] = df["_pessoa_horas_total"].fillna(0)
-
-    # Recalcula máscaras pós-merge (mesma regra de preferência CLT/PJ > gerencial)
-    is_custo_pessoa = df["_pk"].notna() & (
-        df["fonte"].astype(str).isin(["CLTs", "PJs"]) |
-        ((df["fonte"].astype(str) == "custo_gerencial") & ~df["_periodo_str"].isin(periodos_com_clt))
+    # Residual = custo_total - custo_apontado. Fica na linha CLT/PJ/gerencial sem pep/vertical.
+    # Isso representa: banco, férias, treinamento, pessoa não apontando (estrutura).
+    df.loc[is_custo_total_primary, "custo_rateado"] = (
+        df.loc[is_custo_total_primary, "custo_rateado"].astype(float) -
+        df.loc[is_custo_total_primary, "_custo_apontado"].astype(float)
     )
-    is_rac = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
+    df.loc[is_custo_total_primary & (df["_custo_apontado"] != 0), "tag_rateio"] = "Custo residual (estrutura/banco — total menos apontado em PEPs)"
+    df.loc[is_custo_total_primary & (df["_custo_apontado"] == 0), "tag_rateio"] = "Custo total da pessoa (sem apontamento em PEPs no periodo)"
 
-    # Aloca custo nas linhas de racionais
-    mask_rac_aloca = is_rac & (df["_pessoa_horas_total"] > 0) & (df["_pessoa_custo_total"] != 0)
-    custo_alocado = np.where(
-        mask_rac_aloca,
-        df["_pessoa_custo_total"] * df["horas"] / df["_pessoa_horas_total"],
-        0.0,
-    )
-    df.loc[mask_rac_aloca, "custo_rateado"] = custo_alocado[mask_rac_aloca]
-
-    # Tags
-    df.loc[mask_rac_aloca, "tag_rateio"] = (
-        "Rateio: "
-        + df.loc[mask_rac_aloca, "horas"].round(1).astype(str)
-        + "h de "
-        + df.loc[mask_rac_aloca, "_pessoa_horas_total"].round(1).astype(str)
-        + "h totais da pessoa no periodo"
-    )
-    mask_rac_sem = is_rac & ~mask_rac_aloca
-    df.loc[mask_rac_sem, "tag_rateio"] = "Receita sem rateio de custo atrelado (pessoa sem custo em CLT/PJ)"
-
-    # Zera custo nas linhas de CLT/PJ rateadas
-    mask_pessoa_rateada = is_custo_pessoa & (df["_pessoa_horas_total"] > 0) & (df["_pessoa_custo_total"] != 0)
-    df.loc[mask_pessoa_rateada, "custo_rateado"] = 0
-    df.loc[mask_pessoa_rateada, "tag_rateio"] = "Custo distribuido aos PEPs via rateio de horas"
-
-    mask_pessoa_nao_rateada = is_custo_pessoa & ~mask_pessoa_rateada
-    df.loc[mask_pessoa_nao_rateada, "tag_rateio"] = "Custo sem rateio (pessoa sem horas apontadas em projetos)"
-
-    # Zera custo_rateado de custo_gerencial em linhas redundantes (pessoa com CLT/PJ no mesmo período)
-    # Mantém a linha pra não perder info (função, local, etc.) mas evita double-count
+    # 4. Zera custo em custo_gerencial redundante (pessoa com CLT/PJ no mesmo período)
     pessoa_com_clt = df.loc[df["fonte"].astype(str).isin(["CLTs", "PJs"]) & df["_pk"].notna(), ["_pk", "_periodo_str"]].drop_duplicates()
     pessoa_com_clt["_tem_clt"] = True
     df = df.merge(pessoa_com_clt, on=["_pk", "_periodo_str"], how="left")
@@ -1704,14 +1694,20 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[mask_cg_redundante, "custo_rateado"] = 0
     df.loc[mask_cg_redundante, "tag_rateio"] = "Custo zerado (duplicata — pessoa já tem CLT/PJ no período)"
 
-    # Recalcula margem e valor_liquido onde o custo mudou
+    # 5. Zera custo nas linhas de custo_project (o valor ficou nas linhas de racionais via lookup)
+    df.loc[is_cp & mask_rac_custo.reindex(df.index, fill_value=False), "custo_rateado"] = 0
+    # Aliás, simplifica: custo_project vira fonte "informativa" — custo fica em racionais
+    df.loc[is_cp, "custo_rateado"] = 0
+    df.loc[is_cp, "tag_rateio"] = "Custo mapeado para racionais correspondente"
+
+    # Recalcula margem e valor_liquido
     df["margem"] = df["receita"].fillna(0) + df["custo_rateado"].fillna(0)
     if "valor_liquido" in df.columns:
-        df.loc[mask_rac_aloca, "valor_liquido"] = df.loc[mask_rac_aloca, "margem"]
-        df.loc[mask_pessoa_rateada, "valor_liquido"] = 0
+        mask_rac_aplicou = df["fonte"].astype(str) == "racionais"
+        df.loc[mask_rac_aplicou, "valor_liquido"] = df.loc[mask_rac_aplicou, "margem"]
 
     df = df.drop(columns=[
-        "_pk", "_periodo_str", "_pessoa_custo_total", "_pessoa_horas_total",
+        "_pk", "_periodo_str", "_custo_pep", "_custo_apontado",
         "_cpf", "_nome", "_id", "_mapped_cpf", "_tem_clt",
     ], errors="ignore")
     return df
