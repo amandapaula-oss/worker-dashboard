@@ -1694,6 +1694,16 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     mask_pessoa_nao_rateada = is_custo_pessoa & ~mask_pessoa_rateada
     df.loc[mask_pessoa_nao_rateada, "tag_rateio"] = "Custo sem rateio (pessoa sem horas apontadas em projetos)"
 
+    # Zera custo_rateado de custo_gerencial em linhas redundantes (pessoa com CLT/PJ no mesmo período)
+    # Mantém a linha pra não perder info (função, local, etc.) mas evita double-count
+    pessoa_com_clt = df.loc[df["fonte"].astype(str).isin(["CLTs", "PJs"]) & df["_pk"].notna(), ["_pk", "_periodo_str"]].drop_duplicates()
+    pessoa_com_clt["_tem_clt"] = True
+    df = df.merge(pessoa_com_clt, on=["_pk", "_periodo_str"], how="left")
+    df["_tem_clt"] = df["_tem_clt"].fillna(False)
+    mask_cg_redundante = (df["fonte"].astype(str) == "custo_gerencial") & df["_tem_clt"] & (df["custo_rateado"] != 0)
+    df.loc[mask_cg_redundante, "custo_rateado"] = 0
+    df.loc[mask_cg_redundante, "tag_rateio"] = "Custo zerado (duplicata — pessoa já tem CLT/PJ no período)"
+
     # Recalcula margem e valor_liquido onde o custo mudou
     df["margem"] = df["receita"].fillna(0) + df["custo_rateado"].fillna(0)
     if "valor_liquido" in df.columns:
@@ -1702,7 +1712,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.drop(columns=[
         "_pk", "_periodo_str", "_pessoa_custo_total", "_pessoa_horas_total",
-        "_cpf", "_nome", "_id", "_mapped_cpf",
+        "_cpf", "_nome", "_id", "_mapped_cpf", "_tem_clt",
     ], errors="ignore")
     return df
 
