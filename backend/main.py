@@ -1734,6 +1734,10 @@ def _get_nova_base() -> pd.DataFrame:
                     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
                 if "vertical" in df.columns:
                     df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
+                    # Linhas da Hyper sem vertical → BU Hyper (estrutura/overhead da empresa)
+                    if "empresa" in df.columns:
+                        mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
+                        df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
                 df = _aplicar_rateio_custos(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
@@ -1820,6 +1824,9 @@ def _get_nova_base() -> pd.DataFrame:
             df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
         if "vertical" in df.columns:
             df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
+            if "empresa" in df.columns:
+                mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
+                df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
         df = _aplicar_rateio_custos(df)
         _cache["nova_base"] = df
     return _cache["nova_base"]
