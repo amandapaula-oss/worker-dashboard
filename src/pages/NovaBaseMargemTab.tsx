@@ -109,46 +109,133 @@ export default function NovaBaseMargemTab() {
 
   const isMensal = viewMode === "Por Mês";
 
+  const periodosMensal = useMemo(() =>
+    Array.from(new Set(clientes.map((r: any) => r.periodo))).filter(Boolean).sort() as string[],
+    [clientes]
+  );
+
+  const pivotClientes = useMemo(() => {
+    if (!isMensal) return [] as any[];
+    const map = new Map<string, any>();
+    for (const r of filteredClientes) {
+      const key = String(r.nome_cliente || "");
+      if (!map.has(key)) map.set(key, { nome_cliente: key });
+      const e = map.get(key)!;
+      e[`${r.periodo}_receita`]       = (e[`${r.periodo}_receita`]       || 0) + (Number(r.receita)       || 0);
+      e[`${r.periodo}_custo_rateado`] = (e[`${r.periodo}_custo_rateado`] || 0) + (Number(r.custo_rateado) || 0);
+      e[`${r.periodo}_horas`]         = (e[`${r.periodo}_horas`]         || 0) + (Number(r.horas)         || 0);
+    }
+    return Array.from(map.values()).map(r => {
+      periodosMensal.forEach(p => {
+        r[`${p}_margem`]     = (r[`${p}_receita`] || 0) + (r[`${p}_custo_rateado`] || 0);
+        const rec = r[`${p}_receita`] || 0;
+        r[`${p}_margem_pct`] = rec !== 0 ? r[`${p}_margem`] / rec : null;
+      });
+      const tot_rec = periodosMensal.reduce((s, p) => s + (r[`${p}_receita`]       || 0), 0);
+      const tot_cus = periodosMensal.reduce((s, p) => s + (r[`${p}_custo_rateado`] || 0), 0);
+      const tot_mar = tot_rec + tot_cus;
+      return {
+        ...r,
+        total_receita:       tot_rec,
+        total_custo_rateado: tot_cus,
+        total_margem:        tot_mar,
+        total_margem_pct:    tot_rec !== 0 ? tot_mar / tot_rec : null,
+        total_horas:         periodosMensal.reduce((s, p) => s + (r[`${p}_horas`] || 0), 0),
+      };
+    }).sort((a, b) => b.total_receita - a.total_receita);
+  }, [filteredClientes, periodosMensal, isMensal]);
+
+  const pivotTableData = useMemo(() => {
+    if (!isMensal) return [] as any[];
+    const totRow: any = { key: "__t__", nome_cliente: `TOTAL (${pivotClientes.length})`, _isTotal: true };
+    periodosMensal.forEach(p => {
+      totRow[`${p}_receita`]       = pivotClientes.reduce((s, r) => s + (r[`${p}_receita`]       || 0), 0);
+      totRow[`${p}_custo_rateado`] = pivotClientes.reduce((s, r) => s + (r[`${p}_custo_rateado`] || 0), 0);
+      totRow[`${p}_margem`]        = (totRow[`${p}_receita`] || 0) + (totRow[`${p}_custo_rateado`] || 0);
+      const rec = totRow[`${p}_receita`] || 0;
+      totRow[`${p}_margem_pct`]    = rec !== 0 ? totRow[`${p}_margem`] / rec : null;
+      totRow[`${p}_horas`]         = pivotClientes.reduce((s, r) => s + (r[`${p}_horas`]         || 0), 0);
+    });
+    totRow.total_receita       = pivotClientes.reduce((s, r) => s + (r.total_receita       || 0), 0);
+    totRow.total_custo_rateado = pivotClientes.reduce((s, r) => s + (r.total_custo_rateado || 0), 0);
+    totRow.total_margem        = (totRow.total_receita || 0) + (totRow.total_custo_rateado || 0);
+    totRow.total_margem_pct    = totRow.total_receita !== 0 ? totRow.total_margem / totRow.total_receita : null;
+    totRow.total_horas         = pivotClientes.reduce((s, r) => s + (r.total_horas || 0), 0);
+    return [totRow, ...pivotClientes.map((r, i) => ({ ...r, key: `${r.nome_cliente}_${i}` }))];
+  }, [pivotClientes, periodosMensal, isMensal]);
+
   const clienteCols = useMemo(() => {
-    const cols: any[] = [
+    if (!isMensal) {
+      const cols: any[] = [
+        {
+          title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", width: 220,
+          render: (v: string) => (
+            <Button type="link" style={{ padding: 0, fontWeight: 600 }} onClick={() => abrirCliente(v)}>
+              {toTitleCase(v)}
+            </Button>
+          ),
+          sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
+        },
+      ];
+      const metricCols: Record<Metric, any> = {
+        receita: { title: "Receita", dataIndex: "receita", key: "receita", align: "right" as const, width: 150,
+          sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
+          render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
+        custo_rateado: { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", align: "right" as const, width: 150,
+          sorter: (a: any, b: any) => (a.custo_rateado || 0) - (b.custo_rateado || 0),
+          render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
+        margem: { title: "Margem", dataIndex: "margem", key: "margem", align: "right" as const, width: 150,
+          sorter: (a: any, b: any) => (a.margem || 0) - (b.margem || 0),
+          render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
+        margem_pct: { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", align: "right" as const, width: 100,
+          sorter: (a: any, b: any) => (a.margem_pct || 0) - (b.margem_pct || 0),
+          render: (v: any) => <MargemTag value={v} /> },
+        horas: { title: "Horas", dataIndex: "horas", key: "horas", align: "right" as const, width: 100,
+          sorter: (a: any, b: any) => (a.horas || 0) - (b.horas || 0),
+          render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
+      };
+      ALL_METRICS.forEach(m => { if (visibleMetrics.has(m)) cols.push(metricCols[m]); });
+      return cols;
+    }
+
+    // Pivot layout (Por Mês) — igual Resumo por BU
+    const metricDefs: Record<Metric, { title: string; width: number; render: (v: any) => React.ReactNode }> = {
+      receita:       { title: "Receita", width: 120, render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
+      custo_rateado: { title: "Custo",   width: 120, render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
+      margem:        { title: "Margem",  width: 120, render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
+      margem_pct:    { title: "%",       width: 70,  render: (v: any)    => <MargemTag value={v} /> },
+      horas:         { title: "Horas",   width: 90,  render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
+    };
+    const children = (prefix: string) =>
+      ALL_METRICS.filter(m => visibleMetrics.has(m)).map(m => ({
+        title: metricDefs[m].title,
+        dataIndex: `${prefix}_${m}`,
+        key: `${prefix}_${m}`,
+        width: metricDefs[m].width,
+        align: "right" as const,
+        sorter: (a: any, b: any) => (Number(a[`${prefix}_${m}`]) || 0) - (Number(b[`${prefix}_${m}`]) || 0),
+        render: metricDefs[m].render,
+      }));
+
+    const periodoCols = periodosMensal.map(p => ({
+      title: periodoLabel(p),
+      key: p,
+      children: children(p),
+    }));
+
+    return [
       {
-        title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", width: 220,
-        render: (v: string) => (
-          <Button type="link" style={{ padding: 0, fontWeight: 600 }} onClick={() => abrirCliente(v)}>
-            {toTitleCase(v)}
-          </Button>
-        ),
+        title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", width: 220, fixed: "left" as const,
+        render: (v: string, row: any) => row._isTotal
+          ? <span style={{ fontWeight: 700 }}>{v}</span>
+          : <Button type="link" style={{ padding: 0, fontWeight: 600 }} onClick={() => abrirCliente(v)}>{toTitleCase(v)}</Button>,
         sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
       },
+      ...periodoCols,
+      { title: "Total", key: "__total__", children: children("total") },
     ];
-    if (isMensal) {
-      cols.push({
-        title: "Período", dataIndex: "periodo", key: "periodo", width: 100,
-        sorter: (a: any, b: any) => String(a.periodo || "").localeCompare(String(b.periodo || "")),
-        render: (v: string) => v ? periodoLabel(v) : "—",
-      });
-    }
-    const metricCols: Record<Metric, any> = {
-      receita: { title: "Receita", dataIndex: "receita", key: "receita", align: "right" as const, width: 150,
-        sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
-        render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
-      custo_rateado: { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", align: "right" as const, width: 150,
-        sorter: (a: any, b: any) => (a.custo_rateado || 0) - (b.custo_rateado || 0),
-        render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
-      margem: { title: "Margem", dataIndex: "margem", key: "margem", align: "right" as const, width: 150,
-        sorter: (a: any, b: any) => (a.margem || 0) - (b.margem || 0),
-        render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
-      margem_pct: { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", align: "right" as const, width: 100,
-        sorter: (a: any, b: any) => (a.margem_pct || 0) - (b.margem_pct || 0),
-        render: (v: any) => <MargemTag value={v} /> },
-      horas: { title: "Horas", dataIndex: "horas", key: "horas", align: "right" as const, width: 100,
-        sorter: (a: any, b: any) => (a.horas || 0) - (b.horas || 0),
-        render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
-    };
-    ALL_METRICS.forEach(m => { if (visibleMetrics.has(m)) cols.push(metricCols[m]); });
-    return cols;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMensal, visibleMetrics]);
+  }, [isMensal, visibleMetrics, periodosMensal]);
 
   const detalheCols: any[] = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 160,
@@ -279,10 +366,18 @@ export default function NovaBaseMargemTab() {
       </div>
 
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
-        <Table dataSource={filteredClientes.map((d, i) => ({ ...d, key: `${d.nome_cliente}_${d.periodo || ""}_${i}` }))} columns={clienteCols}
-          size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["20", "50", "100", "200"] }}
-          scroll={{ x: 900 }}
+        <Table
+          dataSource={isMensal
+            ? pivotTableData
+            : filteredClientes.map((d, i) => ({ ...d, key: `${d.nome_cliente}_${i}` }))}
+          columns={clienteCols}
+          size="small"
+          pagination={isMensal
+            ? false
+            : { defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["20", "50", "100", "200"] }}
+          scroll={{ x: isMensal ? "max-content" : 900 }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+          onRow={(row: any) => ({ style: row._isTotal ? { background: "#dce6f7", fontWeight: 700 } : {} })}
           title={() => (
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "0 0 4px" }}>
               <span style={{ color: "#6b7fa3", fontSize: "0.75rem", marginRight: 2, lineHeight: "24px" }}>Métricas:</span>
@@ -302,14 +397,13 @@ export default function NovaBaseMargemTab() {
                 <Button icon={<SettingOutlined />} size="small" type="text" style={{ color: "#6b7fa3" }} />
               </Popover>
               <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
-                onClick={() => exportTableToExcel(clienteCols, filteredClientes, "nova_base_margem_clientes")}>Excel</Button>
+                onClick={() => exportTableToExcel(clienteCols, isMensal ? pivotClientes : filteredClientes, "nova_base_margem_clientes")}>Excel</Button>
             </div>
           )}
-          summary={() => {
+          summary={isMensal ? undefined : () => {
             const cells: React.ReactNode[] = [];
             let idx = 0;
             cells.push(<Table.Summary.Cell key="lbl" index={idx++}>TOTAL ({filteredClientes.length})</Table.Summary.Cell>);
-            if (isMensal) cells.push(<Table.Summary.Cell key="per" index={idx++} />);
             ALL_METRICS.forEach(m => {
               if (!visibleMetrics.has(m)) return;
               if (m === "receita") cells.push(<Table.Summary.Cell key={m} index={idx++} align="right">{brl(totRec)}</Table.Summary.Cell>);
