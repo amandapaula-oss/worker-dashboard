@@ -241,7 +241,6 @@ export default function NovaBaseMargemTab() {
     { title: "PEP", dataIndex: "pep", key: "pep", width: 160,
       sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)) },
     { title: "Empresa", dataIndex: "empresa", width: 140 },
-    { title: "BU", dataIndex: "categoria_bu", width: 100 },
     { title: "Vertical", dataIndex: "vertical", width: 140 },
     { title: "Receita", dataIndex: "receita", align: "right" as const, width: 140,
       sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
@@ -304,12 +303,11 @@ export default function NovaBaseMargemTab() {
                   <Table.Summary.Cell index={0}>TOTAL</Table.Summary.Cell>
                   <Table.Summary.Cell index={1} />
                   <Table.Summary.Cell index={2} />
-                  <Table.Summary.Cell index={3} />
-                  <Table.Summary.Cell index={4} align="right">{brl(tRec)}</Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} align="right"><span style={{ color: "#c0392b" }}>{brl(tCus)}</span></Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} align="right"><span style={{ color: tMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(tMar)}</span></Table.Summary.Cell>
-                  <Table.Summary.Cell index={7} align="right"><MargemTag value={tRec ? tMar/tRec : null} /></Table.Summary.Cell>
-                  <Table.Summary.Cell index={8} align="right">{tHrs > 0 ? tHrs.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="right">{brl(tRec)}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} align="right"><span style={{ color: "#c0392b" }}>{brl(tCus)}</span></Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} align="right"><span style={{ color: tMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(tMar)}</span></Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} align="right"><MargemTag value={tRec ? tMar/tRec : null} /></Table.Summary.Cell>
+                  <Table.Summary.Cell index={7} align="right">{tHrs > 0 ? tHrs.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</Table.Summary.Cell>
                 </Table.Summary.Row>
               );
             }}

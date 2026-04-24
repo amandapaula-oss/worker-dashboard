@@ -2097,10 +2097,11 @@ def get_nova_base_margem_cliente_detalhe(
         df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
     df["margem"] = df["receita"] + df["custo_rateado"]
     df["pep_base"] = df["pep"].astype(str).str.split(".").str[0].str.strip() if "pep" in df.columns else ""
+    # Remove linhas sem PEP (residuais de estrutura/banco) — poluíam a visão por cliente
+    df = df[df["pep_base"].ne("") & df["pep_base"].ne("nan") & df["pep_base"].ne("None")]
     group_keys = ["pep_base", "nome_cliente", "empresa"]
-    for k in ["categoria_bu", "vertical"]:
-        if k in df.columns:
-            group_keys.append(k)
+    if "vertical" in df.columns:
+        group_keys.append("vertical")
     for k in group_keys:
         if k in df.columns:
             df[k] = df[k].fillna("")
