@@ -1589,10 +1589,17 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    is_custo_pessoa = df["fonte"].astype(str).isin(["CLTs", "PJs"]) & df["_pk"].notna()
-    is_rac         = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
+    # Fonte de custo: prefere CLTs/PJs; usa custo_gerencial como fallback
+    # para períodos onde CLTs/PJs não existem (ex: Mapa Pessoas só de Jan,
+    # mas Gerencial tem todos os meses)
+    periodos_com_clt = set(df.loc[df["fonte"].astype(str).isin(["CLTs", "PJs"]), "_periodo_str"].unique())
+    is_custo_pessoa = df["_pk"].notna() & (
+        df["fonte"].astype(str).isin(["CLTs", "PJs"]) |
+        ((df["fonte"].astype(str) == "custo_gerencial") & ~df["_periodo_str"].isin(periodos_com_clt))
+    )
+    is_rac = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
 
-    # Custo total por (pessoa, periodo) em CLTs/PJs
+    # Custo total por (pessoa, periodo)
     custo_sum = (df[is_custo_pessoa]
                  .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
                  .rename("_pessoa_custo_total").reset_index())
@@ -1605,9 +1612,12 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df["_pessoa_custo_total"] = df["_pessoa_custo_total"].fillna(0)
     df["_pessoa_horas_total"] = df["_pessoa_horas_total"].fillna(0)
 
-    # Recalcula máscaras pós-merge
-    is_custo_pessoa = df["fonte"].astype(str).isin(["CLTs", "PJs"]) & df["_pk"].notna()
-    is_rac          = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
+    # Recalcula máscaras pós-merge (mesma regra de preferência CLT/PJ > gerencial)
+    is_custo_pessoa = df["_pk"].notna() & (
+        df["fonte"].astype(str).isin(["CLTs", "PJs"]) |
+        ((df["fonte"].astype(str) == "custo_gerencial") & ~df["_periodo_str"].isin(periodos_com_clt))
+    )
+    is_rac = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
 
     # Aloca custo nas linhas de racionais
     mask_rac_aloca = is_rac & (df["_pessoa_horas_total"] > 0) & (df["_pessoa_custo_total"] != 0)
