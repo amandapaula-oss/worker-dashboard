@@ -1542,6 +1542,31 @@ def _load_nova_base_supabase() -> pd.DataFrame:
     return pd.DataFrame(all_rows)
 
 
+_pessoal_cache: dict = {"map_nome": None, "map_id": None}
+
+def _carregar_pessoal_depara() -> tuple[dict, dict]:
+    """Carrega o de-para pessoal (nome/id → cpf) uma vez e cacheia."""
+    if _pessoal_cache["map_nome"] is not None:
+        return _pessoal_cache["map_nome"], _pessoal_cache["map_id"]
+    path = os.path.join(_BASE_DIR, "pessoal_depara.csv")
+    if not os.path.exists(path):
+        _pessoal_cache["map_nome"] = {}
+        _pessoal_cache["map_id"] = {}
+        return {}, {}
+    p = pd.read_csv(path, dtype=str).dropna(subset=["cpf"])
+    p["nome_norm"] = p["nome"].astype(str).str.upper().str.strip()
+    p["id"] = p["id"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+    # cpf em formato BRCPF... — extrai só dígitos pra consistência
+    p["cpf_digits"] = p["cpf"].astype(str).str.replace(r"[^\d]", "", regex=True)
+    p = p[p["cpf_digits"].str.len() >= 11]
+    map_nome = p.drop_duplicates("nome_norm").set_index("nome_norm")["cpf_digits"].to_dict()
+    map_id   = p.drop_duplicates("id").set_index("id")["cpf_digits"].to_dict()
+    _pessoal_cache["map_nome"] = map_nome
+    _pessoal_cache["map_id"]   = map_id
+    print(f"[pessoal_depara] {len(map_nome)} nomes, {len(map_id)} ids carregados")
+    return map_nome, map_id
+
+
 def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     """Rateia custos de CLTs/PJs proporcionalmente às horas apontadas em 'racionais' (por PEP).
 
@@ -1566,6 +1591,18 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     cpf_raw = df.get("cpf", pd.Series([""] * len(df), index=df.index)).astype(str)
     cpf_digits = cpf_raw.str.replace(r"[^\d]", "", regex=True)
     df["_cpf"] = np.where(cpf_digits.str.len() >= 11, cpf_digits, "")
+
+    # Enriquece CPF via de-para Pessoal (nome → cpf, id → cpf)
+    # Essencial pra custo_gerencial que só tem nome+id, sem CPF
+    map_nome_cpf, map_id_cpf = _carregar_pessoal_depara()
+    if map_nome_cpf or map_id_cpf:
+        nome_pre = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index)).astype(str).str.upper().str.strip()
+        id_pre = df.get("numero_pessoal", pd.Series([""] * len(df), index=df.index)).astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+        cpf_from_nome = nome_pre.map(map_nome_cpf).fillna("")
+        cpf_from_id   = id_pre.map(map_id_cpf).fillna("")
+        # Só preenche onde cpf original tá vazio
+        df["_cpf"] = np.where(df["_cpf"] == "", cpf_from_nome, df["_cpf"])
+        df["_cpf"] = np.where(df["_cpf"] == "", cpf_from_id, df["_cpf"])
     nome_raw = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index)).astype(str).str.upper().str.strip()
     df["_nome"] = np.where(nome_raw.isin(["", "NAN", "NONE"]), "", nome_raw)
     id_raw = df.get("numero_pessoal", pd.Series([""] * len(df), index=df.index)).astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
