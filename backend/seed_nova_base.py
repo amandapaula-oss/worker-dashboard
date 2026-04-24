@@ -24,7 +24,7 @@ COMPANY_NAMES = {
     "BR05": "BR05 SGA", "SGA": "BR05 SGA",
     "BR07": "BR07 Hyper", "BR0C": "BR0C Hyper", "Hyper": "BR07 Hyper",
     "BR08": "BR08 Dojo", "Dojo": "BR08 Dojo",
-    "BR09": "BR09 NextGen", "NextGen": "BR09 NextGen",
+    "BR09": "BR09 NextGen", "NextGen": "BR09 NextGen", "Next": "BR09 NextGen",
 }
 
 NEEDED_COLS = [
