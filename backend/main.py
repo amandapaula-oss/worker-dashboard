@@ -1730,6 +1730,14 @@ def _get_nova_base() -> pd.DataFrame:
                 for col in NUM_COLS:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+                # Força recálculo do custo_rateado a partir de custo_gerencial_sap
+                # (corrige bug historico onde Custo/H Padrão Hora extra — uma TAXA —
+                # estava sendo somada como valor, inflando custo em R$100-300/pessoa).
+                if "custo_gerencial_sap" in df.columns:
+                    import numpy as np
+                    custo_ger = df["custo_gerencial_sap"].fillna(0)
+                    mask_ger = (custo_ger != 0)
+                    df.loc[mask_ger, "custo_rateado"] = -custo_ger[mask_ger]
                 if "empresa" in df.columns:
                     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
                 if "vertical" in df.columns:
@@ -1779,19 +1787,20 @@ def _get_nova_base() -> pd.DataFrame:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-        # Mapeia custo para custo_rateado (negativo) onde ainda está zerado:
-        # CLTs/TDMs: custo_gerencial_sap + extras (billable e non-billable)
-        # PJs: valor_liquido (positivo = custo)
+        # Mapeia custo para custo_rateado (negativo) onde ainda está zerado.
+        # CLTs/custo_gerencial: usa só `custo_gerencial_sap` (valor total do SAP,
+        # ja inclui extras/bonus/encargos). NÃO somar Custo/H Padrão Hora extra
+        # nem Sobreaviso: esses são TAXAS por hora, não valores.
+        # PJs: valor_liquido (positivo = custo).
         import numpy as np
         mask_clt = pd.Series(False, index=df.index)
         mask_pj  = pd.Series(False, index=df.index)
-        # CLTs/TDMs: custo_gerencial_sap → custo_rateado (negativo)
         if "custo_gerencial_sap" in df.columns:
             custo_ger = df["custo_gerencial_sap"].fillna(0)
-            custo_ext = df.get("custo_h_hora_extra", pd.Series(0, index=df.index)).fillna(0)
-            custo_sob = df.get("custo_h_sobreaviso", pd.Series(0, index=df.index)).fillna(0)
-            mask_clt  = (df["custo_rateado"] == 0) & (custo_ger != 0)
-            df["custo_rateado"] = np.where(mask_clt, -(custo_ger + custo_ext + custo_sob), df["custo_rateado"])
+            # Força override sempre que houver custo_gerencial_sap — corrige o bug historico
+            # onde Custo/H Padrão Hora extra (taxa) estava sendo somado como valor.
+            mask_clt  = (custo_ger != 0)
+            df["custo_rateado"] = np.where(mask_clt, -custo_ger, df["custo_rateado"])
         # PJs: valor_liquido positivo = custo
         if "valor_liquido" in df.columns and "fonte" in df.columns:
             vl = df["valor_liquido"].fillna(0)

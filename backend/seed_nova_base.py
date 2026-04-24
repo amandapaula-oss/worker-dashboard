@@ -60,14 +60,14 @@ def load_and_transform():
     for c in NUM_COLS:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
 
-    # Cost derivation (same as _get_nova_base in main.py)
+    # Cost derivation (same as _get_nova_base in main.py).
+    # CLTs/custo_gerencial: usa só `custo_gerencial_sap` (valor total do SAP).
+    # Custo/H Padrão Hora extra e Sobreaviso sao TAXAS por hora, nao valores — nao somar.
     mask_pj = pd.Series(False, index=df.index)
     if "custo_gerencial_sap" in df.columns:
         custo_ger = df["custo_gerencial_sap"].fillna(0)
-        custo_ext = df.get("custo_h_hora_extra", pd.Series(0, index=df.index)).fillna(0)
-        custo_sob = df.get("custo_h_sobreaviso", pd.Series(0, index=df.index)).fillna(0)
         mask_clt = (df["custo_rateado"] == 0) & (custo_ger != 0)
-        df["custo_rateado"] = np.where(mask_clt, -(custo_ger + custo_ext + custo_sob), df["custo_rateado"])
+        df["custo_rateado"] = np.where(mask_clt, -custo_ger, df["custo_rateado"])
     else:
         mask_clt = pd.Series(False, index=df.index)
 
