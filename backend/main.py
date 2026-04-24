@@ -1542,6 +1542,96 @@ def _load_nova_base_supabase() -> pd.DataFrame:
     return pd.DataFrame(all_rows)
 
 
+def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
+    """Rateia custos de CLTs/PJs proporcionalmente às horas apontadas em 'racionais' (por PEP).
+
+    Pra cada pessoa × período:
+      - soma custo em CLTs/PJs → custo_total_pessoa
+      - soma horas em racionais → horas_total_pessoa
+      - em cada linha de racionais da pessoa, aloca: custo_total × (horas_linha / horas_total)
+      - zera o custo_rateado das linhas CLT/PJ originais (evita double-count)
+
+    Adiciona coluna `tag_rateio` explicando cada caso.
+    """
+    import numpy as np
+    df = df.copy()
+
+    if "tag_rateio" not in df.columns:
+        df["tag_rateio"] = ""
+
+    if "fonte" not in df.columns:
+        return df
+
+    # Normaliza chave pessoa: CPF (só dígitos, 11+) ou nome uppercase
+    cpf_raw = df.get("cpf", pd.Series([""] * len(df), index=df.index)).astype(str)
+    cpf_digits = cpf_raw.str.replace(r"[^\d]", "", regex=True)
+    nome_norm = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index)).astype(str).str.upper().str.strip()
+    df["_pk"] = np.where(
+        cpf_digits.str.len() >= 11,
+        "cpf:" + cpf_digits,
+        np.where(nome_norm.str.len() > 0, "nome:" + nome_norm, None)
+    )
+
+    df["_periodo_str"] = df["periodo"].astype(str)
+
+    is_custo_pessoa = df["fonte"].astype(str).isin(["CLTs", "PJs"]) & df["_pk"].notna()
+    is_rac         = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
+
+    # Custo total por (pessoa, periodo) em CLTs/PJs
+    custo_sum = (df[is_custo_pessoa]
+                 .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
+                 .rename("_pessoa_custo_total").reset_index())
+    horas_sum = (df[is_rac]
+                 .groupby(["_pk", "_periodo_str"])["horas"].sum()
+                 .rename("_pessoa_horas_total").reset_index())
+
+    df = df.merge(custo_sum, on=["_pk", "_periodo_str"], how="left")
+    df = df.merge(horas_sum, on=["_pk", "_periodo_str"], how="left")
+    df["_pessoa_custo_total"] = df["_pessoa_custo_total"].fillna(0)
+    df["_pessoa_horas_total"] = df["_pessoa_horas_total"].fillna(0)
+
+    # Recalcula máscaras pós-merge
+    is_custo_pessoa = df["fonte"].astype(str).isin(["CLTs", "PJs"]) & df["_pk"].notna()
+    is_rac          = df["fonte"].astype(str).isin(["racionais"]) & df["_pk"].notna()
+
+    # Aloca custo nas linhas de racionais
+    mask_rac_aloca = is_rac & (df["_pessoa_horas_total"] > 0) & (df["_pessoa_custo_total"] != 0)
+    custo_alocado = np.where(
+        mask_rac_aloca,
+        df["_pessoa_custo_total"] * df["horas"] / df["_pessoa_horas_total"],
+        0.0,
+    )
+    df.loc[mask_rac_aloca, "custo_rateado"] = custo_alocado[mask_rac_aloca]
+
+    # Tags
+    df.loc[mask_rac_aloca, "tag_rateio"] = (
+        "Rateio: "
+        + df.loc[mask_rac_aloca, "horas"].round(1).astype(str)
+        + "h de "
+        + df.loc[mask_rac_aloca, "_pessoa_horas_total"].round(1).astype(str)
+        + "h totais da pessoa no periodo"
+    )
+    mask_rac_sem = is_rac & ~mask_rac_aloca
+    df.loc[mask_rac_sem, "tag_rateio"] = "Receita sem rateio de custo atrelado (pessoa sem custo em CLT/PJ)"
+
+    # Zera custo nas linhas de CLT/PJ rateadas
+    mask_pessoa_rateada = is_custo_pessoa & (df["_pessoa_horas_total"] > 0) & (df["_pessoa_custo_total"] != 0)
+    df.loc[mask_pessoa_rateada, "custo_rateado"] = 0
+    df.loc[mask_pessoa_rateada, "tag_rateio"] = "Custo distribuido aos PEPs via rateio de horas"
+
+    mask_pessoa_nao_rateada = is_custo_pessoa & ~mask_pessoa_rateada
+    df.loc[mask_pessoa_nao_rateada, "tag_rateio"] = "Custo sem rateio (pessoa sem horas apontadas em projetos)"
+
+    # Recalcula margem e valor_liquido onde o custo mudou
+    df["margem"] = df["receita"].fillna(0) + df["custo_rateado"].fillna(0)
+    if "valor_liquido" in df.columns:
+        df.loc[mask_rac_aloca, "valor_liquido"] = df.loc[mask_rac_aloca, "margem"]
+        df.loc[mask_pessoa_rateada, "valor_liquido"] = 0
+
+    df = df.drop(columns=["_pk", "_periodo_str", "_pessoa_custo_total", "_pessoa_horas_total"], errors="ignore")
+    return df
+
+
 def _get_nova_base() -> pd.DataFrame:
     if _cache["nova_base"] is not None:
         return _cache["nova_base"]
@@ -1561,6 +1651,7 @@ def _get_nova_base() -> pd.DataFrame:
                         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
                 if "vertical" in df.columns:
                     df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
+                df = _aplicar_rateio_custos(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
             except Exception as e:
@@ -1646,6 +1737,7 @@ def _get_nova_base() -> pd.DataFrame:
             df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
         if "vertical" in df.columns:
             df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
+        df = _aplicar_rateio_custos(df)
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
@@ -2003,7 +2095,7 @@ def get_nova_base_data(
         "nome_cliente", "tipo_contrato", "classificacao", "area",
         "centro_lucro", "macro_area", "vertical",
         "receita", "custo_rateado", "horas", "margem",
-        "valor_liquido", "taxa_hora", "billable_category", "Comentarios",
+        "valor_liquido", "taxa_hora", "billable_category", "tag_rateio", "Comentarios",
     ]
     cols_show = [c for c in cols_show if c in df.columns]
     return _sanitize({"total": total, "truncated": total > MAX, "rows": df[cols_show].to_dict(orient="records")})
