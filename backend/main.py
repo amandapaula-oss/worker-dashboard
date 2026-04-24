@@ -1600,9 +1600,19 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         id_pre = df.get("numero_pessoal", pd.Series([""] * len(df), index=df.index)).astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
         cpf_from_nome = nome_pre.map(map_nome_cpf).fillna("")
         cpf_from_id   = id_pre.map(map_id_cpf).fillna("")
-        # Só preenche onde cpf original tá vazio
         df["_cpf"] = np.where(df["_cpf"] == "", cpf_from_nome, df["_cpf"])
         df["_cpf"] = np.where(df["_cpf"] == "", cpf_from_id, df["_cpf"])
+
+    # Enriquece billable_category via cruzamento por nome com fontes que têm a coluna
+    # (custo_gerencial não tem billable; CLTs/PJs/racionais têm)
+    if "billable_category" in df.columns:
+        nome_pre2 = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index)).astype(str).str.upper().str.strip()
+        tem_bc = df["billable_category"].notna() & (df["billable_category"].astype(str).str.strip() != "")
+        bc_source = df[tem_bc & df["fonte"].astype(str).isin(["CLTs", "PJs", "racionais", "custo_project"])][["nome_pessoa", "billable_category"]].copy()
+        bc_source["_n"] = bc_source["nome_pessoa"].astype(str).str.upper().str.strip()
+        bc_map = bc_source.drop_duplicates("_n").set_index("_n")["billable_category"].to_dict()
+        bc_preenchido = nome_pre2.map(bc_map)
+        df["billable_category"] = df["billable_category"].where(tem_bc, bc_preenchido)
     nome_raw = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index)).astype(str).str.upper().str.strip()
     df["_nome"] = np.where(nome_raw.isin(["", "NAN", "NONE"]), "", nome_raw)
     id_raw = df.get("numero_pessoal", pd.Series([""] * len(df), index=df.index)).astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
