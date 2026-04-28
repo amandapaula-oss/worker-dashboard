@@ -274,7 +274,7 @@ export default function ClientesTab() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const tableStyle = { borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" };
-  const pagination = { pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] };
+  const pagination = { defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] };
 
   return (
     <div>

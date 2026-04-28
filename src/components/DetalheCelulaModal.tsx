@@ -107,14 +107,21 @@ export default function DetalheCelulaModal({ open, onClose, filters, titulo, met
         </div>
       )}
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
-        <Table
-          dataSource={rows}
-          columns={cols}
-          rowKey={(_, i) => String(i)}
-          size="small"
-          scroll={{ x: 1700, y: 400 }}
-          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
-        />
+        <div className="ant-modal-table-wrap">
+          <Table
+            dataSource={rows}
+            columns={cols}
+            rowKey={(_, i) => String(i)}
+            size="small"
+            scroll={{ x: 1700, y: 400 }}
+            pagination={{
+              defaultPageSize: 50,
+              showSizeChanger: true,
+              pageSizeOptions: ["50","100","200"],
+              getPopupContainer: () => document.querySelector(".ant-modal-table-wrap") as HTMLElement || document.body,
+            }}
+          />
+        </div>
       )}
     </Modal>
   );

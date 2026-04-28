@@ -264,7 +264,7 @@ export default function RacTab() {
                     onClick={() => exportTableToExcel(draggablePessoaProj, pessoaProjetos, "rac_projetos_pessoa")}>Excel</Button>
                 </div>
               )}
-              pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+              pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
               size="small"
               scroll={{ x: "max-content" }}
               style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
@@ -291,7 +291,7 @@ export default function RacTab() {
                   onClick={() => exportTableToExcel(draggablePessoas, filteredPessoas, "rac_pessoas")}>Excel</Button>
               </div>
             )}
-            pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
             size="small"
             scroll={{ x: "max-content" }}
             style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
@@ -312,7 +312,7 @@ export default function RacTab() {
                 onClick={() => exportTableToExcel(draggableProjetos, filteredProjetos, "rac_projetos")}>Excel</Button>
             </div>
           )}
-          pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
           size="small"
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
