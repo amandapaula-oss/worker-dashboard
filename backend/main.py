@@ -2210,6 +2210,8 @@ def get_nova_base_data(
     tipos_contrato: str = "",
     classificacoes: str = "",
     verticais: str = "",
+    nome_cliente: str = "",
+    metric: str = "",
     user=Depends(get_current_user)
 ):
     df = _get_nova_base().copy()
@@ -2228,6 +2230,17 @@ def get_nova_base_data(
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
     if classificacoes: df = filt("classificacao", classificacoes)
     if verticais:      df = filt("vertical", verticais)
+    if nome_cliente:
+        df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
+    # Filtra por métrica: só linhas que contribuem pra aquele número
+    if metric == "receita":
+        df = df[pd.to_numeric(df["receita"], errors="coerce").fillna(0) != 0]
+    elif metric == "custo" or metric == "custo_rateado":
+        df = df[pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0) != 0]
+    elif metric == "horas":
+        df = df[pd.to_numeric(df["horas"], errors="coerce").fillna(0) != 0]
+    elif metric == "valor_liquido":
+        df = df[pd.to_numeric(df["valor_liquido"], errors="coerce").fillna(0) != 0]
 
     MAX = 5000
     total = len(df)

@@ -5,9 +5,14 @@ import { getNovaBaseFilters, getNovaBaseResumo, getNovaBaseDre } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
 import PLTable from "../components/PLTable";
 import ErrorState from "../components/ErrorState";
+import DetalheCelulaModal from "../components/DetalheCelulaModal";
 import { theme } from "../theme";
 import { exportTableToExcel, exportPLTableToExcel } from "../utils/exportExcel";
 import { periodoLabel } from "../utils/format";
+
+const AGRUPAR_PARAM_KEY: Record<string, string> = {
+  empresa: "empresas", vertical: "verticais", fonte: "fontes", macro_area: "macro_areas",
+};
 
 /* Timer que aparece após 5s de loading para informar sobre cold start */
 function WarmUpNotice() {
@@ -72,6 +77,30 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   const [filtersReady, setFiltersReady] = useState(false);
   const [showFilters, setShowFilters]   = useState(false);
   const initialLoad = useRef(true);
+
+  const [drillOpen, setDrillOpen]       = useState(false);
+  const [drillFilters, setDrillFilters] = useState<Record<string, string>>({});
+  const [drillTitulo, setDrillTitulo]   = useState("");
+  const [drillMetric, setDrillMetric]   = useState("");
+
+  const openDrill = (grupo: string, prefix: string, metric: string, metricLabel: string) => {
+    const filters: Record<string, string> = {};
+    if (selPeriodos.length) filters.periodos = selPeriodos.join(",");
+    if (selEmpresas.length) filters.empresas = selEmpresas.join(",");
+    if (selFontes.length)   filters.fontes   = selFontes.join(",");
+    // Filtro do grupo clicado
+    const paramKey = AGRUPAR_PARAM_KEY[agruparPor] || "empresas";
+    filters[paramKey] = grupo;
+    // Período (se for célula de período específico)
+    if (prefix !== "total") filters.periodos = prefix;
+    // Métrica
+    filters.metric = metric;
+    setDrillFilters(filters);
+    const periodoTxt = prefix === "total" ? "Total" : periodoLabel(prefix);
+    setDrillTitulo(`${grupo} · ${periodoTxt}`);
+    setDrillMetric(metricLabel);
+    setDrillOpen(true);
+  };
 
   const [visibleMetrics, setVisibleMetrics] = useState<Set<Metric>>(() => {
     try {
@@ -176,6 +205,30 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
 
   const columnsDef = useMemo(() => {
     type MetricKey = "receita" | "custo" | "margem" | "margem_pct" | "valor_liquido" | "horas";
+    // Mapeia métrica do frontend → métrica que o backend entende como filtro
+    const metricApiKey: Record<string, string> = {
+      receita: "receita", custo: "custo_rateado", margem: "",
+      valor_liquido: "valor_liquido", horas: "horas", margem_pct: "",
+    };
+    const metricLabelMap: Record<string, string> = {
+      receita: "Receita", custo: "Custo Rateado", margem: "Margem",
+      valor_liquido: "Lucro Bruto", horas: "Horas", margem_pct: "Margem %",
+    };
+    const clickable = (prefix: string, metric: MetricKey, content: React.ReactNode, row: any, v: any) => (
+      <span
+        style={{ cursor: row?._isTotal ? "default" : "pointer", borderBottom: row?._isTotal ? "none" : "1px dashed transparent" }}
+        onClick={(e) => {
+          if (row?._isTotal) return;
+          if (!v && v !== 0) return;
+          e.stopPropagation();
+          openDrill(row.grupo, prefix, metricApiKey[metric] || "", metricLabelMap[metric]);
+        }}
+        onMouseEnter={(e) => { if (!row?._isTotal) (e.currentTarget as HTMLElement).style.borderBottom = "1px dashed #6b7fa3"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderBottom = "1px dashed transparent"; }}
+      >
+        {content}
+      </span>
+    );
     const colDef = (prefix: string, metric: MetricKey, bold: boolean) => {
       const isHoras = metric === "horas";
       return {
@@ -184,13 +237,13 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         align: "right" as const,
         sorter: (a: any, b: any) =>
           (Number(a[`${prefix}_${metric}`]) || 0) - (Number(b[`${prefix}_${metric}`]) || 0),
-        render: (v: number) => (
+        render: (v: number, row: any) => clickable(prefix, metric, (
           <span style={{ fontWeight: bold ? 700 : 500, color: isHoras ? theme.text : (v || 0) < 0 ? "#c0392b" : theme.text }}>
             {isHoras
               ? (v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
               : brl(v || 0)}
           </span>
-        ),
+        ), row, v),
       };
     };
 
@@ -220,7 +273,9 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
           const col = colDef(prefix, m.metric as any, bold);
           if (m.metric === "margem") {
             return { ...col, title: m.title, width: m.width,
-              render: (v: number) => <span style={{ fontWeight: bold ? 700 : 600, color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(v || 0)}</span>,
+              render: (v: number, row: any) => clickable(prefix, m.metric as MetricKey, (
+                <span style={{ fontWeight: bold ? 700 : 600, color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(v || 0)}</span>
+              ), row, v),
             };
           }
           return { ...col, title: m.title, width: m.width };
@@ -245,7 +300,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         children: children("total", true),
       },
     ];
-  }, [periodos, visibleMetrics, agruparPor]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodos, visibleMetrics, agruparPor, selPeriodos, selEmpresas, selFontes]);
 
   const opt = (arr: string[]) => arr.map(v => ({ label: v, value: v }));
   const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0;
@@ -346,6 +402,13 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
           )}
         />
       )}
+      <DetalheCelulaModal
+        open={drillOpen}
+        onClose={() => setDrillOpen(false)}
+        filters={drillFilters}
+        titulo={drillTitulo}
+        metricLabel={drillMetric}
+      />
     </div>
   );
 }

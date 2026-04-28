@@ -6,6 +6,7 @@ import { getNovaBaseFilters, getNovaBaseMargemClientes, getNovaBaseMargemCliente
 import { exportTableToExcel } from "../utils/exportExcel";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
+import DetalheCelulaModal from "../components/DetalheCelulaModal";
 
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -44,6 +45,25 @@ export default function NovaBaseMargemTab() {
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null);
   const [detalhe, setDetalhe]         = useState<any[]>([]);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+
+  const [drillOpen, setDrillOpen]       = useState(false);
+  const [drillFilters, setDrillFilters] = useState<Record<string, string>>({});
+  const [drillTitulo, setDrillTitulo]   = useState("");
+  const [drillMetric, setDrillMetric]   = useState("");
+
+  const openDrill = (cliente: string, prefix: string, metric: string, metricLabel: string) => {
+    const filters: Record<string, string> = { nome_cliente: cliente };
+    if (selPeriodos.length) filters.periodos = selPeriodos.join(",");
+    if (selEmpresas.length) filters.empresas = selEmpresas.join(",");
+    if (selVerticais.length) filters.verticais = selVerticais.join(",");
+    if (prefix !== "total") filters.periodos = prefix;
+    if (metric) filters.metric = metric;
+    setDrillFilters(filters);
+    const periodoTxt = prefix === "total" ? "Total" : periodoLabel(prefix);
+    setDrillTitulo(`${toTitleCase(cliente)} · ${periodoTxt}`);
+    setDrillMetric(metricLabel);
+    setDrillOpen(true);
+  };
 
   const [visibleMetrics, setVisibleMetrics] = useState<Set<Metric>>(() => {
     try {
@@ -165,6 +185,30 @@ export default function NovaBaseMargemTab() {
   }, [pivotClientes, periodosMensal, isMensal]);
 
   const clienteCols = useMemo(() => {
+    const metricApiKey: Record<string, string> = {
+      receita: "receita", custo_rateado: "custo_rateado", margem: "",
+      margem_pct: "", horas: "horas",
+    };
+    const metricLabelMap: Record<string, string> = {
+      receita: "Receita", custo_rateado: "Custo Rateado", margem: "Margem",
+      margem_pct: "Margem %", horas: "Horas",
+    };
+    const clickable = (row: any, prefix: string, metric: string, content: React.ReactNode, v: any) => (
+      <span
+        style={{ cursor: row?._isTotal ? "default" : "pointer", borderBottom: "1px dashed transparent" }}
+        onClick={(e) => {
+          if (row?._isTotal) return;
+          if (!v && v !== 0) return;
+          e.stopPropagation();
+          openDrill(row.nome_cliente, prefix, metricApiKey[metric] || "", metricLabelMap[metric]);
+        }}
+        onMouseEnter={(e) => { if (!row?._isTotal) (e.currentTarget as HTMLElement).style.borderBottom = "1px dashed #6b7fa3"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderBottom = "1px dashed transparent"; }}
+      >
+        {content}
+      </span>
+    );
+
     if (!isMensal) {
       const cols: any[] = [
         {
@@ -180,31 +224,31 @@ export default function NovaBaseMargemTab() {
       const metricCols: Record<Metric, any> = {
         receita: { title: "Receita", dataIndex: "receita", key: "receita", align: "right" as const, width: 150,
           sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
-          render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
+          render: (v: number, row: any) => clickable(row, "total", "receita", <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span>, v) },
         custo_rateado: { title: "Custo Rateado", dataIndex: "custo_rateado", key: "custo_rateado", align: "right" as const, width: 150,
           sorter: (a: any, b: any) => (a.custo_rateado || 0) - (b.custo_rateado || 0),
-          render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
+          render: (v: number, row: any) => clickable(row, "total", "custo_rateado", <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span>, v) },
         margem: { title: "Margem", dataIndex: "margem", key: "margem", align: "right" as const, width: 150,
           sorter: (a: any, b: any) => (a.margem || 0) - (b.margem || 0),
-          render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
+          render: (v: number, row: any) => clickable(row, "total", "margem", <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span>, v) },
         margem_pct: { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", align: "right" as const, width: 100,
           sorter: (a: any, b: any) => (a.margem_pct || 0) - (b.margem_pct || 0),
           render: (v: any) => <MargemTag value={v} /> },
         horas: { title: "Horas", dataIndex: "horas", key: "horas", align: "right" as const, width: 100,
           sorter: (a: any, b: any) => (a.horas || 0) - (b.horas || 0),
-          render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
+          render: (v: number, row: any) => clickable(row, "total", "horas", <span>{(v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</span>, v) },
       };
       ALL_METRICS.forEach(m => { if (visibleMetrics.has(m)) cols.push(metricCols[m]); });
       return cols;
     }
 
     // Pivot layout (Por Mês) — igual Resumo por BU
-    const metricDefs: Record<Metric, { title: string; width: number; render: (v: any) => React.ReactNode }> = {
-      receita:       { title: "Receita", width: 120, render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
-      custo_rateado: { title: "Custo",   width: 120, render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
-      margem:        { title: "Margem",  width: 120, render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
+    const metricDefs: Record<Metric, { title: string; width: number; render: (v: any, row: any, prefix: string) => React.ReactNode }> = {
+      receita:       { title: "Receita", width: 120, render: (v, row, p) => clickable(row, p, "receita", <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span>, v) },
+      custo_rateado: { title: "Custo",   width: 120, render: (v, row, p) => clickable(row, p, "custo_rateado", <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span>, v) },
+      margem:        { title: "Margem",  width: 120, render: (v, row, p) => clickable(row, p, "margem", <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span>, v) },
       margem_pct:    { title: "%",       width: 70,  render: (v: any)    => <MargemTag value={v} /> },
-      horas:         { title: "Horas",   width: 90,  render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
+      horas:         { title: "Horas",   width: 90,  render: (v, row, p) => clickable(row, p, "horas", <span>{(v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</span>, v) },
     };
     const children = (prefix: string) =>
       ALL_METRICS.filter(m => visibleMetrics.has(m)).map(m => ({
@@ -214,7 +258,7 @@ export default function NovaBaseMargemTab() {
         width: metricDefs[m].width,
         align: "right" as const,
         sorter: (a: any, b: any) => (Number(a[`${prefix}_${m}`]) || 0) - (Number(b[`${prefix}_${m}`]) || 0),
-        render: metricDefs[m].render,
+        render: (v: any, row: any) => metricDefs[m].render(v, row, prefix),
       }));
 
     const periodoCols = periodosMensal.map(p => ({
@@ -235,7 +279,7 @@ export default function NovaBaseMargemTab() {
       { title: "Total", key: "__total__", children: children("total") },
     ];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMensal, visibleMetrics, periodosMensal]);
+  }, [isMensal, visibleMetrics, periodosMensal, selPeriodos, selEmpresas, selVerticais]);
 
   const detalheCols: any[] = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 160,
@@ -418,6 +462,13 @@ export default function NovaBaseMargemTab() {
           }}
         />
       )}
+      <DetalheCelulaModal
+        open={drillOpen}
+        onClose={() => setDrillOpen(false)}
+        filters={drillFilters}
+        titulo={drillTitulo}
+        metricLabel={drillMetric}
+      />
     </div>
   );
 }
