@@ -2363,6 +2363,7 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
     df_cg_desp = df[df["_is_cg"] & df["_has_ma"]]
     if _macro_area_filter:
         df_cg_desp = df_cg_desp[df_cg_desp["macro_area"].isin(_macro_area_filter)]
+    agg_desp_total = pd.Series(0.0, index=all_periods)
     if not df_cg_desp.empty:
         agg_ma_raw = (
             df_cg_desp
@@ -2371,13 +2372,22 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
             .reset_index()
         )
         if not agg_ma_raw.empty:
-            rows.append({"name": "Despesas", "is_subtotal": False, "is_pct": False, "is_group": True, "values": zero_vals()})
+            # Total despesas por período (linha "Despesas" agora carrega o total)
+            agg_desp_total = (df_cg_desp
+                              .groupby("periodo")["custo_rateado"]
+                              .sum()
+                              .reindex(all_periods, fill_value=0))
+            rows.append({"name": "Despesas", "is_subtotal": True, "is_pct": False, "is_group": True, "values": row_vals(agg_desp_total)})
             for ma in sorted(agg_ma_raw["macro_area"].unique().tolist()):
                 sub_cus = (agg_ma_raw[agg_ma_raw["macro_area"] == ma]
                            .set_index("periodo")["custo_rateado"]
                            .reindex(all_periods, fill_value=0))
                 if float(sub_cus.sum()) != 0:
                     rows.append({"name": f"  {ma}", "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(sub_cus)})
+
+    # ── EBITDA: Gross Profit + Despesas (despesa é negativa, somando = subtraindo) ─
+    agg_ebitda = agg_gp + agg_desp_total
+    rows.append({"name": "EBITDA", "is_subtotal": True, "is_pct": False, "is_group": False, "values": row_vals(agg_ebitda)})
 
     return _sanitize({"rows": rows, "columns": columns})
 
