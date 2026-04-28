@@ -54,15 +54,21 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS: lista de origens permitidas via env var ALLOWED_ORIGINS (separadas por vírgula).
-# Em dev: http://localhost:3000. Em prod: https://<seu-vercel>.vercel.app
+# Default cobre o dominio do Vercel e dev local. Override via env var se mudar.
 _allowed_origins_env = os.environ.get(
     "ALLOWED_ORIGINS",
-    "http://localhost:3000,https://worker-dashboard.vercel.app,https://worker-dashboard-amanda.vercel.app"
+    "http://localhost:3000,https://fcamara.vercel.app"
 )
 _ALLOWED_ORIGINS = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+# Permite preview deploys do Vercel (vercel.app) via regex
+_ALLOWED_ORIGIN_REGEX = os.environ.get(
+    "ALLOWED_ORIGIN_REGEX",
+    r"https://.*\.vercel\.app"
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
+    allow_origin_regex=_ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
