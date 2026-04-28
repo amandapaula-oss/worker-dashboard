@@ -38,29 +38,57 @@ def _sanitize(obj):
 app = FastAPI()
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# CORS: lista de origens permitidas via env var ALLOWED_ORIGINS (separadas por vírgula).
+# Em dev: http://localhost:3000. Em prod: https://<seu-vercel>.vercel.app
+_allowed_origins_env = os.environ.get(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,https://worker-dashboard.vercel.app,https://worker-dashboard-amanda.vercel.app"
+)
+_ALLOWED_ORIGINS = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# Headers de segurança em todas as respostas
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
+
+# Modo debug controla se o traceback é exposto na resposta (default: false em prod)
+_DEBUG = os.environ.get("DEBUG_ERRORS", "").lower() in ("1", "true", "yes")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     tb = traceback.format_exc()
-    print(f"[ERROR] {request.url} → {exc}\n{tb}")
-    return JSONResponse(
-        status_code=500,
-        content={"detail": str(exc), "traceback": tb},
-        headers={"Access-Control-Allow-Origin": "*"},
-    )
+    # Loga internamente o stacktrace mas SEM URL completa (pode ter token em query)
+    print(f"[ERROR] {request.method} {request.url.path} → {exc}\n{tb}")
+    content = {"detail": "Erro interno do servidor"}
+    if _DEBUG:
+        content["traceback"] = tb
+        content["error"] = str(exc)
+    return JSONResponse(status_code=500, content=content)
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "wk_secret_key_2024_react")
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is required. "
+        "Generate one: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+    )
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_MINUTES = 480
+TOKEN_EXPIRE_MINUTES = int(os.environ.get("TOKEN_EXPIRE_MINUTES", "480"))
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
