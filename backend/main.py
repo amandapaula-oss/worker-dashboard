@@ -5,6 +5,9 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import bcrypt
 import pandas as pd
 import gdown
@@ -36,6 +39,17 @@ def _sanitize(obj):
     return obj
 
 app = FastAPI()
+
+# Rate limiter (in-memory, conta por IP). Reset quando o backend reinicia.
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Muitas tentativas. Aguarde alguns minutos e tente novamente."},
+    )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -116,7 +130,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401)
 
 @app.post("/auth/login")
-def login(form: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("5/minute")
+def login(request: Request, form: OAuth2PasswordRequestForm = Depends()):
     user = USERS.get(form.username)
     if not user or not verify_password(form.password, user["hashed_password"]):
         raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
@@ -127,15 +142,15 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 _cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None, "clt": None, "financeiro": None, "nova_base": None}
 _ready: dict = {"sap": False, "nexus": False}
 
-CLT_FOLDER_ID = "1aEHQAARXkf_BZbc5j0Z8Tt0s5Fmk6tSu"
+CLT_FOLDER_ID = os.environ.get("CLT_FOLDER_ID", "1aEHQAARXkf_BZbc5j0Z8Tt0s5Fmk6tSu")
 CLT_SHEETS    = ["FC", "NX", "HY", "DOJO", "ND", "SGA"]
 CLT_MONTHS_PT = ["janeiro","fevereiro","março","abril","maio","junho",
                  "julho","agosto","setembro","outubro","novembro","dezembro"]
 CLT_MONTHS_BR = ["Jan","Fev","Mar","Abr","Mai","Jun",
                  "Jul","Ago","Set","Out","Nov","Dez"]
 
-WORKER_ID   = "13ORJ-dpxKXVF6sVy3Ex0Fp-hOLhxM8H_"
-PERSONAL_ID = "1qXu1bjWKqL3tNMYUAFjoMSiSle417WPF"
+WORKER_ID   = os.environ.get("WORKER_ID", "13ORJ-dpxKXVF6sVy3Ex0Fp-hOLhxM8H_")
+PERSONAL_ID = os.environ.get("PERSONAL_ID", "1qXu1bjWKqL3tNMYUAFjoMSiSle417WPF")
 SAP_ID      = "1Lm-G9ZJUC2Hzc9iIKIb6LCemYJqtzNQO"
 NEXUS_ID    = "1BBjfSYTGLAeuxMih4CDMgyfmVDGfkxkW"
 
@@ -1915,6 +1930,39 @@ async def upload_nova_base(user=Depends(get_current_user)):
 # Actual upload with File dependency
 from fastapi import UploadFile, File as FastFile
 
+_MAX_UPLOAD_SIZE = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "50")) * 1024 * 1024  # default 50MB
+
+# Magic bytes pra validacao real de tipo de arquivo (nao confiar so na extensao)
+_FILE_SIGNATURES = {
+    "xlsx": b"PK\x03\x04",         # zip-based (xlsx, docx, etc)
+    "xls":  b"\xd0\xcf\x11\xe0",   # MS OLE Compound File
+}
+
+def _detect_file_type(content: bytes, filename: str) -> str:
+    """Retorna 'csv', 'xlsx', 'xls' ou levanta HTTPException."""
+    fname = (filename or "").lower()
+    head = content[:8]
+    if head.startswith(_FILE_SIGNATURES["xlsx"]):
+        if not fname.endswith(".xlsx"):
+            raise HTTPException(400, "Arquivo é xlsx mas extensão não bate")
+        return "xlsx"
+    if head.startswith(_FILE_SIGNATURES["xls"]):
+        if not fname.endswith(".xls"):
+            raise HTTPException(400, "Arquivo é xls mas extensão não bate")
+        return "xls"
+    # CSV: assume texto. Tenta decodificar pra detectar se é texto válido.
+    if fname.endswith(".csv"):
+        try:
+            content[:1024].decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                content[:1024].decode("latin-1")
+            except UnicodeDecodeError:
+                raise HTTPException(400, "Arquivo .csv com encoding inválido")
+        return "csv"
+    raise HTTPException(400, f"Formato não suportado. Use .csv ou .xlsx")
+
+
 @app.post("/api/nova-base/upload-file")
 async def upload_nova_base_file(
     file: UploadFile = FastFile(...),
@@ -1925,13 +1973,16 @@ async def upload_nova_base_file(
     import uuid, io, math
     import numpy as np
     content = await file.read()
+    if len(content) > _MAX_UPLOAD_SIZE:
+        raise HTTPException(413, f"Arquivo muito grande. Limite: {_MAX_UPLOAD_SIZE // 1024 // 1024}MB")
+    if len(content) == 0:
+        raise HTTPException(400, "Arquivo vazio")
     fname = file.filename or ""
-    if fname.endswith(".csv"):
+    file_type = _detect_file_type(content, fname)
+    if file_type == "csv":
         df = pd.read_csv(io.BytesIO(content), dtype=str, low_memory=False)
-    elif fname.endswith((".xlsx", ".xls")):
-        df = pd.read_excel(io.BytesIO(content), dtype=str)
     else:
-        raise HTTPException(400, f"Formato não suportado: {fname}. Use .csv ou .xlsx")
+        df = pd.read_excel(io.BytesIO(content), dtype=str)
 
     # Validate required columns
     required = {"periodo", "empresa", "receita"}
