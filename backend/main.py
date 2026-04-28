@@ -2080,6 +2080,12 @@ def get_nova_base_resumo(
     )
     agg = agg.rename(columns={group_col: "grupo"})
 
+    # Remove grupos sem nenhum dado real (ex: empresas que só têm Custo Socios,
+    # como Distrito, Mult, Avanti — receita=0, custo=0, horas=0 em todos os periodos)
+    grupo_totals = agg.groupby("grupo")[["receita","custo_rateado","horas"]].sum().abs().sum(axis=1)
+    grupos_com_dados = grupo_totals[grupo_totals > 0].index
+    agg = agg[agg["grupo"].isin(grupos_com_dados)]
+
     # Remove períodos sem nenhum dado real (todos os valores zerados)
     if not periodos:
         periodo_totals = agg.groupby("periodo")[["receita","custo_rateado","horas"]].sum().abs().sum(axis=1)
