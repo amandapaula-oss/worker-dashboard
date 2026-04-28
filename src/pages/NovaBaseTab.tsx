@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { Table, Select, Space, Typography, Tag, Button } from "antd";
-import { FilterOutlined, DownloadOutlined } from "@ant-design/icons";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { Table, Select, Space, Typography, Tag, Button, Input } from "antd";
+import { FilterOutlined, DownloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { getNovaBaseFilters, getNovaBaseData, downloadNovaBase } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
 import { theme } from "../theme";
@@ -45,6 +45,7 @@ export default function NovaBaseTab() {
   const [error, setError]                   = useState<string | null>(null);
   const [filtersReady, setFiltersReady]     = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  const [search, setSearch]                 = useState("");
 
   useEffect(() => {
     getNovaBaseFilters()
@@ -97,6 +98,16 @@ export default function NovaBaseTab() {
   ];
 
   const opt = (arr: string[]) => arr.map(v => ({ label: v, value: v }));
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    const fields = ["nome_pessoa", "nome_cliente", "pep_base", "empresa", "fonte",
+                    "area", "macro_area", "vertical", "tipo_contrato", "Comentarios"];
+    return rows.filter(r =>
+      fields.some(f => String(r[f] ?? "").toLowerCase().includes(q))
+    );
+  }, [rows, search]);
 
   return (
     <div>
@@ -154,10 +165,20 @@ export default function NovaBaseTab() {
       </div>
 
       <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
+        <Input
+          prefix={<SearchOutlined />}
+          placeholder="Buscar por pessoa, cliente, PEP, empresa, área..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          allowClear
+          style={{ maxWidth: 360 }}
+        />
         <Space>
           <Text type="secondary" style={{ fontSize: "0.82rem" }}>
-            <FilterOutlined /> {total.toLocaleString("pt-BR")} registros
-            {truncated && <Tag color="warning" style={{ marginLeft: 8 }}>Exibindo primeiros 5.000</Tag>}
+            <FilterOutlined /> {filteredRows.length.toLocaleString("pt-BR")}
+            {search && filteredRows.length !== rows.length && ` de ${rows.length.toLocaleString("pt-BR")}`}
+            {" "}registros
+            {truncated && !search && <Tag color="warning" style={{ marginLeft: 8 }}>Exibindo primeiros 5.000</Tag>}
           </Text>
         </Space>
       </div>
@@ -168,12 +189,12 @@ export default function NovaBaseTab() {
         </div>
       ) : (
         <Table
-          dataSource={rows}
+          dataSource={filteredRows}
           columns={columns}
           rowKey={(_, i) => String(i)}
           size="small"
           scroll={{ x: 2200, y: 520 }}
-          pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
         />
       )}
     </div>
