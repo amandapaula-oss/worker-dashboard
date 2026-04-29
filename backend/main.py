@@ -1639,6 +1639,15 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     nome_norm = _norm(df["nome_pessoa"])
     df["_pessoa_key"] = nome_norm
 
+    # Sócios (pessoa em Custo Socios) → tipo_contrato="Socio" em TODAS as linhas dela.
+    # Prioridade absoluta sobre CLT/PJ porque Sócio é regime de remuneração distinto.
+    if "tipo_contrato" in df.columns:
+        socios_keys = set(df.loc[df["fonte"].astype(str) == "Custo Socios", "_pessoa_key"]
+                          .dropna().unique())
+        socios_keys.discard("")
+        if socios_keys:
+            df.loc[df["_pessoa_key"].isin(socios_keys), "tipo_contrato"] = "Socio"
+
     # Resolve tipo_contrato="CLT/PJ" (ambíguo, 173 linhas / 35 pessoas):
     # - Se em outras linhas a pessoa só aparece como CLT → vira CLT
     # - Se só como PJ → vira PJ
