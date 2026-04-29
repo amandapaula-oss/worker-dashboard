@@ -1616,6 +1616,55 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
     return map_nome, map_id
 
 
+def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
+    """Propaga campos cadastrais (tipo_contrato, billable_category, area, macro_area,
+    funcao) entre todas as linhas da mesma pessoa.
+
+    Prioridade: Mapa Pessoas (CLTs/PJs) > demais fontes. Em caso de conflito, mantém
+    o valor de Mapa Pessoas.
+
+    Uma pessoa cadastrada como CLT/FP&A/Backoffice no Mapa Pessoas aparece com
+    esses campos em TODAS as suas linhas, mesmo nas outras fontes.
+    """
+    import unicodedata
+    if "nome_pessoa" not in df.columns:
+        return df
+
+    def _norm(s):
+        s = s.fillna("").astype(str).str.upper().str.strip()
+        s = s.str.replace(r"\s+", " ", regex=True)
+        s = s.apply(lambda x: unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode("ascii") if x else x)
+        return s
+
+    nome_norm = _norm(df["nome_pessoa"])
+    df["_pessoa_key"] = nome_norm
+
+    campos = ["tipo_contrato", "billable_category", "area", "macro_area", "funcao"]
+    fontes_mapa = ["CLTs", "PJs"]
+
+    for campo in campos:
+        if campo not in df.columns:
+            continue
+        tem_valor = df[campo].notna() & (df[campo].astype(str).str.strip() != "") & (df["_pessoa_key"] != "")
+        is_mapa = df["fonte"].astype(str).isin(fontes_mapa) & tem_valor
+        # Prioridade Mapa
+        mapa_dict = (df[is_mapa].drop_duplicates("_pessoa_key")
+                     .set_index("_pessoa_key")[campo].to_dict())
+        # Fallback outras fontes
+        outras_dict = (df[tem_valor & ~is_mapa].drop_duplicates("_pessoa_key")
+                       .set_index("_pessoa_key")[campo].to_dict())
+        # Mescla: outras primeiro, Mapa sobrescreve (prioridade)
+        valor_dict = {**outras_dict, **mapa_dict}
+        valor_dict.pop("", None)
+
+        valor_propagado = nome_norm.map(valor_dict)
+        mask_vazio = df[campo].isna() | (df[campo].astype(str).str.strip() == "")
+        df.loc[mask_vazio, campo] = valor_propagado[mask_vazio]
+
+    df = df.drop(columns=["_pessoa_key"], errors="ignore")
+    return df
+
+
 def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     """Rateia custos de CLTs/PJs proporcionalmente às horas apontadas em 'racionais' (por PEP).
 
@@ -1858,6 +1907,7 @@ def _get_nova_base() -> pd.DataFrame:
                     if "empresa" in df.columns:
                         mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
                         df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
+                df = _enriquecer_dados_pessoa(df)
                 df = _aplicar_rateio_custos(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
@@ -1948,6 +1998,7 @@ def _get_nova_base() -> pd.DataFrame:
             if "empresa" in df.columns:
                 mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
                 df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
+        df = _enriquecer_dados_pessoa(df)
         df = _aplicar_rateio_custos(df)
         _cache["nova_base"] = df
     return _cache["nova_base"]
