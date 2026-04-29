@@ -18,8 +18,6 @@ import ClientesTab from "./ClientesTab";
 import NovaBaseTab from "./NovaBaseTab";
 import NovaBaseResumoTab, { NovaDreTab } from "./NovaBaseResumoTab";
 import NovaBaseMargemTab from "./NovaBaseMargemTab";
-import PessoasTab from "./PessoasTab";
-import RelacoesTab from "./RelacoesTab";
 import { uploadNovaBase, clearNovaBaseCache } from "../api";
 import { ReloadOutlined } from "@ant-design/icons";
 
@@ -200,7 +198,7 @@ function WorkerTab({ dark }: { dark: boolean }) {
   );
 }
 
-type Section = "worker" | "cockpit" | "metas" | "nova_base" | "dados" | null;
+type Section = "worker" | "cockpit" | "metas" | "nova_base" | null;
 
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
@@ -271,7 +269,6 @@ export default function Dashboard() {
                 { key: "cockpit",   icon: <BankOutlined />,      title: "Financeiro",             desc: "DRE, P&L por Stream e Matricial",             sub: "SAP S4 · Nexus" },
                 { key: "nova_base", icon: <DatabaseOutlined />,  title: "Financeiro - Nova Base", desc: "Base unificada 2026 com todas as fontes",     sub: "Nova Base · 2026" },
                 { key: "metas",     icon: <AimOutlined />,       title: "Apuração de Metas",      desc: "Acompanhamento e apuração de metas Q4 e Q3", sub: "Margem · Clientes · Check" },
-                { key: "dados",     icon: <TeamOutlined />,      title: "Dados",                  desc: "Cadastro de pessoas e relações de centro de custo", sub: "Pessoas · Relações" },
               ] as const).map(({ key, icon, title, desc, sub }) => (
                 <div
                   key={key}
@@ -373,18 +370,6 @@ export default function Dashboard() {
                 { key: "streams",   label: <span><HeatMapOutlined /> P&L por Stream</span>,  children: <StreamsTab /> },
                 { key: "matricial", label: <span><SlidersOutlined /> P&L Matricial</span>,   children: <MatricialTab /> },
                 { key: "sap",       label: <span><DatabaseOutlined /> Base SAP S4</span>,    children: <SapTab /> },
-              ]}
-            />
-          )}
-
-          {section === "dados" && (
-            <Tabs
-              defaultActiveKey="pessoas"
-              type="card"
-              size="large"
-              items={[
-                { key: "pessoas",  label: <span><UserOutlined /> Pessoas</span>,    children: <PessoasTab /> },
-                { key: "relacoes", label: <span><ApartmentOutlined /> Relações</span>, children: <RelacoesTab /> },
               ]}
             />
           )}

@@ -315,11 +315,3 @@ export async function downloadApuracaoPdf(nome: string): Promise<void> {
   a.click();
   URL.revokeObjectURL(url);
 }
-
-export async function getPessoas() {
-  return apiFetch(`/api/pessoas`);
-}
-
-export async function getRelacoes() {
-  return apiFetch(`/api/relacoes`);
-}
