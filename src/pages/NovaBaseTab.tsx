@@ -46,6 +46,8 @@ export default function NovaBaseTab() {
   const [filtersReady, setFiltersReady]     = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [search, setSearch]                 = useState("");
+  const [pageSize, setPageSize]             = useState(50);
+  const [currentPage, setCurrentPage]       = useState(1);
 
   useEffect(() => {
     getNovaBaseFilters()
@@ -194,7 +196,22 @@ export default function NovaBaseTab() {
           rowKey={(_, i) => String(i)}
           size="small"
           scroll={{ x: 2200, y: 520 }}
-          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50","100","200"] }}
+          pagination={{
+            pageSize,
+            current: currentPage,
+            showSizeChanger: true,
+            pageSizeOptions: ["50", "100", "200"],
+            total: filteredRows.length,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            },
+            onShowSizeChange: (_p, size) => {
+              setCurrentPage(1);
+              setPageSize(size);
+            },
+            showTotal: (total, range) => `${range[0]}-${range[1]} de ${total}`,
+          }}
         />
       )}
     </div>
