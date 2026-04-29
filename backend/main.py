@@ -1636,6 +1636,11 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     if "fonte" not in df.columns:
         return df
 
+    # Mapa Pessoas (fontes CLTs e PJs) é apenas cadastro/de-para — não fonte de custo.
+    # Custo CLT vem de custo_gerencial; custo PJ vem de custo_project (taxa × horas).
+    if "custo_rateado" in df.columns:
+        df.loc[df["fonte"].astype(str).isin(["CLTs", "PJs"]), "custo_rateado"] = 0
+
     # Normaliza 3 identificadores por linha: CPF (só dígitos), nome uppercase, numero_pessoal
     cpf_raw = df.get("cpf", pd.Series([""] * len(df), index=df.index)).astype(str)
     cpf_digits = cpf_raw.str.replace(r"[^\d]", "", regex=True)
@@ -1698,20 +1703,16 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     is_rac = df["fonte"].astype(str) == "racionais"
 
     # 1. Custo total por pessoa × período:
-    #    - Primeiro CLTs/PJs/custo_gerencial (fonte oficial SAP — inclui encargos)
-    #    - Fallback: custo_project.taxa × horas (pra PJs reais de 2025 que só aparecem
-    #      como apontamento). Ignorado pra quem já tem CLT/gerencial (evita taxa fake).
-    periodos_com_clt = set(df.loc[df["fonte"].astype(str).isin(["CLTs", "PJs"]), "_periodo_str"].unique())
-    is_custo_total_primary = df["_pk"].notna() & (
-        df["fonte"].astype(str).isin(["CLTs", "PJs"]) |
-        ((df["fonte"].astype(str) == "custo_gerencial") & ~df["_periodo_str"].isin(periodos_com_clt))
-    )
-    custo_total_pessoa = (df[is_custo_total_primary]
-                          .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
-                          .rename("_custo_total").reset_index())
+    #    - CLT: vem de custo_gerencial (planilha SAP — só de CLTs)
+    #    - PJ:  vem de custo_project (taxa_hora × horas_apontadas) — só pra quem
+    #           NÃO está em custo_gerencial nesse mês (evita CLTs com taxa fake)
+    #    - CLTs/PJs do Mapa Pessoas NÃO entram como custo (são apenas cadastro/de-para)
+    is_custo_ger = (df["fonte"].astype(str) == "custo_gerencial") & df["_pk"].notna()
+    custo_ger_pessoa = (df[is_custo_ger]
+                        .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
+                        .rename("_custo_total").reset_index())
 
-    # Fallback: pessoas SEM CLT/gerencial mas COM custo_project (PJs reais 2025)
-    # Soma taxa × horas do custo_project
+    # custo_project: taxa_hora × horas
     taxa_cp = pd.to_numeric(df.get("taxa_hora", pd.Series(0, index=df.index)), errors="coerce").fillna(0) if "taxa_hora" in df.columns else pd.Series(0, index=df.index)
     hrs_cp = pd.to_numeric(df.get("horas", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
     df["_custo_cp_raw"] = np.where(is_cp, -(taxa_cp * hrs_cp), 0)
@@ -1719,16 +1720,31 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
                        .groupby(["_pk", "_periodo_str"])["_custo_cp_raw"].sum()
                        .rename("_custo_total_cp").reset_index())
 
-    df = df.merge(custo_total_pessoa, on=["_pk", "_periodo_str"], how="left")
+    df = df.merge(custo_ger_pessoa, on=["_pk", "_periodo_str"], how="left")
     df["_custo_total"] = df["_custo_total"].fillna(0)
     df = df.merge(custo_cp_pessoa, on=["_pk", "_periodo_str"], how="left")
     df["_custo_total_cp"] = df["_custo_total_cp"].fillna(0)
 
-    # Se não tem CLT/gerencial (_custo_total == 0), usa custo_project como fallback
+    # Se nao tem custo_gerencial (CLT), cai no custo_project (PJ)
+    # Pra CLTs que aparecem em custo_project com taxa fake, custo_gerencial > 0 ganha
     df["_custo_total"] = np.where(
         df["_custo_total"] == 0,
         df["_custo_total_cp"],
         df["_custo_total"],
+    )
+
+    # Marca pessoa-periodo que tem custo_gerencial (CLT)
+    custo_ger_keys = custo_ger_pessoa[["_pk", "_periodo_str"]].drop_duplicates()
+    custo_ger_keys["_eh_clt"] = True
+    df = df.merge(custo_ger_keys, on=["_pk", "_periodo_str"], how="left")
+    df["_eh_clt"] = df["_eh_clt"].fillna(False)
+
+    # is_custo_total_primary: linha é a fonte de custo daquela pessoa-período.
+    # - custo_gerencial sempre é primary (CLT)
+    # - custo_project é primary SÓ se a pessoa-período NÃO tem custo_gerencial (PJ real)
+    is_custo_total_primary = df["_pk"].notna() & (
+        (df["fonte"].astype(str) == "custo_gerencial") |
+        ((df["fonte"].astype(str) == "custo_project") & ~df["_eh_clt"])
     )
 
     # 2. Horas apontadas totais por pessoa × período (soma de custo_project)
@@ -1773,18 +1789,27 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[is_custo_total_primary & (df["_horas_tot"] > 0), "tag_rateio"] = "Custo distribuido aos PEPs via rateio de horas"
     df.loc[is_custo_total_primary & (df["_horas_tot"] == 0), "tag_rateio"] = "Custo nao rateado (pessoa sem apontamento em custo_project)"
 
-    # 6. Zera custo em custo_gerencial redundante com CLT/PJ no mesmo período
-    pessoa_com_clt = df.loc[df["fonte"].astype(str).isin(["CLTs", "PJs"]) & df["_pk"].notna(), ["_pk", "_periodo_str"]].drop_duplicates()
-    pessoa_com_clt["_tem_clt"] = True
-    df = df.merge(pessoa_com_clt, on=["_pk", "_periodo_str"], how="left")
-    df["_tem_clt"] = df["_tem_clt"].fillna(False)
-    mask_cg_redundante = (df["fonte"].astype(str) == "custo_gerencial") & df["_tem_clt"] & (df["custo_rateado"] != 0)
-    df.loc[mask_cg_redundante, "custo_rateado"] = 0
-    df.loc[mask_cg_redundante, "tag_rateio"] = "Custo zerado (duplicata — pessoa já tem CLT/PJ no período)"
+    # 6. Zera custo nas linhas de custo_project conforme caso:
+    # - Pessoa é CLT (tem custo_gerencial): custo do projeto já está em gerencial → zera
+    # - Pessoa é PJ rateado (foi distribuido pra racionais): zera (custo está em racional)
+    # - Pessoa é PJ sem racional matching: mantém custo na linha (residual de PJ)
+    pessoa_rateada = df[mask_rac_aloca].groupby(["_pk", "_periodo_str"]).size().reset_index()
+    if len(pessoa_rateada) > 0:
+        pessoa_rateada["_foi_rateado"] = True
+        df = df.merge(pessoa_rateada[["_pk", "_periodo_str", "_foi_rateado"]], on=["_pk", "_periodo_str"], how="left")
+    else:
+        df["_foi_rateado"] = False
+    df["_foi_rateado"] = df["_foi_rateado"].fillna(False)
 
-    # 7. Zera custo em custo_project (é só fonte de horas, não de custo)
-    df.loc[is_cp, "custo_rateado"] = 0
-    df.loc[is_cp, "tag_rateio"] = "Fonte de horas apontadas (taxa_hora bugada — custo vai por rateio proporcional)"
+    df.loc[is_cp & df["_eh_clt"], "custo_rateado"] = 0
+    df.loc[is_cp & df["_eh_clt"], "tag_rateio"] = "Fonte de horas (CLT — custo está em custo_gerencial)"
+
+    df.loc[is_cp & ~df["_eh_clt"] & df["_foi_rateado"], "custo_rateado"] = 0
+    df.loc[is_cp & ~df["_eh_clt"] & df["_foi_rateado"], "tag_rateio"] = "PJ — custo distribuído via rateio"
+
+    mask_cp_pj_residual = is_cp & ~df["_eh_clt"] & ~df["_foi_rateado"]
+    df.loc[mask_cp_pj_residual, "custo_rateado"] = df.loc[mask_cp_pj_residual, "_custo_cp_raw"]
+    df.loc[mask_cp_pj_residual, "tag_rateio"] = "PJ — custo na linha custo_project (sem racional matching)"
 
     # Recalcula margem e valor_liquido
     df["margem"] = df["receita"].fillna(0) + df["custo_rateado"].fillna(0)
@@ -1794,7 +1819,8 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.drop(columns=[
         "_pk", "_periodo_str", "_custo_total", "_custo_total_cp", "_custo_cp_raw",
-        "_horas_tot", "_horas_pep", "_cpf", "_nome", "_id", "_mapped_cpf", "_tem_clt",
+        "_horas_tot", "_horas_pep", "_cpf", "_nome", "_id", "_mapped_cpf",
+        "_eh_clt", "_foi_rateado",
     ], errors="ignore")
     return df
 
