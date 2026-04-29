@@ -2205,7 +2205,7 @@ def get_nova_base_filters(user=Depends(get_current_user)):
         return sorted(df[col].dropna().astype(str).str.strip().unique().tolist()) if col in df.columns else []
     return {
         "periodos":        uniq("periodo"),
-        "fontes":          uniq("fonte"),
+        "fontes":          uniq("fonte_dados"),
         "empresas":        uniq("empresa"),
         "macro_areas":     uniq("macro_area"),
         "areas":           uniq("area"),
@@ -2240,7 +2240,7 @@ def get_nova_base_resumo(
 
     if periodos:       df = filt("periodo", periodos)
     if empresas:       df = filt("empresa", empresas)
-    if fontes:         df = filt("fonte", fontes)
+    if fontes:         df = filt("fonte_dados", fontes)
     if macro_areas:    df = filt("macro_area", macro_areas)
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
     if classificacoes: df = filt("classificacao", classificacoes)
@@ -2441,7 +2441,7 @@ def get_nova_base_data(
         return df
 
     if periodos:       df = filt("periodo", periodos)
-    if fontes:         df = filt("fonte", fontes)
+    if fontes:         df = filt("fonte_dados", fontes)
     if empresas:       df = filt("empresa", empresas)
     if macro_areas:    df = filt("macro_area", macro_areas)
     if areas:          df = filt("area", areas)
@@ -2454,7 +2454,7 @@ def get_nova_base_data(
         q = search.strip().lower()
         if q:
             search_cols = ["nome_pessoa", "nome_cliente", "pep_base", "pep", "empresa",
-                           "fonte", "area", "macro_area", "vertical", "tipo_contrato"]
+                           "fonte", "fonte_dados", "area", "macro_area", "vertical", "tipo_contrato"]
             mask = pd.Series(False, index=df.index)
             for c in search_cols:
                 if c in df.columns:
@@ -2502,7 +2502,7 @@ def get_nova_base_data(
     df = df.head(MAX)
 
     cols_show = [
-        "fonte", "periodo", "empresa", "pep_base", "nome_pessoa",
+        "fonte", "fonte_dados", "periodo", "empresa", "pep_base", "nome_pessoa",
         "nome_cliente", "tipo_contrato", "classificacao", "area",
         "centro_lucro", "macro_area", "vertical",
         "receita", "custo_rateado", "horas", "margem",
@@ -2544,7 +2544,7 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
 
     if periodos:    df = filt("periodo", periodos)
     if empresas:    df = filt("empresa", empresas)
-    if fontes:      df = filt("fonte", fontes)
+    if fontes:      df = filt("fonte_dados", fontes)
     # macro_areas filtra só despesas (linhas com macro_area); receita/custo direto não têm macro_area
     _macro_area_filter = [v.strip() for v in macro_areas.split(",") if v.strip()] if macro_areas else []
 
@@ -2674,7 +2674,7 @@ def get_nova_base_margem_cliente(
 
     if periodos:       df = filt("periodo", periodos)
     if empresas:       df = filt("empresa", empresas)
-    if fontes:         df = filt("fonte", fontes)
+    if fontes:         df = filt("fonte_dados", fontes)
     if verticais:      df = filt("vertical", verticais)
     if macro_areas:    df = filt("macro_area", macro_areas)
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
