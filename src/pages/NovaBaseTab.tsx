@@ -24,10 +24,17 @@ const fmt = (v: any) =>
     : String(v);
 
 const FONTE_COLORS: Record<string, string> = {
-  custo_project: "blue", racionais: "green", CLTs: "purple",
+  // Famílias (fonte_familia)
+  "Mapa Pessoas": "purple",
+  "Custo Gerencial": "blue",
+  "Custo Project": "geekblue",
+  "Racionais": "green",
+  "Outros": "default",
+  // Abas (fonte) — fallback
+  custo_project: "geekblue", racionais: "green", CLTs: "purple",
   PJs: "orange", "Custo Socios": "red", "de para": "default",
   TDMs: "cyan", "Equipe Labs": "magenta", "Equipe Play": "volcano",
-  financeiro: "gold", nexus_agg: "lime",
+  financeiro: "gold", nexus_agg: "lime", custo_gerencial: "blue",
 };
 
 export default function NovaBaseTab() {
@@ -81,8 +88,9 @@ export default function NovaBaseTab() {
   }, [search]);
 
   const columns = [
-    { title: "Fonte", dataIndex: "fonte", key: "fonte", width: 130,
+    { title: "Fonte", dataIndex: "fonte_familia", key: "fonte_familia", width: 140,
       render: (v: string) => <Tag color={FONTE_COLORS[v] ?? "default"}>{v}</Tag> },
+    { title: "Aba", dataIndex: "fonte", key: "fonte", width: 130, ellipsis: true },
     { title: "Arquivo", dataIndex: "fonte_dados", key: "fonte_dados", width: 220, ellipsis: true },
     { title: "Período",    dataIndex: "periodo",         key: "periodo",         width: 90 },
     { title: "Empresa",    dataIndex: "empresa",         key: "empresa",         width: 90 },
@@ -115,7 +123,7 @@ export default function NovaBaseTab() {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     const fields = ["nome_pessoa", "nome_cliente", "pep_base", "empresa", "fonte", "fonte_dados",
-                    "area", "macro_area", "vertical", "tipo_contrato", "Comentarios"];
+                    "fonte_familia", "area", "macro_area", "vertical", "tipo_contrato", "Comentarios"];
     return rows.filter(r =>
       fields.some(f => String(r[f] ?? "").toLowerCase().includes(q))
     );
@@ -130,12 +138,11 @@ export default function NovaBaseTab() {
             onChange={setSelPeriodos} options={opt(filters.periodos ?? [])}
             maxTagCount="responsive" placeholder="Todos" allowClear />
         </div>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={labelStyle}>Arquivo Fonte</div>
+        <div style={{ flex: 1, minWidth: 150 }}>
+          <div style={labelStyle}>Fonte</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selFontes}
             onChange={setSelFontes} options={opt(filters.fontes ?? [])}
-            maxTagCount="responsive" placeholder="Todos" allowClear showSearch
-            filterOption={(input, option) => String(option?.label || "").toLowerCase().includes(input.toLowerCase())} />
+            maxTagCount="responsive" placeholder="Todas" allowClear />
         </div>
         <div style={{ flex: 1, minWidth: 130 }}>
           <div style={labelStyle}>Empresa</div>

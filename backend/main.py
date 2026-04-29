@@ -1616,6 +1616,31 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
     return map_nome, map_id
 
 
+def _adicionar_fonte_familia(df: pd.DataFrame) -> pd.DataFrame:
+    """Cria coluna virtual `fonte_familia` agrupando arquivos individuais em famílias:
+    - Mapa Pessoas
+    - Custo Gerencial
+    - Custo Project
+    - Racionais
+    """
+    if "fonte_dados" not in df.columns:
+        df["fonte_familia"] = ""
+        return df
+    fd = df["fonte_dados"].fillna("").astype(str)
+    fonte_col = df.get("fonte", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str)
+    familia = pd.Series("", index=df.index)
+    familia[fd.str.startswith("Mapa Pessoas", na=False)] = "Mapa Pessoas"
+    familia[fd.str.startswith("Custo Gerencial", na=False) | fd.str.startswith("Gerencial V", na=False)] = "Custo Gerencial"
+    familia[fd.str.startswith("custo_project", na=False)] = "Custo Project"
+    # Tudo que veio com fonte=racionais e nao bateu acima vai pra Racionais
+    mask_rac = (familia == "") & (fonte_col == "racionais")
+    familia[mask_rac] = "Racionais"
+    # Resto (raro, fontes auxiliares) → "Outros"
+    familia[familia == ""] = "Outros"
+    df["fonte_familia"] = familia
+    return df
+
+
 def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     """Propaga campos cadastrais (tipo_contrato, billable_category, area, macro_area,
     funcao) entre todas as linhas da mesma pessoa.
@@ -1934,6 +1959,7 @@ def _get_nova_base() -> pd.DataFrame:
                     if "empresa" in df.columns:
                         mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
                         df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
+                df = _adicionar_fonte_familia(df)
                 df = _enriquecer_dados_pessoa(df)
                 df = _aplicar_rateio_custos(df)
                 _cache["nova_base"] = df
@@ -2025,6 +2051,7 @@ def _get_nova_base() -> pd.DataFrame:
             if "empresa" in df.columns:
                 mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
                 df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
+        df = _adicionar_fonte_familia(df)
         df = _enriquecer_dados_pessoa(df)
         df = _aplicar_rateio_custos(df)
         _cache["nova_base"] = df
@@ -2205,7 +2232,7 @@ def get_nova_base_filters(user=Depends(get_current_user)):
         return sorted(df[col].dropna().astype(str).str.strip().unique().tolist()) if col in df.columns else []
     return {
         "periodos":        uniq("periodo"),
-        "fontes":          uniq("fonte_dados"),
+        "fontes":          uniq("fonte_familia"),
         "empresas":        uniq("empresa"),
         "macro_areas":     uniq("macro_area"),
         "areas":           uniq("area"),
@@ -2240,7 +2267,7 @@ def get_nova_base_resumo(
 
     if periodos:       df = filt("periodo", periodos)
     if empresas:       df = filt("empresa", empresas)
-    if fontes:         df = filt("fonte_dados", fontes)
+    if fontes:         df = filt("fonte_familia", fontes)
     if macro_areas:    df = filt("macro_area", macro_areas)
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
     if classificacoes: df = filt("classificacao", classificacoes)
@@ -2441,7 +2468,7 @@ def get_nova_base_data(
         return df
 
     if periodos:       df = filt("periodo", periodos)
-    if fontes:         df = filt("fonte_dados", fontes)
+    if fontes:         df = filt("fonte_familia", fontes)
     if empresas:       df = filt("empresa", empresas)
     if macro_areas:    df = filt("macro_area", macro_areas)
     if areas:          df = filt("area", areas)
@@ -2454,7 +2481,7 @@ def get_nova_base_data(
         q = search.strip().lower()
         if q:
             search_cols = ["nome_pessoa", "nome_cliente", "pep_base", "pep", "empresa",
-                           "fonte", "fonte_dados", "area", "macro_area", "vertical", "tipo_contrato"]
+                           "fonte", "fonte_dados", "fonte_familia", "area", "macro_area", "vertical", "tipo_contrato"]
             mask = pd.Series(False, index=df.index)
             for c in search_cols:
                 if c in df.columns:
@@ -2502,7 +2529,7 @@ def get_nova_base_data(
     df = df.head(MAX)
 
     cols_show = [
-        "fonte", "fonte_dados", "periodo", "empresa", "pep_base", "nome_pessoa",
+        "fonte_familia", "fonte", "fonte_dados", "periodo", "empresa", "pep_base", "nome_pessoa",
         "nome_cliente", "tipo_contrato", "classificacao", "area",
         "centro_lucro", "macro_area", "vertical",
         "receita", "custo_rateado", "horas", "margem",
@@ -2544,7 +2571,7 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
 
     if periodos:    df = filt("periodo", periodos)
     if empresas:    df = filt("empresa", empresas)
-    if fontes:      df = filt("fonte_dados", fontes)
+    if fontes:      df = filt("fonte_familia", fontes)
     # macro_areas filtra só despesas (linhas com macro_area); receita/custo direto não têm macro_area
     _macro_area_filter = [v.strip() for v in macro_areas.split(",") if v.strip()] if macro_areas else []
 
@@ -2674,7 +2701,7 @@ def get_nova_base_margem_cliente(
 
     if periodos:       df = filt("periodo", periodos)
     if empresas:       df = filt("empresa", empresas)
-    if fontes:         df = filt("fonte_dados", fontes)
+    if fontes:         df = filt("fonte_familia", fontes)
     if verticais:      df = filt("vertical", verticais)
     if macro_areas:    df = filt("macro_area", macro_areas)
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
