@@ -1639,6 +1639,24 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     nome_norm = _norm(df["nome_pessoa"])
     df["_pessoa_key"] = nome_norm
 
+    # Resolve tipo_contrato="CLT/PJ" (ambíguo, 173 linhas / 35 pessoas):
+    # - Se em outras linhas a pessoa só aparece como CLT → vira CLT
+    # - Se só como PJ → vira PJ
+    # - Se aparece como ambos → mantém "CLT/PJ" (conflito real, ex: 28 alternantes)
+    if "tipo_contrato" in df.columns:
+        tc_str = df["tipo_contrato"].fillna("").astype(str).str.strip()
+        mask_def = tc_str.isin(["CLT", "PJ"])
+        tipos_por_pessoa = (df[mask_def & (df["_pessoa_key"] != "")]
+                            .groupby("_pessoa_key")["tipo_contrato"]
+                            .agg(lambda s: set(s.astype(str).str.strip())))
+        so_clt_keys = set(tipos_por_pessoa[tipos_por_pessoa == frozenset({"CLT"})].index) | \
+                      set(tipos_por_pessoa[tipos_por_pessoa.apply(lambda x: x == {"CLT"})].index)
+        so_pj_keys  = set(tipos_por_pessoa[tipos_por_pessoa.apply(lambda x: x == {"PJ"})].index)
+        mask_ambiguo = (tc_str == "CLT/PJ")
+        df.loc[mask_ambiguo & df["_pessoa_key"].isin(so_clt_keys), "tipo_contrato"] = "CLT"
+        df.loc[mask_ambiguo & df["_pessoa_key"].isin(so_pj_keys), "tipo_contrato"] = "PJ"
+        # Pessoas com ambos {CLT, PJ} mantém "CLT/PJ"
+
     campos = ["tipo_contrato", "billable_category", "area", "macro_area", "funcao"]
     fontes_mapa = ["CLTs", "PJs"]
 
