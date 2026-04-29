@@ -2349,6 +2349,7 @@ def get_nova_base_data(
     nome_cliente: str = "",
     tipo_pessoa: str = "",
     metric: str = "",
+    search: str = "",
     user=Depends(get_current_user)
 ):
     df = _get_nova_base().copy()
@@ -2367,6 +2368,19 @@ def get_nova_base_data(
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
     if classificacoes: df = filt("classificacao", classificacoes)
     if verticais:      df = filt("vertical", verticais)
+
+    # Busca textual server-side em vários campos (case-insensitive)
+    if search:
+        q = search.strip().lower()
+        if q:
+            search_cols = ["nome_pessoa", "nome_cliente", "pep_base", "pep", "empresa",
+                           "fonte", "area", "macro_area", "vertical", "tipo_contrato"]
+            mask = pd.Series(False, index=df.index)
+            for c in search_cols:
+                if c in df.columns:
+                    mask = mask | df[c].fillna("").astype(str).str.lower().str.contains(q, regex=False)
+            df = df[mask]
+
     if nome_cliente:
         df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
     if tipo_pessoa:

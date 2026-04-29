@@ -55,7 +55,7 @@ export default function NovaBaseTab() {
       .catch(e => { setError(String(e)); setLoading(false); });
   }, []);
 
-  const load = useCallback(() => {
+  const load = useCallback((searchTerm: string = "") => {
     setLoading(true);
     const params: Record<string, string> = {};
     if (selPeriodos.length)   params.periodos       = selPeriodos.join(",");
@@ -64,12 +64,21 @@ export default function NovaBaseTab() {
     if (selMacroAreas.length) params.macro_areas    = selMacroAreas.join(",");
     if (selTipos.length)      params.tipos_contrato = selTipos.join(",");
     if (selClassif.length)    params.classificacoes = selClassif.join(",");
+    if (searchTerm.trim())    params.search         = searchTerm.trim();
     getNovaBaseData(params)
       .then(r => { setRows(r.rows); setTotal(r.total); setTruncated(r.truncated); })
       .finally(() => setLoading(false));
   }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif]);
 
-  useEffect(() => { if (filtersReady) load(); }, [filtersReady, load]);
+  useEffect(() => { if (filtersReady) load(""); }, [filtersReady, load]);
+
+  // Debounce server-side search
+  useEffect(() => {
+    if (!filtersReady) return;
+    const t = setTimeout(() => { load(search); }, 350);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const columns = [
     { title: "Fonte", dataIndex: "fonte", key: "fonte", width: 130,
