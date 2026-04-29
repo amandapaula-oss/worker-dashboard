@@ -2171,26 +2171,28 @@ def get_nova_base_resumo(
 
     # Coluna virtual "tipo_pessoa" (CLT/PJ/Outros) baseada no Mapa Pessoas Jan/26
     if agrupar_por == "tipo_pessoa":
-        # Pessoas no Mapa Pessoas como CLT
-        clt_nomes = set(df.loc[df["fonte"].astype(str) == "CLTs", "nome_pessoa"]
-                        .dropna().astype(str).str.upper().str.strip().unique())
-        pj_nomes = set(df.loc[df["fonte"].astype(str) == "PJs", "nome_pessoa"]
-                       .dropna().astype(str).str.upper().str.strip().unique())
-        nome_norm = df["nome_pessoa"].fillna("").astype(str).str.upper().str.strip()
+        # Normalizacao forte: upper, strip, colapsa whitespace, remove acentos
+        import unicodedata
+        def _norm_nome(s: pd.Series) -> pd.Series:
+            s = s.fillna("").astype(str).str.upper().str.strip()
+            s = s.str.replace(r"\s+", " ", regex=True)
+            s = s.apply(lambda x: unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode("ascii") if x else x)
+            return s
+
+        nome_norm = _norm_nome(df["nome_pessoa"])
+        clt_nomes = set(_norm_nome(df.loc[df["fonte"].astype(str) == "CLTs", "nome_pessoa"]).unique())
+        pj_nomes  = set(_norm_nome(df.loc[df["fonte"].astype(str) == "PJs",  "nome_pessoa"]).unique())
+        cg_nomes  = set(_norm_nome(df.loc[df["fonte"].astype(str) == "custo_gerencial", "nome_pessoa"]).unique())
+        cp_nomes  = set(_norm_nome(df.loc[df["fonte"].astype(str) == "custo_project", "nome_pessoa"]).unique())
+        clt_nomes.discard(""); pj_nomes.discard(""); cg_nomes.discard(""); cp_nomes.discard("")
+
         df["tipo_pessoa"] = ""
         df.loc[nome_norm.isin(clt_nomes), "tipo_pessoa"] = "CLT"
         df.loc[nome_norm.isin(pj_nomes), "tipo_pessoa"] = "PJ"
-        # Fallback: pessoa sem mapa que aparece em custo_gerencial = CLT (provável)
-        cg_nomes = set(df.loc[df["fonte"].astype(str) == "custo_gerencial", "nome_pessoa"]
-                       .dropna().astype(str).str.upper().str.strip().unique())
         mask_inferir_clt = (df["tipo_pessoa"] == "") & nome_norm.isin(cg_nomes)
         df.loc[mask_inferir_clt, "tipo_pessoa"] = "CLT"
-        # Fallback: aparece em custo_project sem mapa nem custo_gerencial = PJ provável
-        cp_nomes = set(df.loc[df["fonte"].astype(str) == "custo_project", "nome_pessoa"]
-                       .dropna().astype(str).str.upper().str.strip().unique())
         mask_inferir_pj = (df["tipo_pessoa"] == "") & nome_norm.isin(cp_nomes)
         df.loc[mask_inferir_pj, "tipo_pessoa"] = "PJ"
-        # O resto (Custo Sócios, racional sem matching, etc) → "Outros"
         df.loc[df["tipo_pessoa"] == "", "tipo_pessoa"] = "Outros"
 
     group_col = agrupar_por if agrupar_por in df.columns else "empresa"
@@ -2385,12 +2387,20 @@ def get_nova_base_data(
         df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
     if tipo_pessoa:
         # Classifica e filtra por tipo (CLT/PJ/Outros) — mesma lógica do resumo
+        import unicodedata
+        def _norm_nome2(s: pd.Series) -> pd.Series:
+            s = s.fillna("").astype(str).str.upper().str.strip()
+            s = s.str.replace(r"\s+", " ", regex=True)
+            s = s.apply(lambda x: unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode("ascii") if x else x)
+            return s
         df_full = _get_nova_base()
-        clt_nomes = set(df_full.loc[df_full["fonte"].astype(str) == "CLTs", "nome_pessoa"].dropna().astype(str).str.upper().str.strip().unique())
-        pj_nomes  = set(df_full.loc[df_full["fonte"].astype(str) == "PJs",  "nome_pessoa"].dropna().astype(str).str.upper().str.strip().unique())
-        cg_nomes  = set(df_full.loc[df_full["fonte"].astype(str) == "custo_gerencial", "nome_pessoa"].dropna().astype(str).str.upper().str.strip().unique())
-        cp_nomes  = set(df_full.loc[df_full["fonte"].astype(str) == "custo_project", "nome_pessoa"].dropna().astype(str).str.upper().str.strip().unique())
-        nome_norm = df["nome_pessoa"].fillna("").astype(str).str.upper().str.strip()
+        clt_nomes = set(_norm_nome2(df_full.loc[df_full["fonte"].astype(str) == "CLTs", "nome_pessoa"]).unique())
+        pj_nomes  = set(_norm_nome2(df_full.loc[df_full["fonte"].astype(str) == "PJs",  "nome_pessoa"]).unique())
+        cg_nomes  = set(_norm_nome2(df_full.loc[df_full["fonte"].astype(str) == "custo_gerencial", "nome_pessoa"]).unique())
+        cp_nomes  = set(_norm_nome2(df_full.loc[df_full["fonte"].astype(str) == "custo_project", "nome_pessoa"]).unique())
+        for s in (clt_nomes, pj_nomes, cg_nomes, cp_nomes):
+            s.discard("")
+        nome_norm = _norm_nome2(df["nome_pessoa"])
         tp = pd.Series("", index=df.index)
         tp[nome_norm.isin(clt_nomes)] = "CLT"
         tp[nome_norm.isin(pj_nomes)] = "PJ"
