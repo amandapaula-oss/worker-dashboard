@@ -2168,6 +2168,31 @@ def get_nova_base_resumo(
     if classificacoes: df = filt("classificacao", classificacoes)
 
     df = df.copy()
+
+    # Coluna virtual "tipo_pessoa" (CLT/PJ/Outros) baseada no Mapa Pessoas Jan/26
+    if agrupar_por == "tipo_pessoa":
+        # Pessoas no Mapa Pessoas como CLT
+        clt_nomes = set(df.loc[df["fonte"].astype(str) == "CLTs", "nome_pessoa"]
+                        .dropna().astype(str).str.upper().str.strip().unique())
+        pj_nomes = set(df.loc[df["fonte"].astype(str) == "PJs", "nome_pessoa"]
+                       .dropna().astype(str).str.upper().str.strip().unique())
+        nome_norm = df["nome_pessoa"].fillna("").astype(str).str.upper().str.strip()
+        df["tipo_pessoa"] = ""
+        df.loc[nome_norm.isin(clt_nomes), "tipo_pessoa"] = "CLT"
+        df.loc[nome_norm.isin(pj_nomes), "tipo_pessoa"] = "PJ"
+        # Fallback: pessoa sem mapa que aparece em custo_gerencial = CLT (provável)
+        cg_nomes = set(df.loc[df["fonte"].astype(str) == "custo_gerencial", "nome_pessoa"]
+                       .dropna().astype(str).str.upper().str.strip().unique())
+        mask_inferir_clt = (df["tipo_pessoa"] == "") & nome_norm.isin(cg_nomes)
+        df.loc[mask_inferir_clt, "tipo_pessoa"] = "CLT"
+        # Fallback: aparece em custo_project sem mapa nem custo_gerencial = PJ provável
+        cp_nomes = set(df.loc[df["fonte"].astype(str) == "custo_project", "nome_pessoa"]
+                       .dropna().astype(str).str.upper().str.strip().unique())
+        mask_inferir_pj = (df["tipo_pessoa"] == "") & nome_norm.isin(cp_nomes)
+        df.loc[mask_inferir_pj, "tipo_pessoa"] = "PJ"
+        # O resto (Custo Sócios, racional sem matching, etc) → "Outros"
+        df.loc[df["tipo_pessoa"] == "", "tipo_pessoa"] = "Outros"
+
     group_col = agrupar_por if agrupar_por in df.columns else "empresa"
     for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
         if col not in df.columns:
@@ -2322,6 +2347,7 @@ def get_nova_base_data(
     classificacoes: str = "",
     verticais: str = "",
     nome_cliente: str = "",
+    tipo_pessoa: str = "",
     metric: str = "",
     user=Depends(get_current_user)
 ):
@@ -2343,6 +2369,22 @@ def get_nova_base_data(
     if verticais:      df = filt("vertical", verticais)
     if nome_cliente:
         df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
+    if tipo_pessoa:
+        # Classifica e filtra por tipo (CLT/PJ/Outros) — mesma lógica do resumo
+        df_full = _get_nova_base()
+        clt_nomes = set(df_full.loc[df_full["fonte"].astype(str) == "CLTs", "nome_pessoa"].dropna().astype(str).str.upper().str.strip().unique())
+        pj_nomes  = set(df_full.loc[df_full["fonte"].astype(str) == "PJs",  "nome_pessoa"].dropna().astype(str).str.upper().str.strip().unique())
+        cg_nomes  = set(df_full.loc[df_full["fonte"].astype(str) == "custo_gerencial", "nome_pessoa"].dropna().astype(str).str.upper().str.strip().unique())
+        cp_nomes  = set(df_full.loc[df_full["fonte"].astype(str) == "custo_project", "nome_pessoa"].dropna().astype(str).str.upper().str.strip().unique())
+        nome_norm = df["nome_pessoa"].fillna("").astype(str).str.upper().str.strip()
+        tp = pd.Series("", index=df.index)
+        tp[nome_norm.isin(clt_nomes)] = "CLT"
+        tp[nome_norm.isin(pj_nomes)] = "PJ"
+        tp[(tp == "") & nome_norm.isin(cg_nomes)] = "CLT"
+        tp[(tp == "") & nome_norm.isin(cp_nomes)] = "PJ"
+        tp[tp == ""] = "Outros"
+        vals_tp = [v.strip() for v in tipo_pessoa.split(",") if v.strip()]
+        df = df[tp.isin(vals_tp)]
     # Filtra por métrica: só linhas que contribuem pra aquele número
     if metric == "receita":
         df = df[pd.to_numeric(df["receita"], errors="coerce").fillna(0) != 0]

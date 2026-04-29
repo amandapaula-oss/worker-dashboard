@@ -352,7 +352,7 @@ export default function Dashboard() {
                 { key: "resumoBU",  label: <span><ApartmentOutlined /> Resumo por BU</span>,    children: <NovaBaseResumoTab agruparPor="vertical" /> },
                 { key: "margemCli", label: <span><FundOutlined /> Margem por Cliente</span>,   children: <NovaBaseMargemTab /> },
                 { key: "empresa",   label: <span><BankOutlined /> DRE</span>,                   children: <NovaDreTab /> },
-                { key: "fonte",     label: <span><HeatMapOutlined /> P&L por Fonte</span>,      children: <NovaBaseResumoTab agruparPor="fonte" /> },
+                { key: "fonte",     label: <span><HeatMapOutlined /> PJ/CLT</span>,             children: <NovaBaseResumoTab agruparPor="tipo_pessoa" /> },
                 { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
                 { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
               ]}
