@@ -1691,7 +1691,7 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[mask_ambiguo & df["_pessoa_key"].isin(so_pj_keys), "tipo_contrato"] = "PJ"
         # Pessoas com ambos {CLT, PJ} mantém "CLT/PJ"
 
-    campos = ["tipo_contrato", "billable_category", "area", "macro_area", "funcao"]
+    campos = ["tipo_contrato", "billable_category", "classificacao", "area", "macro_area", "funcao"]
     fontes_mapa = ["CLTs", "PJs"]
 
     for campo in campos:
