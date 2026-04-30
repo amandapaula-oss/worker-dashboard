@@ -114,6 +114,9 @@ export default function NovaBaseTab() {
     { title: "Vlr Líquido", dataIndex: "valor_liquido",  key: "valor_liquido",   width: 120, align: "right" as const,
       render: fmt },
     { title: "Billable",   dataIndex: "billable_category", key: "billable_category", width: 100 },
+    { title: "Taxa/h",     dataIndex: "taxa_hora",       key: "taxa_hora",       width: 90, align: "right" as const, render: fmt },
+    { title: "Origem do Custo", dataIndex: "tag_rateio", key: "tag_rateio", width: 280, ellipsis: true,
+      render: (v: string) => v ? <span style={{ color: "#6b7fa3", fontSize: "0.78rem" }}>{v}</span> : "—" },
     { title: "Comentários", dataIndex: "Comentarios",    key: "Comentarios",     width: 200, ellipsis: true },
   ];
 
@@ -213,7 +216,7 @@ export default function NovaBaseTab() {
           columns={columns}
           rowKey={(_, i) => String(i)}
           size="small"
-          scroll={{ x: 2200, y: 520 }}
+          scroll={{ x: 2700, y: 520 }}
           pagination={{
             pageSize,
             current: currentPage,
