@@ -1664,6 +1664,74 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     nome_norm = _norm(df["nome_pessoa"])
     df["_pessoa_key"] = nome_norm
 
+    # Unificação de variantes de nome: nome curto que é prefixo (palavra-a-palavra)
+    # de nome mais longo é considerado a mesma pessoa.
+    # Exemplo: "JAMILLE RENATA FERREIRA PEREIRA" → "JAMILLE RENATA FERREIRA PEREIRA RICHTER"
+    # Proteção contra homônimos: só unifica se CPFs não conflitam.
+    cpf_d = df.get("cpf", pd.Series([""] * len(df), index=df.index)).astype(str).str.replace(r"[^\d]", "", regex=True)
+    nomes_unicos = [n for n in df["_pessoa_key"].dropna().unique() if n != ""]
+    # Indexa por primeiras 3 palavras
+    prefix_idx: dict = {}
+    for nome in nomes_unicos:
+        palavras = nome.split()
+        if len(palavras) >= 3:
+            prefix3 = " ".join(palavras[:3])
+            prefix_idx.setdefault(prefix3, []).append(nome)
+
+    canonicos: dict = {}
+    for prefix3, nomes_grupo in prefix_idx.items():
+        if len(nomes_grupo) <= 1:
+            continue
+        nomes_sorted = sorted(nomes_grupo, key=lambda n: -len(n.split()))
+        canonico = nomes_sorted[0]
+        palavras_canon = canonico.split()
+        # Coleta CPFs únicos das pessoas do grupo
+        cpfs_grupo = set()
+        for n in nomes_grupo:
+            cpfs_n = cpf_d[df["_pessoa_key"] == n]
+            cpfs_grupo |= set(cpfs_n[cpfs_n.str.len() >= 11].unique())
+        # Se >1 CPF distinto, NÃO unifica (homônimos com CPFs diferentes)
+        if len(cpfs_grupo) > 1:
+            continue
+        for nome in nomes_sorted[1:]:
+            palavras = nome.split()
+            if palavras_canon[:len(palavras)] == palavras:
+                canonicos[nome] = canonico
+
+    # Regra extra: nomes com mesmo número de palavras que diferem APENAS na última,
+    # onde uma das últimas é abreviação (1-2 letras, prefixo da outra).
+    # Ex: "JAMILLE RENATA FERREIRA PEREIRA R" + "...PEREIRA RICHTER" → mesma pessoa
+    for prefix3, nomes_grupo in prefix_idx.items():
+        if len(nomes_grupo) <= 1:
+            continue
+        # Agrupa por número de palavras
+        for nome_a in nomes_grupo:
+            for nome_b in nomes_grupo:
+                if nome_a >= nome_b:
+                    continue
+                pa, pb = nome_a.split(), nome_b.split()
+                if len(pa) != len(pb) or len(pa) < 3:
+                    continue
+                if pa[:-1] != pb[:-1]:
+                    continue
+                ultima_a, ultima_b = pa[-1], pb[-1]
+                # Uma é abreviação da outra (1-2 letras E prefixo)
+                if len(ultima_a) <= 2 and ultima_b.startswith(ultima_a):
+                    canonicos[nome_a] = nome_b
+                elif len(ultima_b) <= 2 and ultima_a.startswith(ultima_b):
+                    canonicos[nome_b] = nome_a
+
+    if canonicos:
+        # Resolve transitividade: A → B, B → C ⇒ A → C
+        for k in list(canonicos.keys()):
+            v = canonicos[k]
+            while v in canonicos and canonicos[v] != v:
+                v = canonicos[v]
+            canonicos[k] = v
+        df["_pessoa_key"] = df["_pessoa_key"].map(lambda x: canonicos.get(x, x))
+        nome_norm = df["_pessoa_key"]
+        print(f"[unificar_nomes] {len(canonicos)} variantes de nome unificadas")
+
     # Sócios (pessoa em Custo Socios) → tipo_contrato="Socio" em TODAS as linhas dela.
     # Prioridade absoluta sobre CLT/PJ porque Sócio é regime de remuneração distinto.
     if "tipo_contrato" in df.columns:
