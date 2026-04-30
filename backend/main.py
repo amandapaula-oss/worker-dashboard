@@ -1788,6 +1788,20 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[cl_vazio & (bc == "billable"), "classificacao"] = "custo"
         df.loc[cl_vazio & (bc == "non-billable"), "classificacao"] = "despesa"
 
+    # Inferência por macro_area (onde ainda está vazia)
+    if "classificacao" in df.columns and "macro_area" in df.columns:
+        ma = df["macro_area"].fillna("").astype(str).str.strip()
+        cl_vazio = df["classificacao"].isna() | (df["classificacao"].astype(str).str.strip() == "")
+        despesa_areas = {"Backoffice", "Sales", "Go To Market", "Executive Leadership"}
+        custo_areas = {"Delivery", "Internal Systems"}
+        df.loc[cl_vazio & ma.isin(despesa_areas), "classificacao"] = "despesa"
+        df.loc[cl_vazio & ma.isin(custo_areas), "classificacao"] = "custo"
+
+    # Sócios (fonte=Custo Socios) → despesa
+    if "classificacao" in df.columns and "fonte" in df.columns:
+        cl_vazio = df["classificacao"].isna() | (df["classificacao"].astype(str).str.strip() == "")
+        df.loc[cl_vazio & (df["fonte"].astype(str) == "Custo Socios"), "classificacao"] = "despesa"
+
     df = df.drop(columns=["_pessoa_key"], errors="ignore")
     return df
 
