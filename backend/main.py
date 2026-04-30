@@ -1809,10 +1809,14 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[cl_vazio & ma.isin(despesa_areas), "classificacao"] = "despesa"
         df.loc[cl_vazio & ma.isin(custo_areas), "classificacao"] = "custo"
 
-    # Sócios (fonte=Custo Socios) → despesa
+    # Sócios (pessoa em Custo Socios em alguma linha) → despesa em TODAS suas linhas vazias
     if "classificacao" in df.columns and "fonte" in df.columns:
-        cl_vazio = df["classificacao"].isna() | (df["classificacao"].astype(str).str.strip() == "")
-        df.loc[cl_vazio & (df["fonte"].astype(str) == "Custo Socios"), "classificacao"] = "despesa"
+        socios_keys = set(df.loc[df["fonte"].astype(str) == "Custo Socios", "_pessoa_key"]
+                          .dropna().unique())
+        socios_keys.discard("")
+        if socios_keys:
+            cl_vazio = df["classificacao"].isna() | (df["classificacao"].astype(str).str.strip() == "")
+            df.loc[cl_vazio & df["_pessoa_key"].isin(socios_keys), "classificacao"] = "despesa"
 
     df = df.drop(columns=["_pessoa_key"], errors="ignore")
     return df
