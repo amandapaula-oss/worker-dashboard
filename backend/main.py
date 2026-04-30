@@ -2574,6 +2574,9 @@ def get_nova_base_data(
 ):
     df = _get_nova_base().copy()
 
+    # Remove fonte "de para" da Base Detalhada — sao mapeamentos auxiliares, nao dados.
+    df = df[df["fonte"].astype(str) != "de para"]
+
     def filt(col, param):
         """Filtra por valores. Sentinel '__blank__' pega linhas vazias/NaN."""
         vals = [v.strip() for v in param.split(",") if v.strip()]
