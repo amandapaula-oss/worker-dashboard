@@ -2260,9 +2260,17 @@ def get_nova_base_resumo(
         df = df[df["periodo"].fillna("").astype(str) <= current_period].copy()
 
     def filt(col, param):
+        """Filtra por valores. Sentinel '__blank__' pega linhas vazias/NaN."""
         vals = [v.strip() for v in param.split(",") if v.strip()]
         if vals and col in df.columns:
-            return df[df[col].astype(str).str.strip().isin(vals)].copy()
+            col_clean = df[col].fillna("").astype(str).str.strip()
+            regular_vals = [v for v in vals if v != "__blank__"]
+            mask = pd.Series(False, index=df.index)
+            if regular_vals:
+                mask = mask | col_clean.isin(regular_vals)
+            if "__blank__" in vals:
+                mask = mask | (col_clean == "")
+            return df[mask].copy()
         return df
 
     if periodos:       df = filt("periodo", periodos)
@@ -2462,9 +2470,17 @@ def get_nova_base_data(
     df = _get_nova_base().copy()
 
     def filt(col, param):
+        """Filtra por valores. Sentinel '__blank__' pega linhas vazias/NaN."""
         vals = [v.strip() for v in param.split(",") if v.strip()]
         if vals and col in df.columns:
-            return df[df[col].astype(str).str.strip().isin(vals)].copy()
+            col_clean = df[col].fillna("").astype(str).str.strip()
+            regular_vals = [v for v in vals if v != "__blank__"]
+            mask = pd.Series(False, index=df.index)
+            if regular_vals:
+                mask = mask | col_clean.isin(regular_vals)
+            if "__blank__" in vals:
+                mask = mask | (col_clean == "")
+            return df[mask].copy()
         return df
 
     if periodos:       df = filt("periodo", periodos)
@@ -2564,9 +2580,17 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
         df = df[df["periodo"].fillna("").astype(str) <= current_period]
 
     def filt(col, param):
+        """Filtra por valores. Sentinel '__blank__' pega linhas vazias/NaN."""
         vals = [v.strip() for v in param.split(",") if v.strip()]
         if vals and col in df.columns:
-            return df[df[col].astype(str).str.strip().isin(vals)].copy()
+            col_clean = df[col].fillna("").astype(str).str.strip()
+            regular_vals = [v for v in vals if v != "__blank__"]
+            mask = pd.Series(False, index=df.index)
+            if regular_vals:
+                mask = mask | col_clean.isin(regular_vals)
+            if "__blank__" in vals:
+                mask = mask | (col_clean == "")
+            return df[mask].copy()
         return df
 
     if periodos:    df = filt("periodo", periodos)
@@ -2694,9 +2718,17 @@ def get_nova_base_margem_cliente(
         df = df[df["periodo"].fillna("").astype(str) <= current_period]
 
     def filt(col, param):
+        """Filtra por valores. Sentinel '__blank__' pega linhas vazias/NaN."""
         vals = [v.strip() for v in param.split(",") if v.strip()]
         if vals and col in df.columns:
-            return df[df[col].astype(str).str.strip().isin(vals)].copy()
+            col_clean = df[col].fillna("").astype(str).str.strip()
+            regular_vals = [v for v in vals if v != "__blank__"]
+            mask = pd.Series(False, index=df.index)
+            if regular_vals:
+                mask = mask | col_clean.isin(regular_vals)
+            if "__blank__" in vals:
+                mask = mask | (col_clean == "")
+            return df[mask].copy()
         return df
 
     if periodos:       df = filt("periodo", periodos)

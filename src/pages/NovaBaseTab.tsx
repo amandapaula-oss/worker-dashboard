@@ -168,7 +168,11 @@ export default function NovaBaseTab() {
         <div style={{ flex: 1, minWidth: 120 }}>
           <div style={labelStyle}>Classificação</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selClassif}
-            onChange={setSelClassif} options={opt(filters.classificacoes ?? [])}
+            onChange={setSelClassif}
+            options={[
+              ...opt(filters.classificacoes ?? []),
+              { label: "(Sem classificação)", value: "__blank__" },
+            ]}
             maxTagCount="responsive" placeholder="Todas" allowClear />
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
