@@ -1713,6 +1713,13 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         mask_vazio = df[campo].isna() | (df[campo].astype(str).str.strip() == "")
         df.loc[mask_vazio, campo] = valor_propagado[mask_vazio]
 
+    # Inferência: billable → custo, non-billable → despesa (onde classificacao está vazia)
+    if "classificacao" in df.columns and "billable_category" in df.columns:
+        bc = df["billable_category"].fillna("").astype(str).str.strip().str.lower()
+        cl_vazio = df["classificacao"].isna() | (df["classificacao"].astype(str).str.strip() == "")
+        df.loc[cl_vazio & (bc == "billable"), "classificacao"] = "custo"
+        df.loc[cl_vazio & (bc == "non-billable"), "classificacao"] = "despesa"
+
     df = df.drop(columns=["_pessoa_key"], errors="ignore")
     return df
 
