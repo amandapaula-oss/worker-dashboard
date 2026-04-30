@@ -1788,6 +1788,18 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[cl_vazio & (bc == "billable"), "classificacao"] = "custo"
         df.loc[cl_vazio & (bc == "non-billable"), "classificacao"] = "despesa"
 
+    # Inferência: pessoa atrelada a PEP em alguma linha → todas as linhas dela = custo
+    # (sobrepõe inferência por macro_area, mas só onde classificacao ainda vazia)
+    if "classificacao" in df.columns and "pep" in df.columns:
+        pep_str = df["pep"].fillna("").astype(str).str.strip()
+        # Pessoas que têm PEP em alguma linha
+        pessoas_com_pep = set(df.loc[pep_str.ne("") & pep_str.ne("nan") & (df["_pessoa_key"] != ""), "_pessoa_key"].unique())
+        pessoas_com_pep.discard("")
+        if pessoas_com_pep:
+            cl_vazio = df["classificacao"].isna() | (df["classificacao"].astype(str).str.strip() == "")
+            mask = cl_vazio & df["_pessoa_key"].isin(pessoas_com_pep)
+            df.loc[mask, "classificacao"] = "custo"
+
     # Inferência por macro_area (onde ainda está vazia)
     if "classificacao" in df.columns and "macro_area" in df.columns:
         ma = df["macro_area"].fillna("").astype(str).str.strip()
