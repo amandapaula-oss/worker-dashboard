@@ -1818,6 +1818,40 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
             cl_vazio = df["classificacao"].isna() | (df["classificacao"].astype(str).str.strip() == "")
             df.loc[cl_vazio & df["_pessoa_key"].isin(socios_keys), "classificacao"] = "despesa"
 
+    # Override: cadastro do Mapa Pessoas - Mar26 (mais atualizado que o Jan26 importado).
+    # 16 pessoas tiveram macro_area/billable corrigidos retroativamente. Aplicado como
+    # override final sobre TODAS as linhas dessas pessoas.
+    # (nome_normalizado, macro_area_correta_ou_None, billable_correto_ou_None)
+    correcoes_mar26 = [
+        ("ALINE DE CAMARGO BORGES", "Sales", "non-billable"),
+        ("BRUNO POLITANO", "Executive Leadership", "non-billable"),
+        ("CAIO AUGUSTO DE TOLEDO", "Sales", None),
+        ("FERNANDO PEREIRA LISBOA", None, "non-billable"),
+        ("JAMIL DIAS COSTA", None, "non-billable"),
+        ("LEANDRO DE BRITO", None, "non-billable"),
+        ("LEONARDO BARBETTA DE OLIVEIRA", None, "non-billable"),
+        ("MARCELO PEREIRA LIMA", None, "non-billable"),
+        ("MURILO FRANCISCO SILVANI", "Sales", "non-billable"),
+        ("MURILO GONCALVES DE BRITTO SOUZA", None, "non-billable"),
+        ("MURILO HARDER OLIVEIRA TERSI", None, "non-billable"),
+        ("PATRICIA NEVES DA SILVA MONTEIRO", "Sales", "non-billable"),
+        ("ROBERTO ANTONIO RIBEIRO CARACCIOLO JUNIOR", None, "non-billable"),
+        ("THAIS CARDOSO LACERDA", None, "non-billable"),
+        ("THIAGO VIEIRA TERSARIOL", None, "non-billable"),
+        ("WALTER JOAQUIM VALENTIM", "Sales", "non-billable"),
+    ]
+    for nome_alvo, macro_corr, bill_corr in correcoes_mar26:
+        mask = df["_pessoa_key"] == nome_alvo
+        if not mask.any():
+            continue
+        if macro_corr and "macro_area" in df.columns:
+            df.loc[mask, "macro_area"] = macro_corr
+        if bill_corr and "billable_category" in df.columns:
+            df.loc[mask, "billable_category"] = bill_corr
+            if "classificacao" in df.columns:
+                nova_classif = "despesa" if bill_corr == "non-billable" else "custo"
+                df.loc[mask, "classificacao"] = nova_classif
+
     df = df.drop(columns=["_pessoa_key"], errors="ignore")
     return df
 
