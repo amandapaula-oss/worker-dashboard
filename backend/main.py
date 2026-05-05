@@ -16,12 +16,6 @@ import math
 import traceback
 import httpx
 
-from correcoes_mar26 import (
-    CORRECOES_PESSOAS,
-    CENTRO_CUSTO_SALES_HYPER,
-    MAPPING_EMPRESA,
-)
-
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
@@ -1827,7 +1821,26 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     # Override: cadastro do Mapa Pessoas - Mar26 (mais atualizado que o Jan26 importado).
     # 16 pessoas tiveram macro_area/billable corrigidos retroativamente. Aplicado como
     # override final sobre TODAS as linhas dessas pessoas.
-    for nome_alvo, macro_corr, bill_corr in CORRECOES_PESSOAS:
+    # (nome_normalizado, macro_area_correta_ou_None, billable_correto_ou_None)
+    correcoes_mar26 = [
+        ("ALINE DE CAMARGO BORGES", "Sales", "non-billable"),
+        ("BRUNO POLITANO", "Executive Leadership", "non-billable"),
+        ("CAIO AUGUSTO DE TOLEDO", "Sales", None),
+        ("FERNANDO PEREIRA LISBOA", None, "non-billable"),
+        ("JAMIL DIAS COSTA", None, "non-billable"),
+        ("LEANDRO DE BRITO", None, "non-billable"),
+        ("LEONARDO BARBETTA DE OLIVEIRA", None, "non-billable"),
+        ("MARCELO PEREIRA LIMA", None, "non-billable"),
+        ("MURILO FRANCISCO SILVANI", "Sales", "non-billable"),
+        ("MURILO GONCALVES DE BRITTO SOUZA", None, "non-billable"),
+        ("MURILO HARDER OLIVEIRA TERSI", None, "non-billable"),
+        ("PATRICIA NEVES DA SILVA MONTEIRO", "Sales", "non-billable"),
+        ("ROBERTO ANTONIO RIBEIRO CARACCIOLO JUNIOR", None, "non-billable"),
+        ("THAIS CARDOSO LACERDA", None, "non-billable"),
+        ("THIAGO VIEIRA TERSARIOL", None, "non-billable"),
+        ("WALTER JOAQUIM VALENTIM", "Sales", "non-billable"),
+    ]
+    for nome_alvo, macro_corr, bill_corr in correcoes_mar26:
         mask = df["_pessoa_key"] == nome_alvo
         if not mask.any():
             continue
@@ -1838,22 +1851,6 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
             if "classificacao" in df.columns:
                 nova_classif = "despesa" if bill_corr == "non-billable" else "custo"
                 df.loc[mask, "classificacao"] = nova_classif
-
-    # Override: time Sales Hyper teve "BU Hyper - Sales" / "Aliancas" renomeado para
-    # "Sales Hyper" no Mar26 (reorganizacao de centro de lucro).
-    if "centro_lucro" in df.columns:
-        mask_sh = df["_pessoa_key"].isin(CENTRO_CUSTO_SALES_HYPER)
-        if mask_sh.any():
-            df.loc[mask_sh, "centro_lucro"] = "Sales Hyper"
-
-    # Override: empresa generica "FCamara Brasil" no Jan26 deve ser BR02/BR07/BR09 (Mar26).
-    # COMPANY_NAMES re-mapeia para nome de display ("BR02 FCamara", etc).
-    if "empresa" in df.columns:
-        empresa_mapeada = df["_pessoa_key"].map(MAPPING_EMPRESA)
-        emp_str = df["empresa"].fillna("").astype(str).str.strip()
-        mask_generica = emp_str.isin(["FCamara Brasil", "FCAMARA BRASIL", ""]) & empresa_mapeada.notna()
-        if mask_generica.any():
-            df.loc[mask_generica, "empresa"] = empresa_mapeada[mask_generica].map(COMPANY_NAMES).fillna(empresa_mapeada[mask_generica])
 
     df = df.drop(columns=["_pessoa_key"], errors="ignore")
     return df
