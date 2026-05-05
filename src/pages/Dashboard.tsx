@@ -263,7 +263,7 @@ export default function Dashboard() {
 
         <Content style={{ padding: "1.5rem 2rem" }}>
           {section === null && (
-            <div style={{ display: "flex", gap: 24, justifyContent: "center", alignItems: "stretch", minHeight: "60vh", flexWrap: "wrap" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 280px)", gap: 24, justifyContent: "center", alignContent: "center", minHeight: "60vh" }}>
               {([
                 { key: "worker",    icon: <UserOutlined />,      title: "Worker",                 desc: "Receitas e custos por colaborador",           sub: "Base Worker" },
                 { key: "cockpit",   icon: <BankOutlined />,      title: "Financeiro",             desc: "DRE, P&L por Stream e Matricial",             sub: "SAP S4 · Nexus" },
@@ -275,13 +275,17 @@ export default function Dashboard() {
                   onClick={() => setSection(key)}
                   className="home-card"
                   style={{
-                    width: 240,
+                    width: 280,
+                    height: 280,
                     cursor: "pointer",
                     background: t.cardBg,
                     borderRadius: 14,
                     border: `1.5px solid ${t.border}`,
                     padding: "2rem 1.5rem",
                     textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
                     boxShadow: dark ? "0 2px 12px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.05)",
                     transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s",
                   }}
@@ -289,7 +293,7 @@ export default function Dashboard() {
                   <div style={{ fontSize: 40, marginBottom: 14, lineHeight: 1, color: theme.accent }}>{icon}</div>
                   <div style={{ color: t.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 6 }}>{title}</div>
                   <div style={{ color: t.secondary, fontSize: "0.82rem", lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
-                  <div style={{ display: "inline-block", background: t.tagBg, color: t.secondary, fontSize: "0.72rem", fontWeight: 600, padding: "2px 10px", borderRadius: 20, letterSpacing: 0.3 }}>{sub}</div>
+                  <div style={{ display: "inline-block", background: t.tagBg, color: t.secondary, fontSize: "0.72rem", fontWeight: 600, padding: "2px 10px", borderRadius: 20, letterSpacing: 0.3, alignSelf: "center" }}>{sub}</div>
                 </div>
               ))}
             </div>
