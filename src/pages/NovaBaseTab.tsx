@@ -1,10 +1,33 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Table, Select, Space, Typography, Tag, Button, Input } from "antd";
 import { FilterOutlined, DownloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { Resizable } from "react-resizable";
+import "react-resizable/css/styles.css";
 import { getNovaBaseFilters, getNovaBaseData, downloadNovaBase } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
 import { theme } from "../theme";
 import { exportTableToExcel } from "../utils/exportExcel";
+
+function ResizableTitle({ onResize, width, ...rest }: any) {
+  if (!width) return <th {...rest} />;
+  return (
+    <Resizable
+      width={width}
+      height={0}
+      handle={
+        <span
+          className="react-resizable-handle"
+          onClick={(e) => e.stopPropagation()}
+          style={{ position: "absolute", right: -5, top: 0, bottom: 0, width: 10, cursor: "col-resize", zIndex: 1 }}
+        />
+      }
+      onResize={onResize}
+      draggableOpts={{ enableUserSelectHack: false }}
+    >
+      <th {...rest} style={{ ...rest.style, position: "relative" }} />
+    </Resizable>
+  );
+}
 
 const { Text } = Typography;
 
@@ -87,7 +110,7 @@ export default function NovaBaseTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  const columns = [
+  const [columns, setColumns] = useState<any[]>([
     { title: "Fonte", dataIndex: "fonte_familia", key: "fonte_familia", width: 140,
       render: (v: string) => <Tag color={FONTE_COLORS[v] ?? "default"}>{v}</Tag> },
     { title: "Aba", dataIndex: "fonte", key: "fonte", width: 130, ellipsis: true },
@@ -118,7 +141,23 @@ export default function NovaBaseTab() {
     { title: "Origem do Custo", dataIndex: "tag_rateio", key: "tag_rateio", width: 280, ellipsis: true,
       render: (v: string) => v ? <span style={{ color: "#6b7fa3", fontSize: "0.78rem" }}>{v}</span> : "—" },
     { title: "Comentários", dataIndex: "Comentarios",    key: "Comentarios",     width: 200, ellipsis: true },
-  ];
+  ]);
+
+  const handleResize = (index: number) => (_: any, { size }: any) => {
+    setColumns((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], width: size.width };
+      return next;
+    });
+  };
+
+  const resizableColumns = columns.map((col, index) => ({
+    ...col,
+    onHeaderCell: (column: any) => ({
+      width: column.width,
+      onResize: handleResize(index),
+    }),
+  }));
 
   const opt = (arr: string[]) => arr.map(v => ({ label: v, value: v }));
 
@@ -217,7 +256,8 @@ export default function NovaBaseTab() {
       ) : (
         <Table
           dataSource={filteredRows}
-          columns={columns}
+          columns={resizableColumns}
+          components={{ header: { cell: ResizableTitle } }}
           rowKey={(_, i) => String(i)}
           size="small"
           scroll={{ x: 2700, y: 520 }}
