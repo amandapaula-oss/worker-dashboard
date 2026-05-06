@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Table, Select, Space, Typography, Tag, Button, Input } from "antd";
-import { FilterOutlined, DownloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { Table, Select, Space, Typography, Tag, Button, Input, Dropdown, Checkbox } from "antd";
+import { FilterOutlined, DownloadOutlined, SearchOutlined, SettingOutlined } from "@ant-design/icons";
 import { Resizable } from "react-resizable";
 import "react-resizable/css/styles.css";
 import { getNovaBaseFilters, getNovaBaseData, downloadNovaBase } from "../api";
@@ -151,13 +151,59 @@ export default function NovaBaseTab() {
     });
   };
 
-  const resizableColumns = columns.map((col, index) => ({
+  // Column visibility (persistido em localStorage)
+  const STORAGE_KEY = "novaBase.visibleColumns";
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return new Set(JSON.parse(saved));
+    } catch {}
+    return new Set(columns.map((c) => c.key));
+  });
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...visibleKeys])); } catch {}
+  }, [visibleKeys]);
+
+  const toggleColumn = (key: string) => {
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const visibleColumns = columns.filter((c) => visibleKeys.has(c.key));
+  const resizableColumns = visibleColumns.map((col, index) => ({
     ...col,
     onHeaderCell: (column: any) => ({
       width: column.width,
-      onResize: handleResize(index),
+      onResize: handleResize(columns.indexOf(col)),
     }),
   }));
+
+  const columnSettingsMenu = (
+    <div style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 8,
+                  padding: "0.6rem 0.9rem", maxHeight: 420, overflowY: "auto", minWidth: 220,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <Button size="small" type="link" style={{ padding: 0 }}
+          onClick={() => setVisibleKeys(new Set(columns.map((c) => c.key)))}>
+          Marcar todas
+        </Button>
+        <Button size="small" type="link" style={{ padding: 0 }}
+          onClick={() => setVisibleKeys(new Set())}>
+          Desmarcar
+        </Button>
+      </div>
+      {columns.map((c) => (
+        <div key={c.key} style={{ padding: "3px 0" }}>
+          <Checkbox checked={visibleKeys.has(c.key)} onChange={() => toggleColumn(c.key)}>
+            {c.title}
+          </Checkbox>
+        </div>
+      ))}
+    </div>
+  );
 
   const opt = (arr: string[]) => arr.map(v => ({ label: v, value: v }));
 
@@ -247,6 +293,13 @@ export default function NovaBaseTab() {
             {truncated && !search && <Tag color="warning" style={{ marginLeft: 8 }}>Exibindo primeiros 5.000</Tag>}
           </Text>
         </Space>
+        <div style={{ marginLeft: "auto" }}>
+          <Dropdown popupRender={() => columnSettingsMenu} trigger={["click"]} placement="bottomRight">
+            <Button icon={<SettingOutlined />} title="Selecionar colunas">
+              Colunas ({visibleKeys.size}/{columns.length})
+            </Button>
+          </Dropdown>
+        </div>
       </div>
 
       {loading ? <TableSkeleton rows={10} /> : error ? (
