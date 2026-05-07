@@ -1810,8 +1810,8 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     if "classificacao" in df.columns and "macro_area" in df.columns:
         ma = df["macro_area"].fillna("").astype(str).str.strip()
         cl_vazio = df["classificacao"].isna() | (df["classificacao"].astype(str).str.strip() == "")
-        despesa_areas = {"Backoffice", "Sales", "Go To Market", "Executive Leadership"}
-        custo_areas = {"Delivery", "Internal Systems"}
+        despesa_areas = {"Backoffice", "Sales", "Go To Market", "Executive Leadership", "Internal Systems"}
+        custo_areas = {"Delivery"}
         df.loc[cl_vazio & ma.isin(despesa_areas), "classificacao"] = "despesa"
         df.loc[cl_vazio & ma.isin(custo_areas), "classificacao"] = "custo"
 
