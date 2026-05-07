@@ -2004,19 +2004,34 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df = df.merge(horas_por_pep, on=["_pk", "_periodo_str", "pep"], how="left")
     df["_horas_pep"] = df["_horas_pep"].fillna(0)
 
-    # 4. Aloca custo nas linhas de racionais: custo_total × (horas_pep / horas_totais)
+    # 3b. Horas em racionais por PEP (denominador pra split quando há
+    #     múltiplas linhas de racional no mesmo PEP da pessoa).
     is_rac = df["fonte"].astype(str) == "racionais"
+    horas_rac_por_pep = (df[is_rac & df["_pk"].notna()]
+                         .groupby(["_pk", "_periodo_str", "pep"])["horas"].sum()
+                         .rename("_horas_rac_pep").reset_index())
+    df = df.merge(horas_rac_por_pep, on=["_pk", "_periodo_str", "pep"], how="left")
+    df["_horas_rac_pep"] = df["_horas_rac_pep"].fillna(0)
+
+    # 4. Aloca custo nas linhas de racionais.
+    # custo_pep_total = custo_total × (horas_pep_em_cp / horas_tot_cp)  -- fatia do PEP
+    # custo_linha     = custo_pep_total × (linha_horas / horas_rac_no_pep)  -- split dentro do PEP
+    # Quando só há 1 linha de racional por PEP, share_within_pep=1 e a fórmula
+    # reduz ao comportamento original.
     mask_rac_aloca = is_rac & (df["_horas_tot"] > 0) & (df["_custo_total"] != 0) & (df["_horas_pep"] > 0)
+    horas_linha = pd.to_numeric(df["horas"], errors="coerce").fillna(0)
+    share_pep         = np.where(df["_horas_tot"]      > 0, df["_horas_pep"] / df["_horas_tot"],     0.0)
+    share_within_pep  = np.where(df["_horas_rac_pep"]  > 0, horas_linha       / df["_horas_rac_pep"], 1.0)
     custo_alocado = np.where(
         mask_rac_aloca,
-        df["_custo_total"] * df["_horas_pep"] / df["_horas_tot"],
+        df["_custo_total"] * share_pep * share_within_pep,
         0.0,
     )
     df.loc[mask_rac_aloca, "custo_rateado"] = custo_alocado[mask_rac_aloca]
     df.loc[mask_rac_aloca, "tag_rateio"] = (
-        "Rateio: " + df.loc[mask_rac_aloca, "_horas_pep"].round(1).astype(str)
-        + "h de " + df.loc[mask_rac_aloca, "_horas_tot"].round(1).astype(str)
-        + "h totais da pessoa"
+        "Rateio: " + horas_linha[mask_rac_aloca].round(1).astype(str)
+        + "h da linha (PEP " + df.loc[mask_rac_aloca, "_horas_rac_pep"].round(1).astype(str)
+        + "h, pessoa " + df.loc[mask_rac_aloca, "_horas_tot"].round(1).astype(str) + "h)"
     )
     df.loc[is_rac & ~mask_rac_aloca, "tag_rateio"] = "Receita sem custo atrelado (pessoa sem apontamento no PEP)"
 
