@@ -1768,18 +1768,25 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     campos = ["tipo_contrato", "billable_category", "classificacao", "area", "macro_area", "funcao"]
     fontes_mapa = ["CLTs", "PJs"]
 
+    # Pessoas presentes em Mapa Pessoas (CLTs/PJs): cadastro Mar26 é a verdade.
+    # Se Mapa tem a pessoa MAS o campo está vazio lá, vazio é intencional —
+    # NÃO propaga de outras fontes pra ela.
+    pessoa_em_mapa = set(df.loc[df["fonte"].astype(str).isin(fontes_mapa)
+                                & (df["_pessoa_key"] != ""), "_pessoa_key"].unique())
+
     for campo in campos:
         if campo not in df.columns:
             continue
         tem_valor = df[campo].notna() & (df[campo].astype(str).str.strip() != "") & (df["_pessoa_key"] != "")
         is_mapa = df["fonte"].astype(str).isin(fontes_mapa) & tem_valor
-        # Prioridade Mapa
+        # Prioridade Mapa: pega valor de quem TEM valor em CLTs/PJs
         mapa_dict = (df[is_mapa].drop_duplicates("_pessoa_key")
                      .set_index("_pessoa_key")[campo].to_dict())
-        # Fallback outras fontes
-        outras_dict = (df[tem_valor & ~is_mapa].drop_duplicates("_pessoa_key")
+        # Fallback outras fontes — apenas pra pessoas que NÃO estão em Mapa
+        # (Pessoas em Mapa com campo vazio têm vazio como verdade.)
+        fallback_mask = tem_valor & ~is_mapa & ~df["_pessoa_key"].isin(pessoa_em_mapa)
+        outras_dict = (df[fallback_mask].drop_duplicates("_pessoa_key")
                        .set_index("_pessoa_key")[campo].to_dict())
-        # Mescla: outras primeiro, Mapa sobrescreve (prioridade)
         valor_dict = {**outras_dict, **mapa_dict}
         valor_dict.pop("", None)
 
