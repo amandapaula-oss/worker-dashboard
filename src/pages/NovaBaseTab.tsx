@@ -161,7 +161,7 @@ export default function NovaBaseTab() {
     return new Set(columns.map((c) => c.key));
   });
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...visibleKeys])); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(visibleKeys))); } catch {}
   }, [visibleKeys]);
 
   const toggleColumn = (key: string) => {
