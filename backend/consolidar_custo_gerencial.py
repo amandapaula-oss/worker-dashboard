@@ -254,12 +254,22 @@ print(f"Períodos: {sorted(novo['periodo'].unique())}")
 print(f"Custo total: R${novo['custo_gerencial_sap'].sum():,.2f}")
 
 # ── Lookup macro_area via Mapa Pessoas ───────────────────────────────────────
-MAPA_FILE = os.path.join(os.path.dirname(__file__), "2026 dados", "Mapa Pessoas - Jan26.xlsx")
+# Usa o Mapa Pessoas mais recente disponivel (Mar26 > Jan26). Cadastros antigos
+# podiam marcar como 'Backoffice' pessoas que ja migraram pra projeto cliente.
+MAPA_DIR = os.path.join(os.path.dirname(__file__), "2026 dados")
+MAPA_CANDIDATES = ["Mapa Pessoas - Mar26.xlsx", "Mapa Pessoas - Jan26.xlsx"]
+MAPA_FILE = next((os.path.join(MAPA_DIR, f) for f in MAPA_CANDIDATES
+                  if os.path.exists(os.path.join(MAPA_DIR, f))), None)
 try:
+    if not MAPA_FILE:
+        raise FileNotFoundError("Nenhum Mapa Pessoas encontrado")
+    print(f"Lookup macro_area de: {os.path.basename(MAPA_FILE)}")
     xl_mapa = pd.ExcelFile(MAPA_FILE)
     df_clt = xl_mapa.parse("CLTs", dtype=str)
     cad_col  = next(c for c in df_clt.columns if "Cad" in c)
     macro_col = next(c for c in df_clt.columns if "Macro" in c and "rea" in c)
+    # Mar26 usa 0/nan pra macro_area vazia — limpa
+    df_clt[macro_col] = df_clt[macro_col].replace({"0": pd.NA, "nan": pd.NA, "": pd.NA})
     lookup = (
         df_clt[[cad_col, macro_col]]
         .dropna(subset=[macro_col])
