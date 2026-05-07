@@ -1765,7 +1765,10 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[mask_ambiguo & df["_pessoa_key"].isin(so_pj_keys), "tipo_contrato"] = "PJ"
         # Pessoas com ambos {CLT, PJ} mantém "CLT/PJ"
 
-    campos = ["tipo_contrato", "billable_category", "classificacao", "area", "macro_area", "funcao"]
+    # macro_area NÃO propaga — info de planilhas de custo_gerencial pode estar
+    # desatualizada (pessoas que migraram de Backoffice pra projeto continuam
+    # como Backoffice no SAP). Cada linha mantém o macro_area da própria fonte.
+    campos = ["tipo_contrato", "billable_category", "classificacao", "area", "funcao"]
     fontes_mapa = ["CLTs", "PJs"]
 
     for campo in campos:
