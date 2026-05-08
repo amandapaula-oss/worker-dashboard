@@ -299,7 +299,10 @@ export default function NovaBaseMargemTab() {
       render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
   ];
 
-  const opt = (arr: string[]) => (arr || []).map(v => ({ label: v, value: v }));
+  const opt = (arr: string[]) => [
+    ...(arr || []).map(v => ({ label: v, value: v })),
+    { label: "(Vazio)", value: "__blank__" },
+  ];
 
   if (selectedCliente) {
     const totDetRec = detalhe.reduce((s, r) => s + (r.receita || 0), 0);

@@ -68,6 +68,7 @@ export default function NovaBaseTab() {
   const [selMacroAreas, setSelMacroAreas]   = useState<string[]>([]);
   const [selTipos, setSelTipos]             = useState<string[]>([]);
   const [selClassif, setSelClassif]         = useState<string[]>([]);
+  const [selVerticais, setSelVerticais]     = useState<string[]>([]);
   const [rows, setRows]                     = useState<any[]>([]);
   const [total, setTotal]                   = useState(0);
   const [truncated, setTruncated]           = useState(false);
@@ -94,11 +95,12 @@ export default function NovaBaseTab() {
     if (selMacroAreas.length) params.macro_areas    = selMacroAreas.join(",");
     if (selTipos.length)      params.tipos_contrato = selTipos.join(",");
     if (selClassif.length)    params.classificacoes = selClassif.join(",");
+    if (selVerticais.length)  params.verticais      = selVerticais.join(",");
     if (searchTerm.trim())    params.search         = searchTerm.trim();
     getNovaBaseData(params)
       .then(r => { setRows(r.rows); setTotal(r.total); setTruncated(r.truncated); })
       .finally(() => setLoading(false));
-  }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif]);
+  }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif, selVerticais]);
 
   useEffect(() => { if (filtersReady) load(""); }, [filtersReady, load]);
 
@@ -205,7 +207,10 @@ export default function NovaBaseTab() {
     </div>
   );
 
-  const opt = (arr: string[]) => arr.map(v => ({ label: v, value: v }));
+  const opt = (arr: string[]) => [
+    ...arr.map(v => ({ label: v, value: v })),
+    { label: "(Vazio)", value: "__blank__" },
+  ];
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -254,10 +259,13 @@ export default function NovaBaseTab() {
           <div style={labelStyle}>Classificação</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selClassif}
             onChange={setSelClassif}
-            options={[
-              ...opt(filters.classificacoes ?? []),
-              { label: "(Sem classificação)", value: "__blank__" },
-            ]}
+            options={opt(filters.classificacoes ?? [])}
+            maxTagCount="responsive" placeholder="Todas" allowClear />
+        </div>
+        <div style={{ flex: 1, minWidth: 130 }}>
+          <div style={labelStyle}>BU</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
+            onChange={setSelVerticais} options={opt(filters.verticais ?? [])}
             maxTagCount="responsive" placeholder="Todas" allowClear />
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>

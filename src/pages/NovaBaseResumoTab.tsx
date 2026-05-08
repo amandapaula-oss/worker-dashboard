@@ -305,7 +305,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodos, visibleMetrics, agruparPor, selPeriodos, selEmpresas, selFontes]);
 
-  const opt = (arr: string[]) => arr.map(v => ({ label: v, value: v }));
+  const opt = (arr: string[]) => [
+    ...arr.map(v => ({ label: v, value: v })),
+    { label: "(Vazio)", value: "__blank__" },
+  ];
   const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0;
 
   return (
@@ -457,7 +460,10 @@ export function NovaDreTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersReady, selPeriodos, selEmpresas, selFontes]);
 
-  const opt = (arr: string[]) => arr.map((v: string) => ({ label: v, value: v }));
+  const opt = (arr: string[]) => [
+    ...arr.map((v: string) => ({ label: v, value: v })),
+    { label: "(Vazio)", value: "__blank__" },
+  ];
   const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0;
 
   const columns: string[] = useMemo(() => {
