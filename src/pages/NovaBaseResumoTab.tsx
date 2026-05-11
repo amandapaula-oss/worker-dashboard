@@ -12,7 +12,7 @@ import { periodoLabel } from "../utils/format";
 
 const AGRUPAR_PARAM_KEY: Record<string, string> = {
   empresa: "empresas", vertical: "verticais", fonte: "fontes", macro_area: "macro_areas",
-  tipo_pessoa: "tipo_pessoa",
+  tipo_pessoa: "tipo_pessoa", apuracao: "apuracoes",
 };
 
 /* Timer que aparece após 5s de loading para informar sobre cold start */
@@ -65,7 +65,7 @@ function MargemTag({ value }: { value: number | null | undefined }) {
 
 const AGRUPAR_LABELS: Record<string, string> = {
   empresa: "Empresa", fonte: "Fonte", macro_area: "Macro Área", vertical: "BU",
-  tipo_pessoa: "Tipo (CLT/PJ)",
+  tipo_pessoa: "Tipo (CLT/PJ)", apuracao: "Apuração",
 };
 
 export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparPor?: string }) {

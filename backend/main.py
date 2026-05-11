@@ -2514,6 +2514,8 @@ def get_nova_base_resumo(
     df["periodo"]  = df["periodo"].fillna("").astype(str).str.strip()
     if group_col == "macro_area":
         df.loc[df[group_col] == "", group_col] = "Projetos"
+    if group_col == "apuracao":
+        df.loc[df[group_col] == "", group_col] = "Sem Apuração"
     if group_col == "vertical":
         _NOT_BU = {"Executive Leadership", "Operations VP", "Sales VP", "Tech VP", "Delivery Play"}
         df = df[~df[group_col].isin(_NOT_BU)]
