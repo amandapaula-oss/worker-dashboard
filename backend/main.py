@@ -1623,6 +1623,38 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
     return map_nome, map_id
 
 
+# Mapa Profit Center -> Apuracao (NG / Ecossistema)
+# Baseado em DC001-DC042 (cadastro Profit Centers). DC001 (Squads), DC002 (Dedicated
+# Teams), DC005 (Open-X) sao NG. Demais sao Ecossistema. Tambem aceita o nome.
+_APURACAO_NG_CODES = {"DC001", "DC002", "DC005"}
+_APURACAO_NG_NAMES = {"Squads", "Dedicated Teams", "Open-X"}
+_APURACAO_ECOSSISTEMA_CODES = {f"DC{i:03d}" for i in range(3, 43)} - _APURACAO_NG_CODES
+_APURACAO_ECOSSISTEMA_NAMES = {
+    "Software Factory", "E-commerce", "Licensing Microsoft", "Imagine",
+    "Hyperautomation", "Licensing Hyper", "Hyper Cloud Dev Plat", "Hyper Data Prot Comp",
+    "Strat Consult (Dojo)", "Data Consult (Dojo)", "Product (Dojo)", "Web Analytics",
+    "Project Lead", "SEO", "Creative", "Performance", "Social & Content", "CRM",
+    "Rev Ops", "Marketplace", "Open Innovation", "CVB", "CVC", "Intrapreneurship",
+    "Creat. Problem Solv.", "FC Consult. New Rev", "Dig. & App Innov.", "Infrastructure",
+    "Data & AI (SGA)", "Security", "Partners", "Modern work", "FinOps", "Business Unit",
+    "Back Office", "Data Prof.Serv.Dojo", "FC Consult. B. Sales", "FC Consult. Strategy",
+    "AI Factory",
+}
+
+
+def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
+    """Coluna virtual `apuracao` (NG / Ecossistema) baseada em no_hierarquia."""
+    if "no_hierarquia" not in df.columns:
+        df["apuracao"] = ""
+        return df
+    nh = df["no_hierarquia"].fillna("").astype(str).str.strip()
+    ap = pd.Series("", index=df.index)
+    ap[nh.isin(_APURACAO_NG_CODES) | nh.isin(_APURACAO_NG_NAMES)] = "NG"
+    ap[nh.isin(_APURACAO_ECOSSISTEMA_CODES) | nh.isin(_APURACAO_ECOSSISTEMA_NAMES)] = "Ecossistema"
+    df["apuracao"] = ap
+    return df
+
+
 def _adicionar_fonte_familia(df: pd.DataFrame) -> pd.DataFrame:
     """Cria coluna virtual `fonte_familia` agrupando arquivos individuais em famílias:
     - Mapa Pessoas
@@ -2121,6 +2153,7 @@ def _get_nova_base() -> pd.DataFrame:
                         mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
                         df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
                 df = _adicionar_fonte_familia(df)
+                df = _adicionar_apuracao(df)
                 df = _enriquecer_dados_pessoa(df)
                 df = _aplicar_rateio_custos(df)
                 _cache["nova_base"] = df
@@ -2213,6 +2246,7 @@ def _get_nova_base() -> pd.DataFrame:
                 mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
                 df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
         df = _adicionar_fonte_familia(df)
+        df = _adicionar_apuracao(df)
         df = _enriquecer_dados_pessoa(df)
         df = _aplicar_rateio_custos(df)
         _cache["nova_base"] = df
@@ -2400,6 +2434,7 @@ def get_nova_base_filters(user=Depends(get_current_user)):
         "tipos_contrato":  uniq("tipo_contrato"),
         "classificacoes":  uniq("classificacao"),
         "verticais":       uniq("vertical"),
+        "apuracoes":       uniq("apuracao"),
     }
 
 @app.get("/api/nova-base/resumo")
@@ -2622,6 +2657,7 @@ def get_nova_base_data(
     tipos_contrato: str = "",
     classificacoes: str = "",
     verticais: str = "",
+    apuracoes: str = "",
     nome_cliente: str = "",
     tipo_pessoa: str = "",
     metric: str = "",
@@ -2655,6 +2691,7 @@ def get_nova_base_data(
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
     if classificacoes: df = filt("classificacao", classificacoes)
     if verticais:      df = filt("vertical", verticais)
+    if apuracoes:      df = filt("apuracao", apuracoes)
 
     # Busca textual server-side em vários campos (case-insensitive)
     if search:

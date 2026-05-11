@@ -69,6 +69,7 @@ export default function NovaBaseTab() {
   const [selTipos, setSelTipos]             = useState<string[]>([]);
   const [selClassif, setSelClassif]         = useState<string[]>([]);
   const [selVerticais, setSelVerticais]     = useState<string[]>([]);
+  const [selApuracoes, setSelApuracoes]     = useState<string[]>([]);
   const [rows, setRows]                     = useState<any[]>([]);
   const [total, setTotal]                   = useState(0);
   const [truncated, setTruncated]           = useState(false);
@@ -96,11 +97,12 @@ export default function NovaBaseTab() {
     if (selTipos.length)      params.tipos_contrato = selTipos.join(",");
     if (selClassif.length)    params.classificacoes = selClassif.join(",");
     if (selVerticais.length)  params.verticais      = selVerticais.join(",");
+    if (selApuracoes.length)  params.apuracoes      = selApuracoes.join(",");
     if (searchTerm.trim())    params.search         = searchTerm.trim();
     getNovaBaseData(params)
       .then(r => { setRows(r.rows); setTotal(r.total); setTruncated(r.truncated); })
       .finally(() => setLoading(false));
-  }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif, selVerticais]);
+  }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif, selVerticais, selApuracoes]);
 
   useEffect(() => { if (filtersReady) load(""); }, [filtersReady, load]);
 
@@ -128,6 +130,8 @@ export default function NovaBaseTab() {
     { title: "Área",       dataIndex: "area",            key: "area",            width: 140 },
     { title: "Macro Área", dataIndex: "macro_area",      key: "macro_area",      width: 130 },
     { title: "Vertical",   dataIndex: "vertical",        key: "vertical",        width: 140, ellipsis: true },
+    { title: "Apuração",   dataIndex: "apuracao",        key: "apuracao",        width: 110,
+      render: (v: string) => v ? <Tag color={v === "NG" ? "magenta" : "geekblue"}>{v}</Tag> : "—" },
     { title: "Receita",    dataIndex: "receita",         key: "receita",         width: 120, align: "right" as const,
       render: fmt },
     { title: "Custo",      dataIndex: "custo_rateado",   key: "custo_rateado",   width: 120, align: "right" as const,
@@ -266,6 +270,12 @@ export default function NovaBaseTab() {
           <div style={labelStyle}>BU</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
             onChange={setSelVerticais} options={opt(filters.verticais ?? [])}
+            maxTagCount="responsive" placeholder="Todas" allowClear />
+        </div>
+        <div style={{ flex: 1, minWidth: 130 }}>
+          <div style={labelStyle}>Apuração</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selApuracoes}
+            onChange={setSelApuracoes} options={opt(filters.apuracoes ?? [])}
             maxTagCount="responsive" placeholder="Todas" allowClear />
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
