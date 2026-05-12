@@ -441,6 +441,8 @@ export function NovaDreTab() {
   const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [selFontes, setSelFontes]     = useState<string[]>([]);
+  const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
+  const [selNoHier, setSelNoHier]     = useState<string[]>([]);
   const [data, setData]               = useState<any>(null);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
@@ -466,21 +468,23 @@ export function NovaDreTab() {
     if (!filtersReady || initialLoad.current) return;
     setLoading(true);
     const params: Record<string, string> = {};
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
-    if (selEmpresas.length) params.empresas = selEmpresas.join(",");
-    if (selFontes.length)   params.fontes   = selFontes.join(",");
+    if (selPeriodos.length)  params.periodos       = selPeriodos.join(",");
+    if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
+    if (selFontes.length)    params.fontes         = selFontes.join(",");
+    if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
+    if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
     getNovaBaseDre(params)
       .then(d => { setData(d); setError(null); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas, selFontes]);
+  }, [filtersReady, selPeriodos, selEmpresas, selFontes, selApuracoes, selNoHier]);
 
   const opt = (arr: string[]) => [
     ...arr.map((v: string) => ({ label: v, value: v })),
     { label: "(Vazio)", value: "__blank__" },
   ];
-  const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0;
+  const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0 || selApuracoes.length > 0 || selNoHier.length > 0;
 
   const columns: string[] = useMemo(() => {
     if (!data?.columns) return [];
@@ -529,6 +533,18 @@ export function NovaDreTab() {
             <Select mode="multiple" style={{ width: "100%" }} value={selFontes}
               onChange={setSelFontes} options={opt(filters.fontes ?? [])}
               maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 130 }}>
+            <div style={labelStyle}>Apuração</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selApuracoes}
+              onChange={setSelApuracoes} options={opt(filters.apuracoes ?? [])}
+              maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Centro de Lucro</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selNoHier}
+              onChange={setSelNoHier} options={opt(filters.no_hierarquias ?? [])}
+              maxTagCount="responsive" placeholder="Todos" allowClear />
           </div>
         </div>
       )}

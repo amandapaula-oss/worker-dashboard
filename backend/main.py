@@ -2803,17 +2803,19 @@ def get_nova_base_dre(
     empresas: str = "",
     fontes: str = "",
     macro_areas: str = "",
+    apuracoes: str = "",
+    no_hierarquias: str = "",
     user=Depends(get_current_user)
 ):
     try:
-        return _nova_base_dre_logic(periodos, empresas, fontes, macro_areas)
+        return _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes, no_hierarquias)
     except Exception as e:
         tb = traceback.format_exc()
         print(f"[nova-base/dre] ERRO: {e}\n{tb}")
         return JSONResponse(status_code=500, content={"detail": str(e), "traceback": tb},
                             headers={"Access-Control-Allow-Origin": "*"})
 
-def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
+def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", no_hierarquias=""):
     from datetime import datetime
     df = _get_nova_base().copy()
 
@@ -2836,9 +2838,11 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas):
             return df[mask].copy()
         return df
 
-    if periodos:    df = filt("periodo", periodos)
-    if empresas:    df = filt("empresa", empresas)
-    if fontes:      df = filt("fonte_familia", fontes)
+    if periodos:       df = filt("periodo", periodos)
+    if empresas:       df = filt("empresa", empresas)
+    if fontes:         df = filt("fonte_familia", fontes)
+    if apuracoes:      df = filt("apuracao", apuracoes)
+    if no_hierarquias: df = filt("no_hierarquia", no_hierarquias)
     # macro_areas filtra só despesas (linhas com macro_area); receita/custo direto não têm macro_area
     _macro_area_filter = [v.strip() for v in macro_areas.split(",") if v.strip()] if macro_areas else []
 
