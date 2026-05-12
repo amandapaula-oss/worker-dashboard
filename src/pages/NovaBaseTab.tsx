@@ -70,6 +70,7 @@ export default function NovaBaseTab() {
   const [selClassif, setSelClassif]         = useState<string[]>([]);
   const [selVerticais, setSelVerticais]     = useState<string[]>([]);
   const [selApuracoes, setSelApuracoes]     = useState<string[]>([]);
+  const [selNoHier, setSelNoHier]           = useState<string[]>([]);
   const [rows, setRows]                     = useState<any[]>([]);
   const [total, setTotal]                   = useState(0);
   const [truncated, setTruncated]           = useState(false);
@@ -98,11 +99,12 @@ export default function NovaBaseTab() {
     if (selClassif.length)    params.classificacoes = selClassif.join(",");
     if (selVerticais.length)  params.verticais      = selVerticais.join(",");
     if (selApuracoes.length)  params.apuracoes      = selApuracoes.join(",");
+    if (selNoHier.length)     params.no_hierarquias = selNoHier.join(",");
     if (searchTerm.trim())    params.search         = searchTerm.trim();
     getNovaBaseData(params)
       .then(r => { setRows(r.rows); setTotal(r.total); setTruncated(r.truncated); })
       .finally(() => setLoading(false));
-  }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif, selVerticais, selApuracoes]);
+  }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif, selVerticais, selApuracoes, selNoHier]);
 
   useEffect(() => { if (filtersReady) load(""); }, [filtersReady, load]);
 
@@ -277,6 +279,12 @@ export default function NovaBaseTab() {
           <Select mode="multiple" style={{ width: "100%" }} value={selApuracoes}
             onChange={setSelApuracoes} options={opt(filters.apuracoes ?? [])}
             maxTagCount="responsive" placeholder="Todas" allowClear />
+        </div>
+        <div style={{ flex: 1, minWidth: 140 }}>
+          <div style={labelStyle}>Centro de Lucro</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selNoHier}
+            onChange={setSelNoHier} options={opt(filters.no_hierarquias ?? [])}
+            maxTagCount="responsive" placeholder="Todos" allowClear />
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
           <Button icon={<DownloadOutlined />} onClick={() => exportTableToExcel(columns, rows, "nova_base")}>

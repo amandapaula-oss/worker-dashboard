@@ -73,6 +73,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   const [selPeriodos, setSelPeriodos]   = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas]   = useState<string[]>([]);
   const [selFontes, setSelFontes]       = useState<string[]>([]);
+  const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
+  const [selNoHier, setSelNoHier]       = useState<string[]>([]);
   const [rawData, setRawData]           = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
@@ -131,14 +133,16 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   const load = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = { agrupar_por: agruparPor };
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
-    if (selEmpresas.length) params.empresas = selEmpresas.join(",");
-    if (selFontes.length)   params.fontes   = selFontes.join(",");
+    if (selPeriodos.length)   params.periodos       = selPeriodos.join(",");
+    if (selEmpresas.length)   params.empresas       = selEmpresas.join(",");
+    if (selFontes.length)     params.fontes         = selFontes.join(",");
+    if (selApuracoes.length)  params.apuracoes      = selApuracoes.join(",");
+    if (selNoHier.length)     params.no_hierarquias = selNoHier.join(",");
     getNovaBaseResumo(params)
       .then(r => { setRawData(r); initialLoad.current = false; setError(null); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [selPeriodos, selEmpresas, selFontes, agruparPor]);
+  }, [selPeriodos, selEmpresas, selFontes, selApuracoes, selNoHier, agruparPor]);
 
   useEffect(() => { if (filtersReady) load(); }, [filtersReady, load]);
 
@@ -309,7 +313,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     ...arr.map(v => ({ label: v, value: v })),
     { label: "(Vazio)", value: "__blank__" },
   ];
-  const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0;
+  const hasActiveFilter = selPeriodos.length > 0 || selEmpresas.length > 0 || selFontes.length > 0 || selApuracoes.length > 0 || selNoHier.length > 0;
 
   return (
     <div>
@@ -344,6 +348,18 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
             <Select mode="multiple" style={{ width: "100%" }} value={selFontes}
               onChange={setSelFontes} options={opt(filters.fontes ?? [])}
               maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 130 }}>
+            <div style={labelStyle}>Apuração</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selApuracoes}
+              onChange={setSelApuracoes} options={opt(filters.apuracoes ?? [])}
+              maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Centro de Lucro</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selNoHier}
+              onChange={setSelNoHier} options={opt(filters.no_hierarquias ?? [])}
+              maxTagCount="responsive" placeholder="Todos" allowClear />
           </div>
         </div>
       )}

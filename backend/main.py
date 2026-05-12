@@ -2435,6 +2435,7 @@ def get_nova_base_filters(user=Depends(get_current_user)):
         "classificacoes":  uniq("classificacao"),
         "verticais":       uniq("vertical"),
         "apuracoes":       uniq("apuracao"),
+        "no_hierarquias":  uniq("no_hierarquia"),
     }
 
 @app.get("/api/nova-base/resumo")
@@ -2445,6 +2446,9 @@ def get_nova_base_resumo(
     macro_areas: str = "",
     tipos_contrato: str = "",
     classificacoes: str = "",
+    verticais: str = "",
+    no_hierarquias: str = "",
+    apuracoes: str = "",
     agrupar_por: str = "empresa",
     user=Depends(get_current_user)
 ):
@@ -2475,6 +2479,9 @@ def get_nova_base_resumo(
     if macro_areas:    df = filt("macro_area", macro_areas)
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
     if classificacoes: df = filt("classificacao", classificacoes)
+    if verticais:      df = filt("vertical", verticais)
+    if no_hierarquias: df = filt("no_hierarquia", no_hierarquias)
+    if apuracoes:      df = filt("apuracao", apuracoes)
 
     df = df.copy()
 
@@ -2660,6 +2667,7 @@ def get_nova_base_data(
     classificacoes: str = "",
     verticais: str = "",
     apuracoes: str = "",
+    no_hierarquias: str = "",
     nome_cliente: str = "",
     tipo_pessoa: str = "",
     metric: str = "",
@@ -2694,6 +2702,7 @@ def get_nova_base_data(
     if classificacoes: df = filt("classificacao", classificacoes)
     if verticais:      df = filt("vertical", verticais)
     if apuracoes:      df = filt("apuracao", apuracoes)
+    if no_hierarquias: df = filt("no_hierarquia", no_hierarquias)
 
     # Busca textual server-side em vários campos (case-insensitive)
     if search:
