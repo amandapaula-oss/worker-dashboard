@@ -126,11 +126,50 @@ export default function ClientesTab() {
   useEffect(() => {
     if (!selectedPep) return;
     setLoadingPess(true);
-    getMargemPessoas({ pep: selectedPep.pep })
+    getMargemPessoas({ pep: selectedPep.pep, breakdown: "true" })
       .then((d: any[]) => setPessoas(d))
       .catch(() => message.error("Erro ao carregar pessoas"))
       .finally(() => setLoadingPess(false));
   }, [selectedPep]);
+
+  // Pivota pessoas por (pessoa, mes) — colunas dinâmicas por período
+  const pessoasPivot = useMemo(() => {
+    if (!pessoas.length) return { rows: [] as any[], periodos: [] as string[] };
+    const periodos = Array.from(new Set(pessoas.map(p => p.periodo).filter(Boolean))).sort() as string[];
+    const map = new Map<string, any>();
+    for (const p of pessoas) {
+      const key = `${p.cpf}|${p.nome}|${p.empresa}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          cpf: p.cpf, nome: p.nome, empresa: p.empresa,
+          numero_pessoal: p.numero_pessoal || "",
+          total_receita: 0, total_custo: 0, total_horas: 0,
+        });
+      }
+      const e = map.get(key);
+      const rec = Number(p.receita) || 0;
+      const cus = Number(p.custo_rateado) || 0;
+      const hrs = Number(p.horas) || 0;
+      e[`${p.periodo}_receita`] = (e[`${p.periodo}_receita`] || 0) + rec;
+      e[`${p.periodo}_custo`]   = (e[`${p.periodo}_custo`]   || 0) + cus;
+      e[`${p.periodo}_horas`]   = (e[`${p.periodo}_horas`]   || 0) + hrs;
+      e.total_receita += rec;
+      e.total_custo   += cus;
+      e.total_horas   += hrs;
+    }
+    const rows = Array.from(map.values()).map(r => ({
+      ...r,
+      total_margem: r.total_receita + r.total_custo,
+      total_margem_pct: r.total_receita !== 0 ? (r.total_receita + r.total_custo) / r.total_receita : null,
+    })).sort((a, b) => (b.total_receita || 0) - (a.total_receita || 0));
+    return { rows, periodos };
+  }, [pessoas]);
+
+  // Info do projeto (quando pessoas vazias — WIP, etc)
+  const projetoSelecionado = useMemo(() => {
+    if (!selectedPep) return null;
+    return projetos.find(p => p.pep === selectedPep.pep) || null;
+  }, [projetos, selectedPep]);
 
   const bus   = useMemo(() => Array.from(new Set(clientes.map(c => c.bu).filter(Boolean))).sort(), [clientes]);
   const aes   = useMemo(() => Array.from(new Set(clientes.map(c => c.ae).filter(Boolean))).sort(), [clientes]);
@@ -249,23 +288,47 @@ export default function ClientesTab() {
       render: (v: any) => Number(v) > 0 ? Number(v).toLocaleString("pt-BR") : "—" },
   ];
 
-  const colPessoas = [
-    { title: "Nome", dataIndex: "nome", key: "nome", ellipsis: true,
-      sorter: (a: any, b: any) => String(a.nome).localeCompare(String(b.nome), "pt-BR"),
-      render: (v: string) => toTitleCase(v) || "—" },
-    { title: "ID", dataIndex: "numero_pessoal", key: "numero_pessoal", width: 110 },
-    { title: "CPF", dataIndex: "cpf", key: "cpf", width: 150 },
-    { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 120, render: (v: string) => toTitleCase(v) || "—" },
-    { title: "Horas", dataIndex: "horas", key: "horas", width: 80, align: "right" as const,
-      render: (v: any) => Number(v) > 0 ? Number(v).toLocaleString("pt-BR") : "—" },
-    { title: "Receita", dataIndex: "receita", key: "receita", width: 155, align: "right" as const,
-      sorter: (a: any, b: any) => (Number(a.receita) || 0) - (Number(b.receita) || 0),
-      render: (v: any) => <span style={{ color: theme.text, fontWeight: 600 }}>{brl(v)}</span> },
-    { title: "Custo", dataIndex: "custo_rateado", key: "custo_rateado", width: 155, align: "right" as const,
-      render: (v: any) => <span style={{ color: Number(v) < 0 ? "#c0392b" : theme.text, fontWeight: 600 }}>{brl(v)}</span> },
-    { title: "Margem %", dataIndex: "margem_pct", key: "margem_pct", width: 100, align: "center" as const,
-      render: (v: any) => <MargemTag value={v} /> },
-  ];
+  const colPessoas = useMemo(() => {
+    const base: any[] = [
+      { title: "Nome", dataIndex: "nome", key: "nome", width: 220, fixed: "left", ellipsis: true,
+        sorter: (a: any, b: any) => String(a.nome).localeCompare(String(b.nome), "pt-BR"),
+        render: (v: string) => toTitleCase(v) || "—" },
+      { title: "ID",  dataIndex: "numero_pessoal", key: "numero_pessoal", width: 90 },
+      { title: "CPF", dataIndex: "cpf", key: "cpf", width: 130 },
+      { title: "Empresa", dataIndex: "empresa", key: "empresa", width: 110,
+        render: (v: string) => toTitleCase(v) || "—" },
+    ];
+    // Colunas dinâmicas por período (receita/custo/horas por mês)
+    for (const p of pessoasPivot.periodos) {
+      base.push({
+        title: p, key: `g_${p}`,
+        children: [
+          { title: "Receita", dataIndex: `${p}_receita`, key: `${p}_r`, width: 110, align: "right" as const,
+            render: (v: any) => v ? brl(v) : "—" },
+          { title: "Custo", dataIndex: `${p}_custo`, key: `${p}_c`, width: 110, align: "right" as const,
+            render: (v: any) => v ? <span style={{ color: Number(v) < 0 ? "#c0392b" : theme.text }}>{brl(v)}</span> : "—" },
+          { title: "Horas", dataIndex: `${p}_horas`, key: `${p}_h`, width: 70, align: "right" as const,
+            render: (v: any) => Number(v) > 0 ? Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—" },
+        ]
+      });
+    }
+    base.push({
+      title: "Total", key: "tot",
+      children: [
+        { title: "Receita", dataIndex: "total_receita", key: "tr", width: 130, align: "right" as const,
+          fixed: "right",
+          sorter: (a: any, b: any) => (Number(a.total_receita) || 0) - (Number(b.total_receita) || 0),
+          render: (v: any) => <span style={{ color: theme.text, fontWeight: 700 }}>{brl(v)}</span> },
+        { title: "Custo", dataIndex: "total_custo", key: "tc", width: 130, align: "right" as const,
+          fixed: "right",
+          render: (v: any) => <span style={{ color: Number(v) < 0 ? "#c0392b" : theme.text, fontWeight: 700 }}>{brl(v)}</span> },
+        { title: "Margem %", dataIndex: "total_margem_pct", key: "tm", width: 100, align: "center" as const,
+          fixed: "right",
+          render: (v: any) => <MargemTag value={v} /> },
+      ]
+    });
+    return base;
+  }, [pessoasPivot.periodos]);
 
   const [colsClientes,  settingsClientes]  = useDraggableColumns(colClientes, "clientes-main");
   const [colsProjetos,  settingsProjetos]  = useDraggableColumns(colProjetos, "clientes-projetos");
@@ -322,21 +385,31 @@ export default function ClientesTab() {
           <Button type="link" style={{ color: theme.link, paddingLeft: 0, marginBottom: 12 }}
             onClick={() => setSelectedPep(null)}>← Voltar para projetos</Button>
           {loadingPess ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
-            <Table
-              dataSource={pessoas.map((d, i) => ({ ...d, key: i }))}
-              columns={colsPessoas}
-              title={() => (
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
-                  {settingsPessoas}
-                  <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
-                    onClick={() => exportTableToExcel(colsPessoas, pessoas, "pessoas")}>Excel</Button>
+            <>
+              {pessoasPivot.rows.length === 0 && projetoSelecionado && (
+                <div style={{ background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 8, padding: "0.9rem 1.2rem", marginBottom: 12 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Sem alocação de pessoas neste PEP</div>
+                  <div style={{ color: theme.secondary, fontSize: "0.85rem" }}>
+                    Tipo: <b>{projetoSelecionado.tipos || "—"}</b> • Receita total: <b>{brl(projetoSelecionado.receita)}</b> • Custo: <b>{brl(projetoSelecionado.custo_rateado)}</b> • Margem: <b>{projetoSelecionado.margem_pct != null ? `${(projetoSelecionado.margem_pct*100).toFixed(1)}%` : "—"}</b>
+                  </div>
                 </div>
               )}
-              pagination={pagination}
-              size="small"
-              scroll={{ x: "max-content" }}
-              style={tableStyle}
-            />
+              <Table
+                dataSource={pessoasPivot.rows.map((d, i) => ({ ...d, key: i }))}
+                columns={colsPessoas}
+                title={() => (
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, padding: "0 0 4px" }}>
+                    {settingsPessoas}
+                    <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                      onClick={() => exportTableToExcel(colsPessoas, pessoasPivot.rows, "pessoas")}>Excel</Button>
+                  </div>
+                )}
+                pagination={pagination}
+                size="small"
+                scroll={{ x: "max-content" }}
+                style={tableStyle}
+              />
+            </>
           )}
         </>
       ) : selectedCliente ? (
