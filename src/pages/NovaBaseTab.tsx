@@ -7,6 +7,7 @@ import { getNovaBaseFilters, getNovaBaseData, downloadNovaBase } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
 import { theme } from "../theme";
 import { exportTableToExcel } from "../utils/exportExcel";
+import { useNovaBaseFilters } from "../contexts/NovaBaseFilters";
 
 function ResizableTitle({ onResize, width, ...rest }: any) {
   if (!width) return <th {...rest} />;
@@ -62,15 +63,18 @@ const FONTE_COLORS: Record<string, string> = {
 
 export default function NovaBaseTab() {
   const [filters, setFilters] = useState<any>({});
-  const [selPeriodos, setSelPeriodos]       = useState<string[]>(["2026-01", "2026-02", "2026-03"]);
-  const [selFontes, setSelFontes]           = useState<string[]>([]);
-  const [selEmpresas, setSelEmpresas]       = useState<string[]>([]);
-  const [selMacroAreas, setSelMacroAreas]   = useState<string[]>([]);
-  const [selTipos, setSelTipos]             = useState<string[]>([]);
-  const [selClassif, setSelClassif]         = useState<string[]>([]);
-  const [selVerticais, setSelVerticais]     = useState<string[]>([]);
-  const [selApuracoes, setSelApuracoes]     = useState<string[]>([]);
-  const [selNoHier, setSelNoHier]           = useState<string[]>([]);
+  const {
+    selPeriodos, setSelPeriodos,
+    selFontes, setSelFontes,
+    selEmpresas, setSelEmpresas,
+    selMacroAreas, setSelMacroAreas,
+    selTipos, setSelTipos,
+    selClassif, setSelClassif,
+    selVerticais, setSelVerticais,
+    selApuracoes, setSelApuracoes,
+    selNoHier, setSelNoHier,
+    resetFilters, hasAnyFilter,
+  } = useNovaBaseFilters();
   const [rows, setRows]                     = useState<any[]>([]);
   const [total, setTotal]                   = useState(0);
   const [truncated, setTruncated]           = useState(false);
@@ -287,6 +291,11 @@ export default function NovaBaseTab() {
             maxTagCount="responsive" placeholder="Todos" allowClear />
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+          {hasAnyFilter && (
+            <Button onClick={resetFilters} danger>
+              Limpar Filtros
+            </Button>
+          )}
           <Button icon={<DownloadOutlined />} onClick={() => exportTableToExcel(columns, rows, "nova_base")}>
             Exportar Filtrado
           </Button>

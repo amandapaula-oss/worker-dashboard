@@ -9,6 +9,7 @@ import MetricTable from "../components/MetricTable";
 import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
 import { theme, darkTheme, lightTheme } from "../theme";
+import { NovaBaseFiltersProvider } from "../contexts/NovaBaseFilters";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 import MargemTab from "./MargemTab";
 import CheckLucasTab from "./CheckLucasTab";
@@ -344,13 +345,12 @@ export default function Dashboard() {
           )}
 
           {section === "nova_base" && (
-            <>
+            <NovaBaseFiltersProvider>
             <NovaBaseUploadButton />
             <Tabs
               defaultActiveKey="resumoEmp"
               type="card"
               size="large"
-              destroyInactiveTabPane
               items={[
                 { key: "resumoEmp", label: <span><FileTextOutlined /> Resumo por Empresa</span>, children: <NovaBaseResumoTab agruparPor="empresa" /> },
                 { key: "resumoBU",  label: <span><ApartmentOutlined /> Resumo por BU</span>,    children: <NovaBaseResumoTab agruparPor="vertical" /> },
@@ -362,7 +362,7 @@ export default function Dashboard() {
                 { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
               ]}
             />
-            </>
+            </NovaBaseFiltersProvider>
           )}
 
           {section === "cockpit" && (

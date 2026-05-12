@@ -1,0 +1,73 @@
+import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
+
+const DEFAULT_PERIODOS = ["2026-01", "2026-02", "2026-03"];
+
+interface NovaBaseFiltersState {
+  selPeriodos: string[];      setSelPeriodos: (v: string[]) => void;
+  selEmpresas: string[];      setSelEmpresas: (v: string[]) => void;
+  selFontes: string[];        setSelFontes: (v: string[]) => void;
+  selMacroAreas: string[];    setSelMacroAreas: (v: string[]) => void;
+  selTipos: string[];         setSelTipos: (v: string[]) => void;
+  selClassif: string[];       setSelClassif: (v: string[]) => void;
+  selVerticais: string[];     setSelVerticais: (v: string[]) => void;
+  selApuracoes: string[];     setSelApuracoes: (v: string[]) => void;
+  selNoHier: string[];        setSelNoHier: (v: string[]) => void;
+  resetFilters: () => void;
+  hasAnyFilter: boolean;
+}
+
+const Ctx = createContext<NovaBaseFiltersState | null>(null);
+
+export function NovaBaseFiltersProvider({ children }: { children: ReactNode }) {
+  const [selPeriodos, setSelPeriodos]   = useState<string[]>(DEFAULT_PERIODOS);
+  const [selEmpresas, setSelEmpresas]   = useState<string[]>([]);
+  const [selFontes, setSelFontes]       = useState<string[]>([]);
+  const [selMacroAreas, setSelMacroAreas] = useState<string[]>([]);
+  const [selTipos, setSelTipos]         = useState<string[]>([]);
+  const [selClassif, setSelClassif]     = useState<string[]>([]);
+  const [selVerticais, setSelVerticais] = useState<string[]>([]);
+  const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
+  const [selNoHier, setSelNoHier]       = useState<string[]>([]);
+
+  const resetFilters = useCallback(() => {
+    setSelPeriodos(DEFAULT_PERIODOS);
+    setSelEmpresas([]);
+    setSelFontes([]);
+    setSelMacroAreas([]);
+    setSelTipos([]);
+    setSelClassif([]);
+    setSelVerticais([]);
+    setSelApuracoes([]);
+    setSelNoHier([]);
+  }, []);
+
+  // hasAnyFilter: qualquer filtro diferente do default
+  const isPeriodosDefault = selPeriodos.length === DEFAULT_PERIODOS.length &&
+    selPeriodos.every(p => DEFAULT_PERIODOS.includes(p));
+  const hasAnyFilter = !isPeriodosDefault || selEmpresas.length > 0 || selFontes.length > 0
+    || selMacroAreas.length > 0 || selTipos.length > 0 || selClassif.length > 0
+    || selVerticais.length > 0 || selApuracoes.length > 0 || selNoHier.length > 0;
+
+  return (
+    <Ctx.Provider value={{
+      selPeriodos, setSelPeriodos,
+      selEmpresas, setSelEmpresas,
+      selFontes, setSelFontes,
+      selMacroAreas, setSelMacroAreas,
+      selTipos, setSelTipos,
+      selClassif, setSelClassif,
+      selVerticais, setSelVerticais,
+      selApuracoes, setSelApuracoes,
+      selNoHier, setSelNoHier,
+      resetFilters, hasAnyFilter,
+    }}>
+      {children}
+    </Ctx.Provider>
+  );
+}
+
+export function useNovaBaseFilters(): NovaBaseFiltersState {
+  const v = useContext(Ctx);
+  if (!v) throw new Error("useNovaBaseFilters must be used inside NovaBaseFiltersProvider");
+  return v;
+}

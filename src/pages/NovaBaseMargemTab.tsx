@@ -7,6 +7,7 @@ import { exportTableToExcel } from "../utils/exportExcel";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
 import DetalheCelulaModal from "../components/DetalheCelulaModal";
+import { useNovaBaseFilters } from "../contexts/NovaBaseFilters";
 
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -32,11 +33,14 @@ function MargemTag({ value }: { value: number | null | undefined }) {
 
 export default function NovaBaseMargemTab() {
   const [filters, setFilters]         = useState<any>({});
-  const [selPeriodos, setSelPeriodos] = useState<string[]>(["2026-01", "2026-02", "2026-03"]);
-  const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
-  const [selVerticais, setSelVerticais] = useState<string[]>([]);
-  const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
-  const [selNoHier, setSelNoHier] = useState<string[]>([]);
+  const {
+    selPeriodos, setSelPeriodos,
+    selEmpresas, setSelEmpresas,
+    selVerticais, setSelVerticais,
+    selApuracoes, setSelApuracoes,
+    selNoHier, setSelNoHier,
+    resetFilters, hasAnyFilter,
+  } = useNovaBaseFilters();
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading]         = useState(true);
   const [clientes, setClientes]       = useState<any[]>([]);
@@ -377,9 +381,14 @@ export default function NovaBaseMargemTab() {
           onChange={e => setSearch(e.target.value)} style={{ maxWidth: 300 }} allowClear />
         <Segmented options={["Consolidado", "Por Mês"]} value={viewMode} onChange={v => setViewMode(v as string)} />
         <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
-          type={selPeriodos.length > 0 || selEmpresas.length > 0 || selVerticais.length > 0 || selApuracoes.length > 0 || selNoHier.length > 0 ? "primary" : "default"} style={{ marginLeft: "auto" }}>
+          type={hasAnyFilter ? "primary" : "default"} style={{ marginLeft: "auto" }}>
           Filtros{showFilters ? " ▲" : " ▼"}
         </Button>
+        {hasAnyFilter && (
+          <Button onClick={resetFilters} danger>
+            Limpar Filtros
+          </Button>
+        )}
       </div>
       {showFilters && (
         <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>

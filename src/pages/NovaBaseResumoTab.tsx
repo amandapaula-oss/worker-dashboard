@@ -3,6 +3,7 @@ import { Select, Table, Button, Card, Statistic, Popover, Checkbox } from "antd"
 import { FilterOutlined, DownloadOutlined, SettingOutlined } from "@ant-design/icons";
 import { getNovaBaseFilters, getNovaBaseResumo, getNovaBaseDre } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
+import { useNovaBaseFilters } from "../contexts/NovaBaseFilters";
 import PLTable from "../components/PLTable";
 import ErrorState from "../components/ErrorState";
 import DetalheCelulaModal from "../components/DetalheCelulaModal";
@@ -70,11 +71,14 @@ const AGRUPAR_LABELS: Record<string, string> = {
 
 export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparPor?: string }) {
   const [filters, setFilters]           = useState<any>({});
-  const [selPeriodos, setSelPeriodos]   = useState<string[]>(["2026-01", "2026-02", "2026-03"]);
-  const [selEmpresas, setSelEmpresas]   = useState<string[]>([]);
-  const [selFontes, setSelFontes]       = useState<string[]>([]);
-  const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
-  const [selNoHier, setSelNoHier]       = useState<string[]>([]);
+  const {
+    selPeriodos, setSelPeriodos,
+    selEmpresas, setSelEmpresas,
+    selFontes, setSelFontes,
+    selApuracoes, setSelApuracoes,
+    selNoHier, setSelNoHier,
+    resetFilters, hasAnyFilter: ctxHasFilter,
+  } = useNovaBaseFilters();
   const [rawData, setRawData]           = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
@@ -322,11 +326,16 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         <Button
           icon={<FilterOutlined />}
           onClick={() => setShowFilters(v => !v)}
-          type={hasActiveFilter ? "primary" : "default"}
+          type={ctxHasFilter ? "primary" : "default"}
           style={{ marginLeft: "auto" }}
         >
           Filtros{showFilters ? " ▲" : " ▼"}
         </Button>
+        {ctxHasFilter && (
+          <Button onClick={resetFilters} danger>
+            Limpar Filtros
+          </Button>
+        )}
       </div>
 
       {showFilters && (
@@ -438,11 +447,14 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
 
 export function NovaDreTab() {
   const [filters, setFilters]         = useState<any>({});
-  const [selPeriodos, setSelPeriodos] = useState<string[]>(["2026-01", "2026-02", "2026-03"]);
-  const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
-  const [selFontes, setSelFontes]     = useState<string[]>([]);
-  const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
-  const [selNoHier, setSelNoHier]     = useState<string[]>([]);
+  const {
+    selPeriodos, setSelPeriodos,
+    selEmpresas, setSelEmpresas,
+    selFontes, setSelFontes,
+    selApuracoes, setSelApuracoes,
+    selNoHier, setSelNoHier,
+    resetFilters, hasAnyFilter: ctxHasFilter2,
+  } = useNovaBaseFilters();
   const [data, setData]               = useState<any>(null);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
@@ -508,10 +520,15 @@ export function NovaDreTab() {
     <div>
       <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.7rem 1.2rem", marginBottom: showFilters ? 8 : 16, display: "flex", gap: 10, alignItems: "center" }}>
         <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
-          type={hasActiveFilter ? "primary" : "default"}
+          type={ctxHasFilter2 ? "primary" : "default"}
           style={{ marginLeft: "auto" }}>
           Filtros{showFilters ? " ▲" : " ▼"}
         </Button>
+        {ctxHasFilter2 && (
+          <Button onClick={resetFilters} danger>
+            Limpar Filtros
+          </Button>
+        )}
       </div>
 
       {showFilters && (
