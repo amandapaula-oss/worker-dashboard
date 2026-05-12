@@ -1643,14 +1643,20 @@ _APURACAO_ECOSSISTEMA_NAMES = {
 
 
 def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
-    """Coluna virtual `apuracao` (NG / Ecossistema) baseada em no_hierarquia."""
+    """Coluna virtual `apuracao` (NG / Ecossistema) baseada em no_hierarquia.
+    Aceita formatos: "DC001", "DC001 Squads", "Squads".
+    """
     if "no_hierarquia" not in df.columns:
         df["apuracao"] = ""
         return df
     nh = df["no_hierarquia"].fillna("").astype(str).str.strip()
+    # Extrai DC code do inicio quando presente (cobre "DC001" e "DC001 Squads")
+    dc_extr = nh.str.extract(r"^(DC\d{3})", expand=False).fillna("")
     ap = pd.Series("", index=df.index)
-    ap[nh.isin(_APURACAO_NG_CODES) | nh.isin(_APURACAO_NG_NAMES)] = "NG"
-    ap[nh.isin(_APURACAO_ECOSSISTEMA_CODES) | nh.isin(_APURACAO_ECOSSISTEMA_NAMES)] = "Ecossistema"
+    # NG: bate por code (extraido) OR por nome puro
+    ap[dc_extr.isin(_APURACAO_NG_CODES) | nh.isin(_APURACAO_NG_NAMES)] = "NG"
+    # Ecossistema: idem
+    ap[dc_extr.isin(_APURACAO_ECOSSISTEMA_CODES) | nh.isin(_APURACAO_ECOSSISTEMA_NAMES)] = "Ecossistema"
     df["apuracao"] = ap
     return df
 
