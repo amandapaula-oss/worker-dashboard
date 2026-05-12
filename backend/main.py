@@ -2553,6 +2553,7 @@ def get_nova_base_resumo(
 @app.get("/api/nova-base/margem/clientes")
 def get_nova_base_margem_clientes(
     periodos: str = "", empresas: str = "", verticais: str = "",
+    apuracoes: str = "", no_hierarquias: str = "",
     breakdown: bool = False,
     user=Depends(get_current_user)
 ):
@@ -2562,10 +2563,28 @@ def get_nova_base_margem_clientes(
         df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
     else:
         df = df[df["periodo"].isin([v.strip() for v in periodos.split(",")])]
+
+    def _filt_with_blank(col: str, param: str) -> pd.DataFrame:
+        vals = [v.strip() for v in param.split(",") if v.strip()]
+        if not vals or col not in df.columns:
+            return df
+        col_clean = df[col].fillna("").astype(str).str.strip()
+        regular = [v for v in vals if v != "__blank__"]
+        mask = pd.Series(False, index=df.index)
+        if regular:
+            mask = mask | col_clean.isin(regular)
+        if "__blank__" in vals:
+            mask = mask | (col_clean == "")
+        return df[mask].copy()
+
     if empresas:
-        df = df[df["empresa"].isin([v.strip() for v in empresas.split(",")])]
+        df = _filt_with_blank("empresa", empresas)
     if verticais:
-        df = df[df["vertical"].isin([v.strip() for v in verticais.split(",")])]
+        df = _filt_with_blank("vertical", verticais)
+    if apuracoes:
+        df = _filt_with_blank("apuracao", apuracoes)
+    if no_hierarquias:
+        df = _filt_with_blank("no_hierarquia", no_hierarquias)
     for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
         if col not in df.columns:
             df[col] = 0.0
@@ -2592,6 +2611,7 @@ def get_nova_base_margem_clientes(
 def get_nova_base_margem_cliente_detalhe(
     nome_cliente: str = "",
     periodos: str = "", empresas: str = "", verticais: str = "",
+    apuracoes: str = "", no_hierarquias: str = "",
     user=Depends(get_current_user)
 ):
     from datetime import datetime
@@ -2600,10 +2620,21 @@ def get_nova_base_margem_cliente_detalhe(
         df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
     else:
         df = df[df["periodo"].isin([v.strip() for v in periodos.split(",")])]
-    if empresas:
-        df = df[df["empresa"].isin([v.strip() for v in empresas.split(",")])]
-    if verticais:
-        df = df[df["vertical"].isin([v.strip() for v in verticais.split(",")])]
+
+    def _filt_with_blank(col: str, param: str) -> pd.DataFrame:
+        vals = [v.strip() for v in param.split(",") if v.strip()]
+        if not vals or col not in df.columns: return df
+        col_clean = df[col].fillna("").astype(str).str.strip()
+        regular = [v for v in vals if v != "__blank__"]
+        mask = pd.Series(False, index=df.index)
+        if regular: mask = mask | col_clean.isin(regular)
+        if "__blank__" in vals: mask = mask | (col_clean == "")
+        return df[mask].copy()
+
+    if empresas:       df = _filt_with_blank("empresa", empresas)
+    if verticais:      df = _filt_with_blank("vertical", verticais)
+    if apuracoes:      df = _filt_with_blank("apuracao", apuracoes)
+    if no_hierarquias: df = _filt_with_blank("no_hierarquia", no_hierarquias)
     for col in ["receita", "custo_rateado", "horas"]:
         if col not in df.columns:
             df[col] = 0.0

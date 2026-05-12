@@ -35,6 +35,8 @@ export default function NovaBaseMargemTab() {
   const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [selVerticais, setSelVerticais] = useState<string[]>([]);
+  const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
+  const [selNoHier, setSelNoHier] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading]         = useState(true);
   const [clientes, setClientes]       = useState<any[]>([]);
@@ -89,15 +91,17 @@ export default function NovaBaseMargemTab() {
   const loadClientes = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = {};
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
-    if (selEmpresas.length) params.empresas = selEmpresas.join(",");
-    if (selVerticais.length) params.verticais = selVerticais.join(",");
+    if (selPeriodos.length)  params.periodos       = selPeriodos.join(",");
+    if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
+    if (selVerticais.length) params.verticais      = selVerticais.join(",");
+    if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
+    if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
     if (viewMode === "Por Mês") params.breakdown = "true";
     getNovaBaseMargemClientes(params)
       .then(setClientes)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selPeriodos, selEmpresas, selVerticais, viewMode]);
+  }, [selPeriodos, selEmpresas, selVerticais, selApuracoes, selNoHier, viewMode]);
 
   useEffect(() => { loadClientes(); }, [loadClientes]);
 
@@ -105,9 +109,11 @@ export default function NovaBaseMargemTab() {
     setSelectedCliente(nome);
     setLoadingDetalhe(true);
     const params: Record<string, string> = { nome_cliente: nome };
-    if (selPeriodos.length) params.periodos = selPeriodos.join(",");
-    if (selEmpresas.length) params.empresas = selEmpresas.join(",");
-    if (selVerticais.length) params.verticais = selVerticais.join(",");
+    if (selPeriodos.length)  params.periodos       = selPeriodos.join(",");
+    if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
+    if (selVerticais.length) params.verticais      = selVerticais.join(",");
+    if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
+    if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
     getNovaBaseMargemClienteDetalhe(params)
       .then(setDetalhe)
       .catch(() => {})
@@ -371,7 +377,7 @@ export default function NovaBaseMargemTab() {
           onChange={e => setSearch(e.target.value)} style={{ maxWidth: 300 }} allowClear />
         <Segmented options={["Consolidado", "Por Mês"]} value={viewMode} onChange={v => setViewMode(v as string)} />
         <Button icon={<FilterOutlined />} onClick={() => setShowFilters(v => !v)}
-          type={selPeriodos.length > 0 || selEmpresas.length > 0 || selVerticais.length > 0 ? "primary" : "default"} style={{ marginLeft: "auto" }}>
+          type={selPeriodos.length > 0 || selEmpresas.length > 0 || selVerticais.length > 0 || selApuracoes.length > 0 || selNoHier.length > 0 ? "primary" : "default"} style={{ marginLeft: "auto" }}>
           Filtros{showFilters ? " ▲" : " ▼"}
         </Button>
       </div>
@@ -391,6 +397,16 @@ export default function NovaBaseMargemTab() {
             <div style={labelStyle}>Vertical</div>
             <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
               onChange={setSelVerticais} options={opt(filters.verticais || [])} maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 130 }}>
+            <div style={labelStyle}>Apuração</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selApuracoes}
+              onChange={setSelApuracoes} options={opt(filters.apuracoes || [])} maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Centro de Lucro</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selNoHier}
+              onChange={setSelNoHier} options={opt(filters.no_hierarquias || [])} maxTagCount="responsive" placeholder="Todos" allowClear />
           </div>
         </div>
       )}
