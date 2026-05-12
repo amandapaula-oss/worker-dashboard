@@ -32,7 +32,7 @@ function MargemTag({ value }: { value: number | null | undefined }) {
 
 export default function NovaBaseMargemTab() {
   const [filters, setFilters]         = useState<any>({});
-  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
+  const [selPeriodos, setSelPeriodos] = useState<string[]>(["2026-01", "2026-02", "2026-03"]);
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [selVerticais, setSelVerticais] = useState<string[]>([]);
   const [selApuracoes, setSelApuracoes] = useState<string[]>([]);

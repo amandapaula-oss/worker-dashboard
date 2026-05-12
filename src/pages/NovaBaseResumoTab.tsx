@@ -70,7 +70,7 @@ const AGRUPAR_LABELS: Record<string, string> = {
 
 export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparPor?: string }) {
   const [filters, setFilters]           = useState<any>({});
-  const [selPeriodos, setSelPeriodos]   = useState<string[]>([]);
+  const [selPeriodos, setSelPeriodos]   = useState<string[]>(["2026-01", "2026-02", "2026-03"]);
   const [selEmpresas, setSelEmpresas]   = useState<string[]>([]);
   const [selFontes, setSelFontes]       = useState<string[]>([]);
   const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
@@ -438,7 +438,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
 
 export function NovaDreTab() {
   const [filters, setFilters]         = useState<any>({});
-  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
+  const [selPeriodos, setSelPeriodos] = useState<string[]>(["2026-01", "2026-02", "2026-03"]);
   const [selEmpresas, setSelEmpresas] = useState<string[]>([]);
   const [selFontes, setSelFontes]     = useState<string[]>([]);
   const [selApuracoes, setSelApuracoes] = useState<string[]>([]);

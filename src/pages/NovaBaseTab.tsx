@@ -62,7 +62,7 @@ const FONTE_COLORS: Record<string, string> = {
 
 export default function NovaBaseTab() {
   const [filters, setFilters] = useState<any>({});
-  const [selPeriodos, setSelPeriodos]       = useState<string[]>([]);
+  const [selPeriodos, setSelPeriodos]       = useState<string[]>(["2026-01", "2026-02", "2026-03"]);
   const [selFontes, setSelFontes]           = useState<string[]>([]);
   const [selEmpresas, setSelEmpresas]       = useState<string[]>([]);
   const [selMacroAreas, setSelMacroAreas]   = useState<string[]>([]);
