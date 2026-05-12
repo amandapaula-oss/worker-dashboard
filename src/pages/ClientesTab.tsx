@@ -389,7 +389,7 @@ export default function ClientesTab() {
               {pessoasPivot.rows.length === 0 && projetoSelecionado && (
                 <div style={{ background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 8, padding: "0.9rem 1.2rem", marginBottom: 12 }}>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>Sem alocação de pessoas neste PEP</div>
-                  <div style={{ color: theme.secondary, fontSize: "0.85rem" }}>
+                  <div style={{ color: "#6b7fa3", fontSize: "0.85rem" }}>
                     Tipo: <b>{projetoSelecionado.tipos || "—"}</b> • Receita total: <b>{brl(projetoSelecionado.receita)}</b> • Custo: <b>{brl(projetoSelecionado.custo_rateado)}</b> • Margem: <b>{projetoSelecionado.margem_pct != null ? `${(projetoSelecionado.margem_pct*100).toFixed(1)}%` : "—"}</b>
                   </div>
                 </div>
