@@ -2697,8 +2697,10 @@ def download_nova_base(user=Depends(get_current_user)):
 def get_nova_base_pivot(
     rows: str = "",
     cols: str = "",
-    metric: str = "receita",
+    metric: str = "",
+    metrics: str = "",
     agg: str = "sum",
+    search: str = "",
     periodos: str = "",
     fontes: str = "",
     empresas: str = "",
@@ -2708,10 +2710,21 @@ def get_nova_base_pivot(
     verticais: str = "",
     apuracoes: str = "",
     no_hierarquias: str = "",
+    agrupadores_pl: str = "",
     user=Depends(get_current_user),
 ):
     df = _get_nova_base().copy()
     df = df[df["fonte"].astype(str) != "de para"]
+
+    # Derive agrupador_pl from fonte/macro_area/receita
+    fonte_s = df["fonte"].fillna("").astype(str).str.strip()
+    ma_s = df["macro_area"].fillna("").astype(str).str.strip() if "macro_area" in df.columns else pd.Series("", index=df.index)
+    rec_s = pd.to_numeric(df["receita"], errors="coerce").fillna(0)
+    apl = pd.Series("Outros", index=df.index)
+    apl[(fonte_s == "custo_gerencial") & (ma_s != "")] = "Despesa"
+    apl[(fonte_s == "custo_gerencial") & (ma_s == "")] = "Custo Direto"
+    apl[rec_s > 0] = "Receita"
+    df["agrupador_pl"] = apl
 
     def filt(col, param):
         vals = [v.strip() for v in param.split(",") if v.strip()]
@@ -2726,59 +2739,83 @@ def get_nova_base_pivot(
             return df[mask].copy()
         return df
 
-    if periodos:       df = filt("periodo", periodos)
-    if fontes:         df = filt("fonte_familia", fontes)
-    if empresas:       df = filt("empresa", empresas)
-    if macro_areas:    df = filt("macro_area", macro_areas)
-    if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
-    if classificacoes: df = filt("classificacao", classificacoes)
-    if verticais:      df = filt("vertical", verticais)
-    if apuracoes:      df = filt("apuracao", apuracoes)
-    if no_hierarquias: df = filt("no_hierarquia", no_hierarquias)
+    if periodos:        df = filt("periodo", periodos)
+    if fontes:          df = filt("fonte_familia", fontes)
+    if empresas:        df = filt("empresa", empresas)
+    if macro_areas:     df = filt("macro_area", macro_areas)
+    if tipos_contrato:  df = filt("tipo_contrato", tipos_contrato)
+    if classificacoes:  df = filt("classificacao", classificacoes)
+    if verticais:       df = filt("vertical", verticais)
+    if apuracoes:       df = filt("apuracao", apuracoes)
+    if no_hierarquias:  df = filt("no_hierarquia", no_hierarquias)
+    if agrupadores_pl:  df = filt("agrupador_pl", agrupadores_pl)
+
+    # Busca textual em campos chave
+    if search:
+        q = search.strip().lower()
+        if q:
+            search_cols = ["nome_pessoa", "nome_cliente", "pep_base", "pep", "empresa",
+                           "fonte", "fonte_dados", "fonte_familia", "vertical", "macro_area"]
+            mask = pd.Series(False, index=df.index)
+            for c in search_cols:
+                if c in df.columns:
+                    mask = mask | df[c].fillna("").astype(str).str.lower().str.contains(q, regex=False)
+            df = df[mask]
 
     ALLOWED_DIMS = {
         "periodo", "empresa", "fonte", "fonte_familia", "macro_area", "area",
         "tipo_contrato", "classificacao", "vertical", "apuracao", "no_hierarquia",
         "nome_cliente", "pep_base", "nome_pessoa", "centro_lucro", "billable_category",
+        "agrupador_pl",
     }
     row_dims = [r.strip() for r in rows.split(",") if r.strip() in ALLOWED_DIMS and r.strip() in df.columns]
     col_dims = [c.strip() for c in cols.split(",") if c.strip() in ALLOWED_DIMS and c.strip() in df.columns]
 
-    if metric == "margem":
-        df["_v"] = pd.to_numeric(df["receita"], errors="coerce").fillna(0) + \
-                   pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0)
-    elif metric == "count":
-        df["_v"] = 1
-    elif metric in df.columns:
-        df["_v"] = pd.to_numeric(df[metric], errors="coerce").fillna(0)
-    else:
-        df["_v"] = 0
+    # Lista de metricas. Aceita CSV em `metrics`, ou single `metric` (backward compat).
+    ALLOWED_METRICS = {"receita", "custo_rateado", "horas", "valor_liquido", "count"}
+    raw_metrics = [m.strip() for m in metrics.split(",") if m.strip()] if metrics else ([metric] if metric else ["receita"])
+    metric_list = [m for m in raw_metrics if m in ALLOWED_METRICS]
+    if not metric_list:
+        metric_list = ["receita"]
+
+    for m in metric_list:
+        col_name = f"_v_{m}"
+        if m == "count":
+            df[col_name] = 1
+        elif m in df.columns:
+            df[col_name] = pd.to_numeric(df[m], errors="coerce").fillna(0)
+        else:
+            df[col_name] = 0
 
     for d in row_dims + col_dims:
         df[d] = df[d].fillna("").astype(str).str.strip().replace("", "(Vazio)")
 
+    val_cols = [f"_v_{m}" for m in metric_list]
+
     group_keys = row_dims + col_dims
     if not group_keys:
-        if agg == "avg":
-            val = float(df["_v"].mean()) if len(df) else 0.0
-        elif agg == "count":
-            val = float(len(df))
-        else:
-            val = float(df["_v"].sum())
+        record = {}
+        for m, vc in zip(metric_list, val_cols):
+            if agg == "avg":
+                record[vc] = float(df[vc].mean()) if len(df) else 0.0
+            elif agg == "count":
+                record[vc] = float(len(df))
+            else:
+                record[vc] = float(df[vc].sum())
         return _sanitize({
-            "rows": row_dims, "cols": col_dims, "metric": metric, "agg": agg,
-            "data": [{"_v": val}], "total_rows": len(df),
+            "rows": row_dims, "cols": col_dims, "metrics": metric_list, "agg": agg,
+            "data": [record], "total_rows": len(df),
         })
 
     if agg == "avg":
-        g = df.groupby(group_keys, dropna=False)["_v"].mean().reset_index()
+        g = df.groupby(group_keys, dropna=False)[val_cols].mean().reset_index()
     elif agg == "count":
-        g = df.groupby(group_keys, dropna=False)["_v"].count().reset_index()
+        g = df.groupby(group_keys, dropna=False)[val_cols].count().reset_index()
     else:
-        g = df.groupby(group_keys, dropna=False)["_v"].sum().reset_index()
+        g = df.groupby(group_keys, dropna=False)[val_cols].sum().reset_index()
 
     return _sanitize({
-        "rows": row_dims, "cols": col_dims, "metric": metric, "agg": agg,
+        "rows": row_dims, "cols": col_dims, "metrics": metric_list, "agg": agg,
         "data": g.to_dict(orient="records"), "total_rows": len(df),
     })
 

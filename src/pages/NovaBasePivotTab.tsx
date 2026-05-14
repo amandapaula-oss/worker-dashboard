@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Table, Spin, Button, Select, Card, Statistic } from "antd";
-import { DownloadOutlined, SwapOutlined } from "@ant-design/icons";
+import { Table, Spin, Button, Select, Card, Statistic, Input } from "antd";
+import { DownloadOutlined, SwapOutlined, SearchOutlined } from "@ant-design/icons";
 import { getNovaBaseFilters, getNovaBasePivot } from "../api";
 import { exportTableToExcel } from "../utils/exportExcel";
 import { periodoLabel, toTitleCase } from "../utils/format";
@@ -23,6 +23,7 @@ const DIM_OPTIONS = [
   { value: "vertical",         label: "BU / Vertical" },
   { value: "apuracao",         label: "Apuração" },
   { value: "no_hierarquia",    label: "Centro de Lucro" },
+  { value: "agrupador_pl",     label: "Agrupador P&L" },
   { value: "macro_area",       label: "Macro Área" },
   { value: "area",             label: "Área" },
   { value: "tipo_contrato",    label: "Tipo Contrato" },
@@ -34,20 +35,28 @@ const DIM_OPTIONS = [
   { value: "billable_category",label: "Billable" },
 ];
 
-const METRIC_OPTIONS = [
-  { value: "receita",        label: "Receita",         money: true },
-  { value: "custo_rateado",  label: "Custo Rateado",   money: true },
-  { value: "margem",         label: "Margem",          money: true },
-  { value: "horas",          label: "Horas",           money: false },
-  { value: "valor_liquido",  label: "Valor Líquido",   money: true },
-  { value: "count",          label: "Contagem",        money: false },
-];
+type MetricKey = "receita" | "custo_rateado" | "margem" | "horas" | "valor_liquido" | "count";
+
+const METRIC_DEFS: Record<MetricKey, { label: string; money: boolean }> = {
+  receita:       { label: "Receita",        money: true },
+  custo_rateado: { label: "Custo Rateado",  money: true },
+  margem:        { label: "Margem",         money: true },
+  horas:         { label: "Horas",          money: false },
+  valor_liquido: { label: "Valor Líquido",  money: true },
+  count:         { label: "Contagem",       money: false },
+};
+
+const METRIC_OPTIONS = (Object.keys(METRIC_DEFS) as MetricKey[]).map(k => ({
+  value: k, label: METRIC_DEFS[k].label,
+}));
 
 const AGG_OPTIONS = [
   { value: "sum",   label: "Soma" },
   { value: "avg",   label: "Média" },
   { value: "count", label: "Contagem (linhas)" },
 ];
+
+const AGRUPADORES_PL = ["Receita", "Custo Direto", "Despesa", "Outros"];
 
 const dimLabel = (v: string) => DIM_OPTIONS.find(d => d.value === v)?.label ?? v;
 
@@ -74,10 +83,12 @@ export default function NovaBasePivotTab() {
     resetFilters, hasAnyFilter,
   } = useNovaBaseFilters();
 
+  const [selAgrupPL, setSelAgrupPL] = useState<string[]>([]);
   const [rowDims, setRowDims] = useState<string[]>(["empresa"]);
   const [colDims, setColDims] = useState<string[]>(["periodo"]);
-  const [metric, setMetric]   = useState<string>("receita");
-  const [agg, setAgg]         = useState<string>("sum");
+  const [selMetrics, setSelMetrics] = useState<MetricKey[]>(["receita", "custo_rateado", "margem"]);
+  const [agg, setAgg] = useState<string>("sum");
+  const [search, setSearch] = useState<string>("");
 
   const [data, setData]       = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -86,13 +97,26 @@ export default function NovaBasePivotTab() {
     getNovaBaseFilters().then(setFilters).catch(() => {});
   }, []);
 
+  // Metricas a buscar no backend: tudo exceto margem, e se margem incluida garantir receita+custo
+  const backendMetrics = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of selMetrics) {
+      if (m === "margem") { set.add("receita"); set.add("custo_rateado"); }
+      else set.add(m);
+    }
+    if (set.size === 0) set.add("receita");
+    return Array.from(set);
+  }, [selMetrics]);
+
   const load = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = {
       rows: rowDims.join(","),
       cols: colDims.join(","),
-      metric, agg,
+      metrics: backendMetrics.join(","),
+      agg,
     };
+    if (search.trim())        params.search         = search.trim();
     if (selPeriodos.length)   params.periodos       = selPeriodos.join(",");
     if (selEmpresas.length)   params.empresas       = selEmpresas.join(",");
     if (selFontes.length)     params.fontes         = selFontes.join(",");
@@ -102,80 +126,103 @@ export default function NovaBasePivotTab() {
     if (selVerticais.length)  params.verticais      = selVerticais.join(",");
     if (selApuracoes.length)  params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)     params.no_hierarquias = selNoHier.join(",");
+    if (selAgrupPL.length)    params.agrupadores_pl = selAgrupPL.join(",");
     getNovaBasePivot(params)
       .then(r => setData(r.data || []))
       .catch(() => setData([]))
       .finally(() => setLoading(false));
-  }, [rowDims, colDims, metric, agg, selPeriodos, selEmpresas, selFontes,
-      selMacroAreas, selTipos, selClassif, selVerticais, selApuracoes, selNoHier]);
+  }, [rowDims, colDims, backendMetrics, agg, search, selPeriodos, selEmpresas, selFontes,
+      selMacroAreas, selTipos, selClassif, selVerticais, selApuracoes, selNoHier, selAgrupPL]);
 
   useEffect(() => { load(); }, [load]);
 
-  const metricDef = METRIC_OPTIONS.find(m => m.value === metric)!;
-  const fmt = (v: any): React.ReactNode => {
+  // Pega o valor de uma metrica em uma linha do backend (computa margem aqui)
+  const getMetric = (r: any, m: MetricKey): number => {
+    if (m === "margem") {
+      return (Number(r._v_receita) || 0) + (Number(r._v_custo_rateado) || 0);
+    }
+    return Number(r[`_v_${m}`]) || 0;
+  };
+
+  const fmtCell = (m: MetricKey, v: number): React.ReactNode => {
+    const def = METRIC_DEFS[m];
     const n = Number(v) || 0;
-    if (metricDef.money) {
-      return <span style={{ color: n < 0 ? "#c0392b" : theme.text }}>{brl(n)}</span>;
+    if (def.money) {
+      const color = m === "custo_rateado" ? (n < 0 ? "#c0392b" : theme.text)
+                  : m === "margem"        ? (n < 0 ? "#c0392b" : "#0a7a3e")
+                  : (n < 0 ? "#c0392b" : theme.text);
+      const weight = m === "margem" ? 700 : 500;
+      return <span style={{ color, fontWeight: weight }}>{brl(n)}</span>;
     }
     return n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
   };
 
-  // Build pivot table
-  const { tableRows, columns, totalsRow, grandTotal } = useMemo(() => {
-    if (!data.length) return { tableRows: [], columns: [], totalsRow: null, grandTotal: 0 };
+  // Build pivot
+  const { tableRows, columns, totalsRow, grandTotals } = useMemo(() => {
+    if (!data.length) return { tableRows: [], columns: [], totalsRow: null, grandTotals: {} as Record<MetricKey, number> };
 
-    // No dims: just total
+    const metricsActive: MetricKey[] = selMetrics.length ? selMetrics : ["receita"];
+
+    // Sem dimensoes: so total
     if (!rowDims.length && !colDims.length) {
-      const v = Number(data[0]?._v) || 0;
-      return {
-        tableRows: [{ key: "t", _label: "Total", _v: v }],
-        columns: [
-          { title: "", dataIndex: "_label", key: "_label", width: 120, fixed: "left" as const },
-          { title: metricDef.label, dataIndex: "_v", key: "_v", align: "right" as const, render: fmt },
-        ],
-        totalsRow: null, grandTotal: v,
-      };
+      const r = data[0] || {};
+      const row: any = { key: "t", _label: "Total" };
+      const totals: Record<string, number> = {};
+      metricsActive.forEach(m => {
+        const v = getMetric(r, m);
+        row[`m_${m}`] = v;
+        totals[m] = v;
+      });
+      const cols: any[] = [{ title: "", dataIndex: "_label", key: "_label", width: 120, fixed: "left" as const }];
+      metricsActive.forEach(m => {
+        cols.push({
+          title: METRIC_DEFS[m].label,
+          dataIndex: `m_${m}`, key: `m_${m}`, align: "right" as const, width: 140,
+          render: (v: number) => fmtCell(m, v),
+        });
+      });
+      return { tableRows: [row], columns: cols, totalsRow: null, grandTotals: totals as any };
     }
 
-    // Distinct column keys (concatenated values across colDims)
-    const colKeySep = " | ";
-    const colKeys = new Set<string>();
+    const sep = " | ";
+    const colKeySet = new Set<string>();
     for (const r of data) {
-      const k = colDims.map(d => formatDimValue(d, r[d])).join(colKeySep);
-      colKeys.add(k);
+      const k = colDims.length ? colDims.map(d => formatDimValue(d, r[d])).join(sep) : "";
+      colKeySet.add(k);
     }
-    const colKeyList = Array.from(colKeys).sort();
+    const colKeyList = Array.from(colKeySet).sort();
 
-    // Row map
     const rowMap = new Map<string, any>();
     for (const r of data) {
-      const rk = rowDims.map(d => formatDimValue(d, r[d])).join(colKeySep);
+      const rk = rowDims.map(d => formatDimValue(d, r[d])).join(sep);
       if (!rowMap.has(rk)) {
         const row: any = { key: rk };
         rowDims.forEach(d => { row[d] = formatDimValue(d, r[d]); });
-        colKeyList.forEach(ck => { row[`__c__${ck}`] = 0; });
-        row.__total__ = 0;
+        colKeyList.forEach(ck => {
+          metricsActive.forEach(m => { row[`c_${ck}_m_${m}`] = 0; });
+        });
+        metricsActive.forEach(m => { row[`total_m_${m}`] = 0; });
         rowMap.set(rk, row);
       }
       const row = rowMap.get(rk)!;
-      const ck = colDims.map(d => formatDimValue(d, r[d])).join(colKeySep);
-      const val = Number(r._v) || 0;
-      if (colDims.length) {
-        row[`__c__${ck}`] = (row[`__c__${ck}`] || 0) + val;
-      }
-      row.__total__ = (row.__total__ || 0) + val;
+      const ck = colDims.length ? colDims.map(d => formatDimValue(d, r[d])).join(sep) : "";
+      metricsActive.forEach(m => {
+        const v = getMetric(r, m);
+        if (colDims.length) row[`c_${ck}_m_${m}`] = (row[`c_${ck}_m_${m}`] || 0) + v;
+        row[`total_m_${m}`] = (row[`total_m_${m}`] || 0) + v;
+      });
     }
 
-    const trows = Array.from(rowMap.values()).sort((a, b) => (b.__total__ || 0) - (a.__total__ || 0));
+    // Sort by first metric total desc
+    const sortMetric = metricsActive[0];
+    const trows = Array.from(rowMap.values()).sort((a, b) =>
+      Math.abs(b[`total_m_${sortMetric}`] || 0) - Math.abs(a[`total_m_${sortMetric}`] || 0)
+    );
 
-    // Build column defs
     const cols: any[] = [];
     rowDims.forEach((d, i) => {
       cols.push({
-        title: dimLabel(d),
-        dataIndex: d,
-        key: d,
-        width: 160,
+        title: dimLabel(d), dataIndex: d, key: d, width: 180,
         fixed: i === 0 ? ("left" as const) : undefined,
         sorter: (a: any, b: any) => String(a[d] ?? "").localeCompare(String(b[d] ?? ""), "pt-BR"),
       });
@@ -185,42 +232,50 @@ export default function NovaBasePivotTab() {
       colKeyList.forEach(ck => {
         cols.push({
           title: ck,
-          dataIndex: `__c__${ck}`,
-          key: `__c__${ck}`,
-          align: "right" as const,
-          width: 130,
-          sorter: (a: any, b: any) => (a[`__c__${ck}`] || 0) - (b[`__c__${ck}`] || 0),
-          render: (v: any) => fmt(v),
+          children: metricsActive.map(m => ({
+            title: METRIC_DEFS[m].label,
+            dataIndex: `c_${ck}_m_${m}`,
+            key: `c_${ck}_m_${m}`,
+            align: "right" as const,
+            width: 120,
+            sorter: (a: any, b: any) => (a[`c_${ck}_m_${m}`] || 0) - (b[`c_${ck}_m_${m}`] || 0),
+            render: (v: any) => fmtCell(m, v),
+          })),
         });
       });
     }
 
     cols.push({
       title: "Total",
-      dataIndex: "__total__",
-      key: "__total__",
-      align: "right" as const,
-      width: 140,
-      defaultSortOrder: "descend" as const,
-      sorter: (a: any, b: any) => (a.__total__ || 0) - (b.__total__ || 0),
-      render: (v: any) => <strong>{fmt(v)}</strong>,
+      children: metricsActive.map((m, idx) => ({
+        title: METRIC_DEFS[m].label,
+        dataIndex: `total_m_${m}`,
+        key: `total_m_${m}`,
+        align: "right" as const,
+        width: 130,
+        defaultSortOrder: idx === 0 ? ("descend" as const) : undefined,
+        sorter: (a: any, b: any) => (a[`total_m_${m}`] || 0) - (b[`total_m_${m}`] || 0),
+        render: (v: any) => <strong>{fmtCell(m, v)}</strong>,
+      })),
     });
 
     // Totals row
     const totals: any = { key: "__totals__", _isTotal: true };
     rowDims.forEach((d, i) => { totals[d] = i === 0 ? `TOTAL (${trows.length})` : ""; });
     colKeyList.forEach(ck => {
-      totals[`__c__${ck}`] = trows.reduce((s, r) => s + (Number(r[`__c__${ck}`]) || 0), 0);
+      metricsActive.forEach(m => {
+        totals[`c_${ck}_m_${m}`] = trows.reduce((s, r) => s + (Number(r[`c_${ck}_m_${m}`]) || 0), 0);
+      });
     });
-    totals.__total__ = trows.reduce((s, r) => s + (Number(r.__total__) || 0), 0);
+    const grand: Record<string, number> = {};
+    metricsActive.forEach(m => {
+      const t = trows.reduce((s, r) => s + (Number(r[`total_m_${m}`]) || 0), 0);
+      totals[`total_m_${m}`] = t;
+      grand[m] = t;
+    });
 
-    return {
-      tableRows: trows,
-      columns: cols,
-      totalsRow: totals,
-      grandTotal: totals.__total__,
-    };
-  }, [data, rowDims, colDims, metric, metricDef]);
+    return { tableRows: trows, columns: cols, totalsRow: totals, grandTotals: grand as any };
+  }, [data, rowDims, colDims, selMetrics]);
 
   const swap = () => { setRowDims(colDims); setColDims(rowDims); };
 
@@ -229,27 +284,32 @@ export default function NovaBasePivotTab() {
     { label: "(Vazio)", value: "__blank__" },
   ];
 
+  const metricsActive: MetricKey[] = selMetrics.length ? selMetrics : ["receita"];
+  const aggLabel = AGG_OPTIONS.find(a => a.value === agg)?.label ?? "Soma";
+
   return (
     <div>
-      {/* Configurador */}
+      {/* Configurador pivot */}
       <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "1rem 1.2rem", marginBottom: 12, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div style={{ flex: 2, minWidth: 240 }}>
           <div style={labelStyle}>Linhas</div>
           <Select mode="multiple" style={{ width: "100%" }} value={rowDims}
             onChange={setRowDims} options={DIM_OPTIONS}
-            placeholder="Arraste campos para linhas" maxTagCount="responsive" allowClear />
+            placeholder="Campos nas linhas" maxTagCount="responsive" allowClear />
         </div>
         <Button icon={<SwapOutlined />} onClick={swap} title="Inverter linhas/colunas" />
         <div style={{ flex: 2, minWidth: 240 }}>
           <div style={labelStyle}>Colunas</div>
           <Select mode="multiple" style={{ width: "100%" }} value={colDims}
             onChange={setColDims} options={DIM_OPTIONS}
-            placeholder="Arraste campos para colunas" maxTagCount="responsive" allowClear />
+            placeholder="Campos nas colunas" maxTagCount="responsive" allowClear />
         </div>
-        <div style={{ flex: 1, minWidth: 160 }}>
-          <div style={labelStyle}>Valor</div>
-          <Select style={{ width: "100%" }} value={metric} onChange={setMetric}
-            options={METRIC_OPTIONS.map(m => ({ value: m.value, label: m.label }))} />
+        <div style={{ flex: 2, minWidth: 280 }}>
+          <div style={labelStyle}>Valores</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selMetrics}
+            onChange={(v) => setSelMetrics(v as MetricKey[])}
+            options={METRIC_OPTIONS} maxTagCount="responsive"
+            placeholder="Métricas (receita, margem, custo...)" />
         </div>
         <div style={{ flex: 1, minWidth: 140 }}>
           <div style={labelStyle}>Agregação</div>
@@ -257,8 +317,14 @@ export default function NovaBasePivotTab() {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Filtros + busca */}
       <div style={{ background: "#fff", border: "1px solid #dde3f0", borderRadius: 10, padding: "0.9rem 1.2rem", marginBottom: 12, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ flex: 2, minWidth: 240 }}>
+          <div style={labelStyle}>Busca (cliente, projeto, pessoa, empresa...)</div>
+          <Input prefix={<SearchOutlined />} value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Digite e pressione Enter ou aguarde" allowClear />
+        </div>
         <div style={{ flex: 1, minWidth: 140 }}>
           <div style={labelStyle}>Período</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
@@ -295,6 +361,13 @@ export default function NovaBasePivotTab() {
             onChange={setSelNoHier} options={opt(filters.no_hierarquias || [])}
             maxTagCount="responsive" placeholder="Todos" allowClear />
         </div>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <div style={labelStyle}>Agrupador P&L</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selAgrupPL}
+            onChange={setSelAgrupPL}
+            options={AGRUPADORES_PL.map(v => ({ label: v, value: v }))}
+            maxTagCount="responsive" placeholder="Todos" allowClear />
+        </div>
         <div style={{ flex: 1, minWidth: 140 }}>
           <div style={labelStyle}>Macro Área</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selMacroAreas}
@@ -313,23 +386,34 @@ export default function NovaBasePivotTab() {
             onChange={setSelClassif} options={opt(filters.classificacoes || [])}
             maxTagCount="responsive" placeholder="Todas" allowClear />
         </div>
-        {hasAnyFilter && (
-          <Button onClick={resetFilters} danger>Limpar Filtros</Button>
+        {(hasAnyFilter || selAgrupPL.length > 0 || search.trim()) && (
+          <Button onClick={() => { resetFilters(); setSelAgrupPL([]); setSearch(""); }} danger>
+            Limpar Filtros
+          </Button>
         )}
       </div>
 
-      {/* KPI total */}
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
-        <Card style={{ flex: 1, minWidth: 220, borderRadius: 10, border: "1px solid #dde3f0" }}
-          styles={{ body: { padding: "0.8rem 1rem", textAlign: "center" } }}>
-          <Statistic
-            title={<span style={{ color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>
-              Total ({AGG_OPTIONS.find(a => a.value === agg)?.label} · {metricDef.label})
-            </span>}
-            value={metricDef.money ? brl(grandTotal) : grandTotal.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
-            valueStyle={{ color: grandTotal < 0 ? "#c0392b" : theme.text, fontSize: "1.4rem", fontWeight: 700 }}
-          />
-        </Card>
+      {/* KPI por metrica */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        {metricsActive.map(m => {
+          const v = Number((grandTotals as any)[m]) || 0;
+          const def = METRIC_DEFS[m];
+          const color = m === "custo_rateado" ? (v < 0 ? "#c0392b" : theme.text)
+                      : m === "margem"        ? (v < 0 ? "#c0392b" : "#0a7a3e")
+                      : (v < 0 ? "#c0392b" : theme.text);
+          return (
+            <Card key={m} style={{ flex: 1, minWidth: 180, borderRadius: 10, border: "1px solid #dde3f0" }}
+              styles={{ body: { padding: "0.8rem 1rem", textAlign: "center" } }}>
+              <Statistic
+                title={<span style={{ color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>
+                  {aggLabel} · {def.label}
+                </span>}
+                value={def.money ? brl(v) : v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
+                valueStyle={{ color, fontSize: "1.25rem", fontWeight: 700 }}
+              />
+            </Card>
+          );
+        })}
       </div>
 
       {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
@@ -337,6 +421,7 @@ export default function NovaBasePivotTab() {
           dataSource={totalsRow ? [totalsRow, ...tableRows] : tableRows}
           columns={columns}
           size="small"
+          bordered
           pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["20", "50", "100", "200", "500"] }}
           scroll={{ x: "max-content" }}
           style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
