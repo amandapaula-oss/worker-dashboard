@@ -2918,11 +2918,24 @@ def get_nova_base_data(
         tp[tp == ""] = "Outros"
         vals_tp = [v.strip() for v in tipo_pessoa.split(",") if v.strip()]
         df = df[tp.isin(vals_tp)]
-    # Filtra por métrica: só linhas que contribuem pra aquele número
+    # Filtra por métrica: só linhas que contribuem pra aquele número.
+    # IMPORTANTE: alinhado com a logica do Resumo:
+    #   custo   = custo_rateado das linhas SEM macro_area E que NAO sao Custo Socios
+    #   despesa = custo_rateado das linhas COM macro_area OU fonte Custo Socios
+    if "macro_area" in df.columns:
+        _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("")
+    else:
+        _ma = pd.Series(False, index=df.index)
+    _fonte_s = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    _is_socio = _fonte_s.isin(["Custo Socios", "Custo Sócios"])
+    _is_despesa = _ma | _is_socio
+
     if metric == "receita":
         df = df[pd.to_numeric(df["receita"], errors="coerce").fillna(0) != 0]
     elif metric == "custo" or metric == "custo_rateado":
-        df = df[pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0) != 0]
+        df = df[(pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0) != 0) & (~_is_despesa)]
+    elif metric == "despesa":
+        df = df[(pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0) != 0) & _is_despesa]
     elif metric == "horas":
         df = df[pd.to_numeric(df["horas"], errors="coerce").fillna(0) != 0]
     elif metric == "valor_liquido":

@@ -226,7 +226,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     type MetricKey = "receita" | "custo" | "despesa" | "margem" | "margem_pct" | "valor_liquido" | "horas";
     // Mapeia métrica do frontend → métrica que o backend entende como filtro
     const metricApiKey: Record<string, string> = {
-      receita: "receita", custo: "custo_rateado", despesa: "custo_rateado", margem: "",
+      receita: "receita", custo: "custo_rateado", despesa: "despesa", margem: "",
       valor_liquido: "valor_liquido", horas: "horas", margem_pct: "",
     };
     const metricLabelMap: Record<string, string> = {
