@@ -203,9 +203,11 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   const totHoras   = pivotData.reduce((s, r) => s + (r.total_horas   || 0), 0);
 
   const tableData = useMemo(() => {
+    const totDespesa = pivotData.reduce((s, r) => s + (r.total_despesa || 0), 0);
     const totRow: any = {
       key: "__t__", grupo: "TOTAL",
       total_receita: totReceita, total_custo: totCusto,
+      total_despesa: totDespesa,
       total_margem: totMargem, total_margem_pct: totPct,
       total_valor_liquido: totVL, total_horas: totHoras,
       _isTotal: true,
@@ -213,6 +215,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     periodos.forEach(p => {
       totRow[`${p}_receita`]       = pivotData.reduce((s, r) => s + (r[`${p}_receita`]       || 0), 0);
       totRow[`${p}_custo`]         = pivotData.reduce((s, r) => s + (r[`${p}_custo`]         || 0), 0);
+      totRow[`${p}_despesa`]       = pivotData.reduce((s, r) => s + (r[`${p}_despesa`]       || 0), 0);
       totRow[`${p}_margem`]        = (totRow[`${p}_receita`] || 0) + (totRow[`${p}_custo`] || 0);
       const rec = totRow[`${p}_receita`] || 0;
       totRow[`${p}_margem_pct`]    = rec !== 0 ? totRow[`${p}_margem`] / rec : null;
