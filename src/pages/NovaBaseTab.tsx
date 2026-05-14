@@ -138,6 +138,8 @@ export default function NovaBaseTab() {
     { title: "Vertical",   dataIndex: "vertical",        key: "vertical",        width: 140, ellipsis: true },
     { title: "Apuração",   dataIndex: "apuracao",        key: "apuracao",        width: 110,
       render: (v: string) => v ? <Tag color={v === "NG" ? "magenta" : "geekblue"}>{v}</Tag> : "—" },
+    { title: "Descrição",  dataIndex: "tipos",           key: "tipos",           width: 180, ellipsis: true },
+    { title: "Agrupador",  dataIndex: "agrupador",       key: "agrupador",       width: 140, ellipsis: true },
     { title: "Receita",    dataIndex: "receita",         key: "receita",         width: 120, align: "right" as const,
       render: fmt },
     { title: "Custo",      dataIndex: "custo_rateado",   key: "custo_rateado",   width: 120, align: "right" as const,

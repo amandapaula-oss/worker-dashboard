@@ -2954,7 +2954,7 @@ def get_nova_base_data(
     cols_show = [
         "fonte_familia", "fonte", "fonte_dados", "periodo", "empresa", "pep_base", "nome_pessoa",
         "nome_cliente", "tipo_contrato", "classificacao", "area",
-        "centro_lucro", "macro_area", "vertical",
+        "centro_lucro", "macro_area", "vertical", "tipos", "agrupador",
         "receita", "custo_rateado", "horas", "margem",
         "valor_liquido", "taxa_hora", "billable_category", "tag_rateio", "Comentarios",
     ]
