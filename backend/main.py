@@ -2693,6 +2693,95 @@ def download_nova_base(user=Depends(get_current_user)):
         headers={"Content-Disposition": "attachment; filename=nova_base_completa.xlsx"},
     )
 
+@app.get("/api/nova-base/pivot")
+def get_nova_base_pivot(
+    rows: str = "",
+    cols: str = "",
+    metric: str = "receita",
+    agg: str = "sum",
+    periodos: str = "",
+    fontes: str = "",
+    empresas: str = "",
+    macro_areas: str = "",
+    tipos_contrato: str = "",
+    classificacoes: str = "",
+    verticais: str = "",
+    apuracoes: str = "",
+    no_hierarquias: str = "",
+    user=Depends(get_current_user),
+):
+    df = _get_nova_base().copy()
+    df = df[df["fonte"].astype(str) != "de para"]
+
+    def filt(col, param):
+        vals = [v.strip() for v in param.split(",") if v.strip()]
+        if vals and col in df.columns:
+            col_clean = df[col].fillna("").astype(str).str.strip()
+            regular_vals = [v for v in vals if v != "__blank__"]
+            mask = pd.Series(False, index=df.index)
+            if regular_vals:
+                mask = mask | col_clean.isin(regular_vals)
+            if "__blank__" in vals:
+                mask = mask | (col_clean == "")
+            return df[mask].copy()
+        return df
+
+    if periodos:       df = filt("periodo", periodos)
+    if fontes:         df = filt("fonte_familia", fontes)
+    if empresas:       df = filt("empresa", empresas)
+    if macro_areas:    df = filt("macro_area", macro_areas)
+    if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
+    if classificacoes: df = filt("classificacao", classificacoes)
+    if verticais:      df = filt("vertical", verticais)
+    if apuracoes:      df = filt("apuracao", apuracoes)
+    if no_hierarquias: df = filt("no_hierarquia", no_hierarquias)
+
+    ALLOWED_DIMS = {
+        "periodo", "empresa", "fonte", "fonte_familia", "macro_area", "area",
+        "tipo_contrato", "classificacao", "vertical", "apuracao", "no_hierarquia",
+        "nome_cliente", "pep_base", "nome_pessoa", "centro_lucro", "billable_category",
+    }
+    row_dims = [r.strip() for r in rows.split(",") if r.strip() in ALLOWED_DIMS and r.strip() in df.columns]
+    col_dims = [c.strip() for c in cols.split(",") if c.strip() in ALLOWED_DIMS and c.strip() in df.columns]
+
+    if metric == "margem":
+        df["_v"] = pd.to_numeric(df["receita"], errors="coerce").fillna(0) + \
+                   pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0)
+    elif metric == "count":
+        df["_v"] = 1
+    elif metric in df.columns:
+        df["_v"] = pd.to_numeric(df[metric], errors="coerce").fillna(0)
+    else:
+        df["_v"] = 0
+
+    for d in row_dims + col_dims:
+        df[d] = df[d].fillna("").astype(str).str.strip().replace("", "(Vazio)")
+
+    group_keys = row_dims + col_dims
+    if not group_keys:
+        if agg == "avg":
+            val = float(df["_v"].mean()) if len(df) else 0.0
+        elif agg == "count":
+            val = float(len(df))
+        else:
+            val = float(df["_v"].sum())
+        return _sanitize({
+            "rows": row_dims, "cols": col_dims, "metric": metric, "agg": agg,
+            "data": [{"_v": val}], "total_rows": len(df),
+        })
+
+    if agg == "avg":
+        g = df.groupby(group_keys, dropna=False)["_v"].mean().reset_index()
+    elif agg == "count":
+        g = df.groupby(group_keys, dropna=False)["_v"].count().reset_index()
+    else:
+        g = df.groupby(group_keys, dropna=False)["_v"].sum().reset_index()
+
+    return _sanitize({
+        "rows": row_dims, "cols": col_dims, "metric": metric, "agg": agg,
+        "data": g.to_dict(orient="records"), "total_rows": len(df),
+    })
+
 @app.get("/api/nova-base/data")
 def get_nova_base_data(
     periodos: str = "",

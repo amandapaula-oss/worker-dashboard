@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Switch, theme as antdTheme, Upload, Modal } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined, UploadOutlined } from "@ant-design/icons";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined, UploadOutlined, TableOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
@@ -19,6 +19,7 @@ import ClientesTab from "./ClientesTab";
 import NovaBaseTab from "./NovaBaseTab";
 import NovaBaseResumoTab, { NovaDreTab } from "./NovaBaseResumoTab";
 import NovaBaseMargemTab from "./NovaBaseMargemTab";
+import NovaBasePivotTab from "./NovaBasePivotTab";
 import { uploadNovaBase, clearNovaBaseCache } from "../api";
 import { ReloadOutlined } from "@ant-design/icons";
 
@@ -199,7 +200,7 @@ function WorkerTab({ dark }: { dark: boolean }) {
   );
 }
 
-type Section = "worker" | "cockpit" | "metas" | "nova_base" | null;
+type Section = "worker" | "cockpit" | "metas" | "nova_base" | "nova_base_pivot" | null;
 
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
@@ -264,11 +265,12 @@ export default function Dashboard() {
 
         <Content style={{ padding: "1.5rem 2rem" }}>
           {section === null && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 280px)", gap: 24, justifyContent: "center", alignContent: "center", minHeight: "60vh" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 280px)", gap: 24, justifyContent: "center", alignContent: "center", minHeight: "60vh" }}>
               {([
                 { key: "worker",    icon: <UserOutlined />,      title: "Worker",                 desc: "Receitas e custos por colaborador",           sub: "Base Worker" },
                 { key: "cockpit",   icon: <BankOutlined />,      title: "Financeiro",             desc: "DRE, P&L por Stream e Matricial",             sub: "SAP S4 · Nexus" },
                 { key: "nova_base", icon: <DatabaseOutlined />,  title: "Financeiro - Nova Base", desc: "Base unificada 2026 com todas as fontes",     sub: "Nova Base · 2026" },
+                { key: "nova_base_pivot", icon: <TableOutlined />, title: "Visão Personalizada",   desc: "Tabela dinâmica sobre a Nova Base 2026",      sub: "Pivot · Drag-and-drop" },
                 { key: "metas",     icon: <AimOutlined />,       title: "Apuração de Metas",      desc: "Acompanhamento e apuração de metas Q4 e Q3", sub: "Margem · Clientes · Check" },
               ] as const).map(({ key, icon, title, desc, sub }) => (
                 <div
@@ -362,6 +364,12 @@ export default function Dashboard() {
                 { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
               ]}
             />
+            </NovaBaseFiltersProvider>
+          )}
+
+          {section === "nova_base_pivot" && (
+            <NovaBaseFiltersProvider>
+              <NovaBasePivotTab />
             </NovaBaseFiltersProvider>
           )}
 

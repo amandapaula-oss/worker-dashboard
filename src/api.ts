@@ -239,6 +239,10 @@ export async function getNovaBaseDre(params: Record<string, string> = {}) {
   return apiFetch(`/api/nova-base/dre${buildQuery(params)}`);
 }
 
+export async function getNovaBasePivot(params: Record<string, string> = {}) {
+  return apiFetch(`/api/nova-base/pivot${buildQuery(params)}`);
+}
+
 export async function getNovaBaseMargemClientes(params: Record<string, string> = {}) {
   return apiFetch(`/api/nova-base/margem/clientes${buildQuery(params)}`);
 }
