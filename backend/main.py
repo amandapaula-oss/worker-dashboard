@@ -2534,10 +2534,17 @@ def get_nova_base_resumo(
         df = df[~df[group_col].isin(_NOT_BU)]
     df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
 
+    # Separa custo (billable, sem macro_area) de despesa (com macro_area). A coluna
+    # `custo_rateado` no resumo agrega so o custo direto — despesas (SGA, Backoffice,
+    # etc.) nao entram aqui pra nao inflar custo de projeto.
+    has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    df["_custo_direto"] = df["custo_rateado"].where(~has_ma, 0)
+    df["_horas_direto"] = df["horas"].where(~has_ma, 0)
+
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
-        custo_rateado = ("custo_rateado", "sum"),
-        horas         = ("horas",         "sum"),
+        custo_rateado = ("_custo_direto", "sum"),
+        horas         = ("_horas_direto", "sum"),
         valor_liquido = ("valor_liquido", "sum"),
     )
     agg = agg.rename(columns={group_col: "grupo"})
