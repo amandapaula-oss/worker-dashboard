@@ -189,8 +189,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         total_valor_liquido: periodos.reduce((s, p) => s + (r[`${p}_valor_liquido`] || 0), 0),
         total_horas:         periodos.reduce((s, p) => s + (r[`${p}_horas`]         || 0), 0),
       };
-    }).sort((a, b) => b.total_receita - a.total_receita);
-  }, [rawData, periodos]);
+    }).sort((a, b) => agruparPor === "vertical"
+      ? String(a.grupo).localeCompare(String(b.grupo), "pt-BR")
+      : b.total_receita - a.total_receita);
+  }, [rawData, periodos, agruparPor]);
 
   const totReceita = pivotData.reduce((s, r) => s + (r.total_receita || 0), 0);
   const totCusto   = pivotData.reduce((s, r) => s + (r.total_custo   || 0), 0);
