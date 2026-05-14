@@ -2537,11 +2537,16 @@ def get_nova_base_resumo(
     # Separa custo (billable, sem macro_area) de despesa (com macro_area). A coluna
     # `custo_rateado` no resumo agrega so o custo direto — despesas (SGA, Backoffice,
     # etc.) nao entram aqui pra nao inflar custo de projeto.
+    # Classificacao final: respeita coluna `classificacao` quando preenchida,
+    # senao usa inferencia por macro_area + fonte (Custo Socios -> despesa).
     has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
-    # Socios sao sempre despesa (mesmo sem macro_area)
     fonte_str = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
     is_socio = fonte_str.isin(["Custo Socios", "Custo Sócios"])
-    is_despesa = has_ma | is_socio
+    classif_str = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    explicit_desp = classif_str == "despesa"
+    explicit_cus  = classif_str == "custo"
+    # Despesa = explicito OU (sem classif explicita E (com macro_area OU socio))
+    is_despesa = explicit_desp | ((~explicit_cus) & (has_ma | is_socio))
     df["_custo_direto"] = df["custo_rateado"].where(~is_despesa, 0)
     df["_horas_direto"] = df["horas"].where(~is_despesa, 0)
     df["_despesa"]      = df["custo_rateado"].where(is_despesa, 0)
@@ -2919,16 +2924,17 @@ def get_nova_base_data(
         vals_tp = [v.strip() for v in tipo_pessoa.split(",") if v.strip()]
         df = df[tp.isin(vals_tp)]
     # Filtra por métrica: só linhas que contribuem pra aquele número.
-    # IMPORTANTE: alinhado com a logica do Resumo:
-    #   custo   = custo_rateado das linhas SEM macro_area E que NAO sao Custo Socios
-    #   despesa = custo_rateado das linhas COM macro_area OU fonte Custo Socios
+    # Alinhado com a logica do Resumo (respeita classificacao explicita).
     if "macro_area" in df.columns:
         _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("")
     else:
         _ma = pd.Series(False, index=df.index)
     _fonte_s = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
     _is_socio = _fonte_s.isin(["Custo Socios", "Custo Sócios"])
-    _is_despesa = _ma | _is_socio
+    _classif = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    _expl_desp = _classif == "despesa"
+    _expl_cus  = _classif == "custo"
+    _is_despesa = _expl_desp | ((~_expl_cus) & (_ma | _is_socio))
 
     if metric == "receita":
         df = df[pd.to_numeric(df["receita"], errors="coerce").fillna(0) != 0]
