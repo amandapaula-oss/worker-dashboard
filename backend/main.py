@@ -2540,10 +2540,12 @@ def get_nova_base_resumo(
     has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
     df["_custo_direto"] = df["custo_rateado"].where(~has_ma, 0)
     df["_horas_direto"] = df["horas"].where(~has_ma, 0)
+    df["_despesa"]      = df["custo_rateado"].where(has_ma, 0)
 
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
         custo_rateado = ("_custo_direto", "sum"),
+        despesa       = ("_despesa",      "sum"),
         horas         = ("_horas_direto", "sum"),
         valor_liquido = ("valor_liquido", "sum"),
     )

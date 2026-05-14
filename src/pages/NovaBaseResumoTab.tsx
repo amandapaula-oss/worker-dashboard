@@ -50,10 +50,10 @@ const labelStyle: React.CSSProperties = {
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const ALL_METRICS = ["receita", "custo", "margem", "margem_pct", "valor_liquido", "horas"] as const;
+const ALL_METRICS = ["receita", "custo", "despesa", "margem", "margem_pct", "valor_liquido", "horas"] as const;
 type Metric = typeof ALL_METRICS[number];
 const METRIC_LABELS: Record<Metric, string> = {
-  receita: "Receita", custo: "Custo", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", horas: "Horas",
+  receita: "Receita", custo: "Custo", despesa: "Despesa", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", horas: "Horas",
 };
 
 function MargemTag({ value }: { value: number | null | undefined }) {
@@ -118,10 +118,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
 
   const [visibleMetrics, setVisibleMetrics] = useState<Set<Metric>>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("tbl:nb-resumo-metrics") || "null");
+      const saved = JSON.parse(localStorage.getItem("tbl:nb-resumo-metrics:v2") || "null");
       if (Array.isArray(saved)) return new Set(saved as Metric[]);
     } catch {}
-    return new Set<Metric>(["receita", "custo", "valor_liquido"]);
+    return new Set<Metric>(["receita", "custo", "despesa", "valor_liquido"]);
   });
 
   const toggleMetric = (m: Metric) => {
@@ -129,7 +129,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       const next = new Set(prev);
       if (next.has(m)) { if (next.size > 1) next.delete(m); }
       else next.add(m);
-      localStorage.setItem("tbl:nb-resumo-metrics", JSON.stringify(Array.from(next)));
+      localStorage.setItem("tbl:nb-resumo-metrics:v2", JSON.stringify(Array.from(next)));
       return next;
     });
   };
@@ -168,6 +168,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       const e = map.get(key)!;
       e[`${r.periodo}_receita`]       = (e[`${r.periodo}_receita`]       || 0) + (Number(r.receita)       || 0);
       e[`${r.periodo}_custo`]         = (e[`${r.periodo}_custo`]         || 0) + (Number(r.custo_rateado) || 0);
+      e[`${r.periodo}_despesa`]       = (e[`${r.periodo}_despesa`]       || 0) + (Number(r.despesa)       || 0);
       e[`${r.periodo}_valor_liquido`] = (e[`${r.periodo}_valor_liquido`] || 0) + (Number(r.valor_liquido) || 0);
       e[`${r.periodo}_horas`]         = (e[`${r.periodo}_horas`]         || 0) + (Number(r.horas)         || 0);
     }
@@ -179,11 +180,13 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       });
       const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
       const tot_cus = periodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
+      const tot_des = periodos.reduce((s, p) => s + (r[`${p}_despesa`] || 0), 0);
       const tot_mar = tot_rec + tot_cus;
       return {
         ...r,
         total_receita:       tot_rec,
         total_custo:         tot_cus,
+        total_despesa:       tot_des,
         total_margem:        tot_mar,
         total_margem_pct:    tot_rec !== 0 ? tot_mar / tot_rec : null,
         total_valor_liquido: periodos.reduce((s, p) => s + (r[`${p}_valor_liquido`] || 0), 0),
@@ -220,14 +223,14 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   }, [pivotData, periodos, totReceita, totCusto, totVL, totHoras]);
 
   const columnsDef = useMemo(() => {
-    type MetricKey = "receita" | "custo" | "margem" | "margem_pct" | "valor_liquido" | "horas";
+    type MetricKey = "receita" | "custo" | "despesa" | "margem" | "margem_pct" | "valor_liquido" | "horas";
     // Mapeia métrica do frontend → métrica que o backend entende como filtro
     const metricApiKey: Record<string, string> = {
-      receita: "receita", custo: "custo_rateado", margem: "",
+      receita: "receita", custo: "custo_rateado", despesa: "custo_rateado", margem: "",
       valor_liquido: "valor_liquido", horas: "horas", margem_pct: "",
     };
     const metricLabelMap: Record<string, string> = {
-      receita: "Receita", custo: "Custo Rateado", margem: "Margem",
+      receita: "Receita", custo: "Custo Rateado", despesa: "Despesa", margem: "Margem",
       valor_liquido: "Lucro Bruto", horas: "Horas", margem_pct: "Margem %",
     };
     const clickable = (prefix: string, metric: MetricKey, content: React.ReactNode, row: any, v: any) => (
@@ -266,6 +269,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     const metricChildDefs: { metric: MetricKey; title: string; width: number; renderFn?: string }[] = [
       { metric: "receita",       title: "Receita",    width: 140 },
       { metric: "custo",         title: "Custo",      width: 130 },
+      { metric: "despesa",       title: "Despesa",    width: 130 },
       { metric: "margem",        title: "Margem",     width: 130 },
       { metric: "margem_pct",    title: "%",          width: 75, renderFn: "pct" },
       { metric: "valor_liquido", title: "Lucro Bruto", width: 130 },
