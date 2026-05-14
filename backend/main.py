@@ -2538,9 +2538,13 @@ def get_nova_base_resumo(
     # `custo_rateado` no resumo agrega so o custo direto — despesas (SGA, Backoffice,
     # etc.) nao entram aqui pra nao inflar custo de projeto.
     has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
-    df["_custo_direto"] = df["custo_rateado"].where(~has_ma, 0)
-    df["_horas_direto"] = df["horas"].where(~has_ma, 0)
-    df["_despesa"]      = df["custo_rateado"].where(has_ma, 0)
+    # Socios sao sempre despesa (mesmo sem macro_area)
+    fonte_str = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    is_socio = fonte_str.isin(["Custo Socios", "Custo Sócios"])
+    is_despesa = has_ma | is_socio
+    df["_custo_direto"] = df["custo_rateado"].where(~is_despesa, 0)
+    df["_horas_direto"] = df["horas"].where(~is_despesa, 0)
+    df["_despesa"]      = df["custo_rateado"].where(is_despesa, 0)
 
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
