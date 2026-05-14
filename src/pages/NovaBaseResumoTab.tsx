@@ -96,9 +96,15 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     if (selPeriodos.length) filters.periodos = selPeriodos.join(",");
     if (selEmpresas.length) filters.empresas = selEmpresas.join(",");
     if (selFontes.length)   filters.fontes   = selFontes.join(",");
-    // Filtro do grupo clicado
+    // Filtro do grupo clicado. Labels sinteticos (criados no backend pra agrupamento)
+    // mapeiam pro sentinel "__blank__" porque a coluna real esta vazia.
     const paramKey = AGRUPAR_PARAM_KEY[agruparPor] || "empresas";
-    filters[paramKey] = grupo;
+    const SYNTH_TO_BLANK: Record<string, string[]> = {
+      apuracao:   ["Sem Apuração"],
+      macro_area: ["Projetos"],
+    };
+    const synthLabels = SYNTH_TO_BLANK[agruparPor] || [];
+    filters[paramKey] = synthLabels.includes(grupo) ? "__blank__" : grupo;
     // Período (se for célula de período específico)
     if (prefix !== "total") filters.periodos = prefix;
     // Métrica
