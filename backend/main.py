@@ -1826,6 +1826,29 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         mask_vazio = df[campo].isna() | (df[campo].astype(str).str.strip() == "")
         df.loc[mask_vazio, campo] = valor_propagado[mask_vazio]
 
+    # Propagacao POR PERIODO (campos que variam mes a mes): nome_cliente, pep, pep_base, vertical.
+    # Prioridade: racionais (autoridade de PEP+cliente) > CLTs/PJs (Mapa) > demais.
+    campos_periodo = ["nome_cliente", "pep", "pep_base", "vertical"]
+    if "periodo" in df.columns:
+        per_str = df["periodo"].fillna("").astype(str)
+        df["_pk"] = df["_pessoa_key"] + "|" + per_str
+        for campo in campos_periodo:
+            if campo not in df.columns:
+                continue
+            tem_valor = df[campo].notna() & (df[campo].astype(str).str.strip() != "") & (df["_pessoa_key"] != "") & (per_str != "")
+            is_rac  = (df["fonte"].astype(str) == "racionais") & tem_valor
+            is_mapa = df["fonte"].astype(str).isin(fontes_mapa) & tem_valor
+            rac_dict   = df[is_rac].drop_duplicates("_pk").set_index("_pk")[campo].to_dict()
+            mapa_dict  = df[is_mapa].drop_duplicates("_pk").set_index("_pk")[campo].to_dict()
+            outras_dict = df[tem_valor & ~is_rac & ~is_mapa].drop_duplicates("_pk").set_index("_pk")[campo].to_dict()
+            # Mescla: outras < mapa < racionais (precedencia)
+            valor_dict = {**outras_dict, **mapa_dict, **rac_dict}
+            valor_dict.pop("", None)
+            valor_propagado = df["_pk"].map(valor_dict)
+            mask_vazio = df[campo].isna() | (df[campo].astype(str).str.strip() == "")
+            df.loc[mask_vazio, campo] = valor_propagado[mask_vazio]
+        df.drop(columns=["_pk"], inplace=True, errors="ignore")
+
     # Inferência: billable → custo, non-billable → despesa (onde classificacao está vazia)
     if "classificacao" in df.columns and "billable_category" in df.columns:
         bc = df["billable_category"].fillna("").astype(str).str.strip().str.lower()
