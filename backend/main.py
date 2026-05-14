@@ -2173,6 +2173,13 @@ def _get_nova_base() -> pd.DataFrame:
                     custo_ger = df["custo_gerencial_sap"].fillna(0)
                     mask_ger = (custo_ger != 0)
                     df.loc[mask_ger, "custo_rateado"] = -custo_ger[mask_ger]
+                # Mapa de Pessoas (fonte=CLTs) NAO deve carregar custo — custo de CLT
+                # vem de fonte=custo_gerencial (SAP). PJs mantem custo (eh a fonte do PJ).
+                if "fonte" in df.columns:
+                    mask_clt_mapa = df["fonte"].astype(str) == "CLTs"
+                    for col in ("custo_rateado", "valor_liquido", "margem", "custo_gerencial_sap"):
+                        if col in df.columns:
+                            df.loc[mask_clt_mapa, col] = 0
                 if "empresa" in df.columns:
                     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
                 if "vertical" in df.columns:
@@ -2274,6 +2281,13 @@ def _get_nova_base() -> pd.DataFrame:
             if "empresa" in df.columns:
                 mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
                 df.loc[mask_hy_sem_bu, "vertical"] = "Hyper"
+        # Mapa de Pessoas (fonte=CLTs) NAO deve carregar custo — custo de CLT
+        # vem de fonte=custo_gerencial (SAP). PJs mantem custo (eh a fonte do PJ).
+        if "fonte" in df.columns:
+            mask_clt_mapa = df["fonte"].astype(str) == "CLTs"
+            for col in ("custo_rateado", "valor_liquido", "margem", "custo_gerencial_sap"):
+                if col in df.columns:
+                    df.loc[mask_clt_mapa, col] = 0
         df = _adicionar_fonte_familia(df)
         df = _adicionar_apuracao(df)
         df = _enriquecer_dados_pessoa(df)
