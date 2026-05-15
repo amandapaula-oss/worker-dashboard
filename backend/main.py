@@ -1798,6 +1798,16 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
                 df.loc[aplica, "vertical"] = cli_bu[aplica]
     except Exception as e:
         print(f"[vertical_consistencia_cliente] falhou: {e}")
+
+    # 4. Clientes que devem ficar SEM BU (decisao de negocio) — vertical em branco.
+    try:
+        if "nome_cliente" in df.columns:
+            nc_norm = df["nome_cliente"].fillna("").astype(str).apply(
+                lambda s: re.sub(r"\s+", " ", str(s)).strip().upper())
+            sem_bu = nc_norm.str.contains("DISTRITO", na=False)
+            df.loc[sem_bu, "vertical"] = ""
+    except Exception as e:
+        print(f"[vertical_sem_bu] falhou: {e}")
     return df
 
 
