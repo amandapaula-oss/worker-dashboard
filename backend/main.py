@@ -1662,37 +1662,82 @@ def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
-    """Deriva a vertical (BU) a partir do PEP (projeto) via parametros.xlsx > pep_vertical.
-    O projeto e quem define a BU — nao o cadastro da pessoa. Linhas com PEP mapeado
-    recebem a vertical do projeto; linhas sem PEP mantem a vertical atual.
+    """Deriva a vertical (BU) a partir do PEP (projeto) e, como fallback, do cliente.
+    O projeto define a BU — nao o cadastro da pessoa.
+    Precedencia: pep_vertical (mais especifico) > clientes (fallback) > cadastro.
+    Linhas sem PEP e sem cliente mapeado mantem a vertical atual.
     """
-    if "pep_base" not in df.columns and "pep" not in df.columns:
-        return df
+    import unicodedata, re
     VERT_MAP = {
         "Finance": "BU Finance", "Retail": "BU Retail", "Health": "BU Health",
         "Multisector": "BU Multisector", "Logistics": "BU Logistics",
         "Grupo Mult": "BU Multisector",
     }
+
+    def _norm(s):
+        if not isinstance(s, str):
+            return ""
+        s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+        return re.sub(r"\s+", " ", s).strip().upper()
+
+    # Versao "nucleo": tira pontuacao, sufixos corporativos e codigos finais
+    # (ex: "GRUPO CASAS BAHIA S.A." e "GRUPO CASAS BAHIA S.A" viram a mesma chave)
+    _SUFIXOS = re.compile(r"\b(S\.?\s?A\.?|S/?A|LTDA|EIRELI|ME|EPP|SA)\b", re.IGNORECASE)
+    def _core(s):
+        s = _norm(s)
+        s = re.sub(r"\s*-\s*\d[\d\-/.]*$", "", s)  # remove sufixo " - 0001-51"
+        s = _SUFIXOS.sub("", s)
+        s = re.sub(r"[^A-Z0-9 ]", "", s)
+        return re.sub(r"\s+", " ", s).strip()
+
+    # 1. Fallback por cliente (parametros.xlsx > clientes): nome_cliente/nome_base -> BU
+    try:
+        cl = read_sheet_cached("clientes", dtype=str)
+        cli_map = {}      # match exato
+        cli_core_map = {} # match por nucleo
+        for _, r in cl.iterrows():
+            bu_raw = str(r.get("bu") or "").strip()
+            if not bu_raw:
+                continue
+            bu = VERT_MAP.get(bu_raw, bu_raw)
+            for campo in ("nome_cliente", "nome_base"):
+                raw = r.get(campo)
+                # nome_base pode ter aliases separados por '|'
+                for parte in str(raw or "").split("|"):
+                    nome = _norm(parte)
+                    if nome:
+                        cli_map.setdefault(nome, bu)
+                    core = _core(parte)
+                    if core and len(core) >= 4:
+                        cli_core_map.setdefault(core, bu)
+        if cli_map and "nome_cliente" in df.columns:
+            nc = df["nome_cliente"].fillna("")
+            ov_exato = nc.apply(_norm).map(cli_map)
+            ov_core = nc.apply(_core).map(cli_core_map)
+            override = ov_exato.fillna(ov_core)
+            df.loc[override.notna(), "vertical"] = override[override.notna()]
+    except Exception as e:
+        print(f"[vertical_por_cliente] falhou: {e}")
+
+    # 2. PEP override (mais especifico — prevalece sobre o fallback de cliente)
+    if "pep_base" not in df.columns and "pep" not in df.columns:
+        return df
     try:
         pv = read_sheet_cached("pep_vertical", dtype=str).dropna(subset=["pep", "vertical"])
+        pv_map = {}
+        for _, r in pv.iterrows():
+            pep = str(r["pep"]).strip()
+            v = str(r["vertical"]).strip()
+            if pep:
+                pv_map[pep] = VERT_MAP.get(v, v)
+        for col in ("pep_base", "pep"):
+            if col not in df.columns:
+                continue
+            key = df[col].fillna("").astype(str).str.strip()
+            override = key.map(pv_map)
+            df.loc[override.notna(), "vertical"] = override[override.notna()]
     except Exception as e:
         print(f"[vertical_por_pep] falhou: {e}")
-        return df
-    pv_map = {}
-    for _, r in pv.iterrows():
-        pep = str(r["pep"]).strip()
-        v = str(r["vertical"]).strip()
-        if pep:
-            pv_map[pep] = VERT_MAP.get(v, v)
-    if not pv_map:
-        return df
-    # Match por pep_base (preferido) e pep
-    for col in ("pep_base", "pep"):
-        if col not in df.columns:
-            continue
-        key = df[col].fillna("").astype(str).str.strip()
-        override = key.map(pv_map)
-        df.loc[override.notna(), "vertical"] = override[override.notna()]
     return df
 
 
