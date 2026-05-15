@@ -1672,7 +1672,7 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
     VERT_MAP = {
         "Finance": "BU Finance", "Retail": "BU Retail", "Health": "BU Health",
         "Multisector": "BU Multisector", "Logistics": "BU Logistics",
-        "Grupo Mult": "BU Multisector",
+        "Grupo Mult": "BU Logistics",
     }
 
     def _norm(s):
