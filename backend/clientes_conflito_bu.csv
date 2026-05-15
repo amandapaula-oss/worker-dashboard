@@ -1,0 +1,8 @@
+nome_cliente;listas_conflitantes;bu_definida
+BMG;Finance e Logistics;
+BANCO INTER;Logistics (mas e banco - provavel Finance);
+UNIMED BH;Logistics (mas Unimed costuma ser Health);
+UNIMED CURITIBA;Logistics (mas Unimed costuma ser Health);
+DISTRITO;Finance e Multisector;
+KLABIN;Logistics e Multisector;
+SADA;Logistics e Multisector;
