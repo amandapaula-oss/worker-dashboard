@@ -1661,6 +1661,41 @@ def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
+    """Deriva a vertical (BU) a partir do PEP (projeto) via parametros.xlsx > pep_vertical.
+    O projeto e quem define a BU — nao o cadastro da pessoa. Linhas com PEP mapeado
+    recebem a vertical do projeto; linhas sem PEP mantem a vertical atual.
+    """
+    if "pep_base" not in df.columns and "pep" not in df.columns:
+        return df
+    VERT_MAP = {
+        "Finance": "BU Finance", "Retail": "BU Retail", "Health": "BU Health",
+        "Multisector": "BU Multisector", "Logistics": "BU Logistics",
+        "Grupo Mult": "BU Multisector",
+    }
+    try:
+        pv = read_sheet_cached("pep_vertical", dtype=str).dropna(subset=["pep", "vertical"])
+    except Exception as e:
+        print(f"[vertical_por_pep] falhou: {e}")
+        return df
+    pv_map = {}
+    for _, r in pv.iterrows():
+        pep = str(r["pep"]).strip()
+        v = str(r["vertical"]).strip()
+        if pep:
+            pv_map[pep] = VERT_MAP.get(v, v)
+    if not pv_map:
+        return df
+    # Match por pep_base (preferido) e pep
+    for col in ("pep_base", "pep"):
+        if col not in df.columns:
+            continue
+        key = df[col].fillna("").astype(str).str.strip()
+        override = key.map(pv_map)
+        df.loc[override.notna(), "vertical"] = override[override.notna()]
+    return df
+
+
 def _adicionar_fonte_familia(df: pd.DataFrame) -> pd.DataFrame:
     """Cria coluna virtual `fonte_familia` agrupando arquivos individuais em famílias:
     - Mapa Pessoas
@@ -2192,6 +2227,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _adicionar_apuracao(df)
                 df = _enriquecer_dados_pessoa(df)
                 df = _aplicar_rateio_custos(df)
+                df = _aplicar_vertical_por_pep(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
             except Exception as e:
@@ -2292,6 +2328,7 @@ def _get_nova_base() -> pd.DataFrame:
         df = _adicionar_apuracao(df)
         df = _enriquecer_dados_pessoa(df)
         df = _aplicar_rateio_custos(df)
+        df = _aplicar_vertical_por_pep(df)
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
