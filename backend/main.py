@@ -1778,6 +1778,26 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             df.loc[override.notna(), "vertical"] = override[override.notna()]
     except Exception as e:
         print(f"[vertical_por_pep] falhou: {e}")
+
+    # 3. Consistencia por cliente: 1 cliente = 1 BU. Se o cliente tem alguma
+    #    linha com BU oficial, a BU dominante e aplicada em TODAS as linhas dele.
+    try:
+        BUS_OK = {"BU Finance", "BU Retail", "BU Health", "BU Multisector", "BU Logistics"}
+        if "nome_cliente" in df.columns:
+            cli = df["nome_cliente"].fillna("").astype(str).str.strip()
+            vv = df["vertical"].fillna("").astype(str).str.strip()
+            mask_ok = vv.isin(BUS_OK) & cli.ne("") & ~cli.isin(["0", "nan"])
+            if mask_ok.any():
+                dom = (df.loc[mask_ok]
+                       .assign(_c=cli[mask_ok], _v=vv[mask_ok])
+                       .groupby("_c")["_v"]
+                       .agg(lambda s: s.mode().iloc[0]))
+                dom_map = dom.to_dict()
+                cli_bu = cli.map(dom_map)
+                aplica = cli_bu.notna() & cli.ne("") & ~cli.isin(["0", "nan"])
+                df.loc[aplica, "vertical"] = cli_bu[aplica]
+    except Exception as e:
+        print(f"[vertical_consistencia_cliente] falhou: {e}")
     return df
 
 
