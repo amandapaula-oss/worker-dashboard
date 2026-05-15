@@ -2503,6 +2503,7 @@ def _sync_nova_base_calculada() -> dict:
         "receita": _n("receita"), "custo": df["_custo"].round(2), "despesa": df["_despesa"].round(2),
         "horas": _n("horas"), "valor_liquido": _n("valor_liquido"),
     })
+    # Margem Bruta = Receita + Custo (custo direto apenas; despesa NAO entra)
     out["margem"] = (out["receita"] + out["custo"]).round(2)
     out["atualizado_em"] = agora
 
@@ -2746,6 +2747,13 @@ def get_nova_base_margem_clientes(
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     df = df[df["nome_cliente"].fillna("").astype(str).str.strip().ne("")]
+    # Margem Bruta = Receita + Custo direto (despesa NAO entra).
+    _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    _fs = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    _socio = _fs.isin(["Custo Socios", "Custo Sócios"])
+    _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
+    df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
     df["margem"] = df["receita"] + df["custo_rateado"]
     group_keys = ["nome_cliente", "periodo"] if breakdown else ["nome_cliente"]
     agg = df.groupby(group_keys, as_index=False).agg(
@@ -2797,6 +2805,13 @@ def get_nova_base_margem_cliente_detalhe(
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     if nome_cliente:
         df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
+    # Margem Bruta = Receita + Custo direto (despesa NAO entra).
+    _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    _fs = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    _socio = _fs.isin(["Custo Socios", "Custo Sócios"])
+    _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
+    df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
     df["margem"] = df["receita"] + df["custo_rateado"]
     df["pep_base"] = df["pep"].astype(str).str.split(".").str[0].str.strip() if "pep" in df.columns else ""
     # Remove linhas sem PEP (residuais de estrutura/banco) — poluíam a visão por cliente
@@ -3288,8 +3303,19 @@ def get_nova_base_margem_cliente(
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    # Calcula margem = receita + custo_rateado (custo já é negativo)
-    df["_margem"] = df["receita"] + df["custo_rateado"]
+    # Custo (direto) vs Despesa: Margem Bruta usa SO custo direto.
+    # despesa = linhas com macro_area, sócios, ou classificacao='despesa'.
+    has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    fonte_s = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    is_socio = fonte_s.isin(["Custo Socios", "Custo Sócios"])
+    classif = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    expl_desp = classif == "despesa"
+    expl_cus = classif == "custo"
+    is_despesa = expl_desp | ((~expl_cus) & (has_ma | is_socio))
+    df["_custo"] = df["custo_rateado"].where(~is_despesa, 0)
+
+    # Margem Bruta = receita + custo direto (despesa NAO entra)
+    df["_margem"] = df["receita"] + df["_custo"]
 
     # Normaliza campos de agrupamento
     for col in ["nome_cliente", "pep_base", "empresa", "vertical", "fonte", "periodo"]:
@@ -3308,7 +3334,7 @@ def get_nova_base_margem_cliente(
 
     agg = df.groupby(group_keys, as_index=False).agg(
         receita       = ("receita",       "sum"),
-        custo_rateado = ("custo_rateado", "sum"),
+        custo_rateado = ("_custo",         "sum"),
         horas         = ("horas",         "sum"),
         margem        = ("_margem",       "sum"),
     )
