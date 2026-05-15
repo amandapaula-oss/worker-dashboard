@@ -656,6 +656,7 @@ _SHEET_FILE = {
     "relacao_pessoas":        "pessoas.xlsx",
     "pep_vertical":          "parametros.xlsx",
     "clientes":              "parametros.xlsx",
+    "budget":                "parametros.xlsx",
 }
 
 def read_sheet_cached(sheet: str, **kwargs) -> pd.DataFrame:
@@ -1690,31 +1691,70 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
         s = re.sub(r"[^A-Z0-9 ]", "", s)
         return re.sub(r"\s+", " ", s).strip()
 
-    # 1. Fallback por cliente (parametros.xlsx > clientes): nome_cliente/nome_base -> BU
+    # 1. Fallback por cliente: usa abas `clientes` E `budget` do parametros.xlsx.
+    #    Match: exato > nucleo > prefixo (nome curto do mapa e inicio do nome longo).
     try:
-        cl = read_sheet_cached("clientes", dtype=str)
-        cli_map = {}      # match exato
-        cli_core_map = {} # match por nucleo
-        for _, r in cl.iterrows():
-            bu_raw = str(r.get("bu") or "").strip()
-            if not bu_raw:
-                continue
-            bu = VERT_MAP.get(bu_raw, bu_raw)
-            for campo in ("nome_cliente", "nome_base"):
-                raw = r.get(campo)
-                # nome_base pode ter aliases separados por '|'
-                for parte in str(raw or "").split("|"):
-                    nome = _norm(parte)
-                    if nome:
-                        cli_map.setdefault(nome, bu)
-                    core = _core(parte)
-                    if core and len(core) >= 4:
-                        cli_core_map.setdefault(core, bu)
+        cli_map = {}       # match exato (norm)
+        cli_core_map = {}  # match por nucleo
+        prefix_list = []   # [(core_curto, bu)] pra match por prefixo
+
+        def _add(nome_raw, bu):
+            for parte in str(nome_raw or "").split("|"):
+                nome = _norm(parte)
+                if nome:
+                    cli_map.setdefault(nome, bu)
+                core = _core(parte)
+                if core and len(core) >= 4:
+                    cli_core_map.setdefault(core, bu)
+
+        # aba clientes
+        try:
+            cl = read_sheet_cached("clientes", dtype=str)
+            for _, r in cl.iterrows():
+                bu_raw = str(r.get("bu") or "").strip()
+                if not bu_raw or bu_raw.lower().startswith("health nao"):
+                    continue
+                bu = VERT_MAP.get(bu_raw, bu_raw)
+                _add(r.get("nome_cliente"), bu)
+                _add(r.get("nome_base"), bu)
+        except Exception as e:
+            print(f"[clientes sheet] {e}")
+        # aba budget (cliente -> bs)
+        try:
+            bg = read_sheet_cached("budget", dtype=str)
+            for _, r in bg.drop_duplicates("cliente").iterrows():
+                bu_raw = str(r.get("bs") or "").strip()
+                if not bu_raw or bu_raw.lower().startswith("health nao"):
+                    continue
+                bu = VERT_MAP.get(bu_raw, bu_raw)
+                _add(r.get("cliente"), bu)
+        except Exception as e:
+            print(f"[budget sheet] {e}")
+
+        # lista pra prefixo: nucleos com >= 6 chars, mais longos primeiro
+        prefix_list = sorted(
+            ((c, b) for c, b in cli_core_map.items() if len(c) >= 6),
+            key=lambda x: -len(x[0]),
+        )
+
+        def _resolve(nome):
+            n = _norm(nome)
+            if n in cli_map:
+                return cli_map[n]
+            c = _core(nome)
+            if c in cli_core_map:
+                return cli_core_map[c]
+            # prefixo: nome do mapa e inicio do nome da base (com fronteira de palavra)
+            for mcore, bu in prefix_list:
+                if c == mcore or c.startswith(mcore + " "):
+                    return bu
+            return None
+
         if cli_map and "nome_cliente" in df.columns:
-            nc = df["nome_cliente"].fillna("")
-            ov_exato = nc.apply(_norm).map(cli_map)
-            ov_core = nc.apply(_core).map(cli_core_map)
-            override = ov_exato.fillna(ov_core)
+            # resolve por valor distinto (rapido)
+            distintos = df["nome_cliente"].fillna("").unique()
+            resol = {nc: _resolve(nc) for nc in distintos}
+            override = df["nome_cliente"].fillna("").map(resol)
             df.loc[override.notna(), "vertical"] = override[override.notna()]
     except Exception as e:
         print(f"[vertical_por_cliente] falhou: {e}")
