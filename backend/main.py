@@ -2447,10 +2447,105 @@ async def upload_nova_base_file(
     return {"status": "ok", "rows_inserted": inserted, "upload_id": upload_id, "filename": fname}
 
 
+def _sync_nova_base_calculada() -> dict:
+    """Recalcula a nova_base (com rateio aplicado) e grava na tabela
+    `nova_base_calculada` no Supabase — com custo/despesa ja separados.
+    Essa tabela e o que o Excel consome (numeros batem 100% com o site).
+    """
+    import numpy as np
+    df = _get_nova_base().copy()
+
+    for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    # CLTs do Mapa de Pessoas nao carregam custo (vem de custo_gerencial)
+    if "fonte" in df.columns:
+        mask_clt = df["fonte"].astype(str) == "CLTs"
+        for col in ("custo_rateado", "valor_liquido"):
+            df.loc[mask_clt, col] = 0
+
+    # Split custo / despesa (mesma regra do Resumo)
+    has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    fonte_s = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    is_socio = fonte_s.isin(["Custo Socios", "Custo Sócios"])
+    classif = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    expl_desp = classif == "despesa"
+    expl_cus = classif == "custo"
+    is_despesa = expl_desp | ((~expl_cus) & (has_ma | is_socio))
+
+    df["_custo"] = np.where(~is_despesa, df["custo_rateado"], 0.0)
+    df["_despesa"] = np.where(is_despesa, df["custo_rateado"], 0.0)
+
+    from datetime import datetime as _dt, timezone as _tz
+    agora = _dt.now(_tz.utc).isoformat()
+
+    def _s(col):
+        if col in df.columns:
+            return df[col].fillna("").astype(str).str.strip()
+        return pd.Series([""] * len(df), index=df.index)
+
+    def _n(col):
+        if col in df.columns:
+            return pd.to_numeric(df[col], errors="coerce").fillna(0).round(2)
+        return pd.Series([0.0] * len(df), index=df.index)
+
+    out = pd.DataFrame({
+        "periodo": _s("periodo"), "empresa": _s("empresa"), "vertical": _s("vertical"),
+        "apuracao": _s("apuracao"), "no_hierarquia": _s("no_hierarquia"),
+        "macro_area": _s("macro_area"), "area": _s("area"),
+        "fonte": _s("fonte"), "fonte_familia": _s("fonte_familia"), "fonte_dados": _s("fonte_dados"),
+        "nome_pessoa": _s("nome_pessoa"), "nome_cliente": _s("nome_cliente"),
+        "pep": _s("pep"), "pep_base": _s("pep_base"),
+        "tipo_contrato": _s("tipo_contrato"), "classificacao": _s("classificacao"),
+        "billable_category": _s("billable_category"), "tipos": _s("tipos"), "agrupador": _s("agrupador"),
+        "receita": _n("receita"), "custo": df["_custo"].round(2), "despesa": df["_despesa"].round(2),
+        "horas": _n("horas"), "valor_liquido": _n("valor_liquido"),
+    })
+    out["margem"] = (out["receita"] + out["custo"]).round(2)
+    out["atualizado_em"] = agora
+
+    records = out.where(pd.notnull(out), None).to_dict(orient="records")
+
+    headers = {
+        "apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json", "Prefer": "return=minimal",
+    }
+    base_url = f"{SUPABASE_URL}/rest/v1/nova_base_calculada"
+    with httpx.Client(timeout=120) as client:
+        # Limpa a tabela
+        client.delete(f"{base_url}?id=gt.0", headers=headers)
+        # Insere em batches
+        BATCH = 500
+        inserted = 0
+        for i in range(0, len(records), BATCH):
+            chunk = records[i:i + BATCH]
+            r = client.post(base_url, headers=headers, json=chunk)
+            if r.status_code not in (200, 201, 204):
+                raise HTTPException(500, f"Erro sync calculada batch {i}: {r.text[:200]}")
+            inserted += len(chunk)
+    return {"rows": inserted}
+
+
 @app.post("/api/nova-base/clear-cache")
 def clear_nova_base_cache(user=Depends(get_current_user)):
     _cache["nova_base"] = None
-    return {"status": "ok", "message": "Cache limpo. Próxima chamada recarrega do Supabase."}
+    # Recalcula e regrava a tabela nova_base_calculada (consumida pelo Excel)
+    try:
+        sync = _sync_nova_base_calculada()
+        return {"status": "ok", "message": "Cache limpo e nova_base_calculada atualizada.",
+                "calculada_rows": sync["rows"]}
+    except Exception as e:
+        print(f"[clear-cache] sync calculada falhou: {e}")
+        return {"status": "ok", "message": "Cache limpo. Sync da tabela calculada falhou.",
+                "sync_error": str(e)}
+
+@app.post("/api/nova-base/sync-calculada")
+def sync_calculada_endpoint(user=Depends(get_current_user)):
+    """Forca regravar a tabela nova_base_calculada (consumida pelo Excel)."""
+    sync = _sync_nova_base_calculada()
+    return {"status": "ok", "calculada_rows": sync["rows"]}
 
 @app.get("/api/nova-base/filters")
 def get_nova_base_filters(user=Depends(get_current_user)):
