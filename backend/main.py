@@ -1850,6 +1850,20 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     esses campos em TODAS as suas linhas, mesmo nas outras fontes.
     """
     import unicodedata
+
+    # Aliases de nome de cliente — variantes que são o mesmo cliente.
+    # Chave = nome normalizado (UPPER, sem espaços extras); valor = nome canônico.
+    NOME_CLIENTE_ALIAS = {
+        "BANCO BV": "BANCO VOTORANTIM S.A.",
+        "ODONTOPREV": "ODONTOPREV S.A.",
+        "ODONTOPREV S.A.": "ODONTOPREV S.A.",
+    }
+    if "nome_cliente" in df.columns:
+        _nc = (df["nome_cliente"].fillna("").astype(str)
+               .str.strip().str.replace(r"\s+", " ", regex=True))
+        _nck = _nc.str.upper()
+        df["nome_cliente"] = _nck.map(NOME_CLIENTE_ALIAS).fillna(_nc)
+
     if "nome_pessoa" not in df.columns:
         return df
 
