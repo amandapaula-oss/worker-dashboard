@@ -249,6 +249,9 @@ export async function getNovaBaseMargemClientes(params: Record<string, string> =
 export async function getNovaBaseMargemClienteDetalhe(params: Record<string, string> = {}) {
   return apiFetch(`/api/nova-base/margem/cliente-detalhe${buildQuery(params)}`);
 }
+export async function getNovaBaseMargemProjetoPessoas(params: Record<string, string> = {}) {
+  return apiFetch(`/api/nova-base/margem/projeto-pessoas${buildQuery(params)}`);
+}
 
 export async function downloadNovaBase(): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/nova-base/download`, {

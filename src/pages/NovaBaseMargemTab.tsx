@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Table, Spin, Button, Input, Breadcrumb, Card, Statistic, Select, Segmented, Popover, Checkbox } from "antd";
 import { HomeOutlined, ArrowLeftOutlined, SearchOutlined, DownloadOutlined, FilterOutlined, SettingOutlined } from "@ant-design/icons";
 import { periodoLabel } from "../utils/format";
-import { getNovaBaseFilters, getNovaBaseMargemClientes, getNovaBaseMargemClienteDetalhe } from "../api";
+import { getNovaBaseFilters, getNovaBaseMargemClientes, getNovaBaseMargemClienteDetalhe, getNovaBaseMargemProjetoPessoas } from "../api";
 import { exportTableToExcel } from "../utils/exportExcel";
 import { toTitleCase } from "../utils/format";
 import { theme } from "../theme";
@@ -51,6 +51,10 @@ export default function NovaBaseMargemTab() {
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null);
   const [detalhe, setDetalhe]         = useState<any[]>([]);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+  // 3o nivel: projeto (PEP) -> pessoas
+  const [selectedPep, setSelectedPep] = useState<string | null>(null);
+  const [pessoas, setPessoas]         = useState<any[]>([]);
+  const [loadingPessoas, setLoadingPessoas] = useState(false);
 
   const [drillOpen, setDrillOpen]       = useState(false);
   const [drillFilters, setDrillFilters] = useState<Record<string, string>>({});
@@ -124,7 +128,24 @@ export default function NovaBaseMargemTab() {
       .finally(() => setLoadingDetalhe(false));
   };
 
-  const voltarClientes = () => { setSelectedCliente(null); setDetalhe([]); };
+  const voltarClientes = () => { setSelectedCliente(null); setDetalhe([]); setSelectedPep(null); setPessoas([]); };
+  const voltarPeps = () => { setSelectedPep(null); setPessoas([]); };
+
+  const abrirPep = (pep: string) => {
+    if (!selectedCliente || !pep) return;
+    setSelectedPep(pep);
+    setLoadingPessoas(true);
+    const params: Record<string, string> = { nome_cliente: selectedCliente, pep };
+    if (selPeriodos.length)  params.periodos       = selPeriodos.join(",");
+    if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
+    if (selVerticais.length) params.verticais      = selVerticais.join(",");
+    if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
+    if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
+    getNovaBaseMargemProjetoPessoas(params)
+      .then(setPessoas)
+      .catch(() => setPessoas([]))
+      .finally(() => setLoadingPessoas(false));
+  };
 
   const filteredClientes = useMemo(() => {
     if (!search) return clientes;
@@ -293,9 +314,31 @@ export default function NovaBaseMargemTab() {
 
   const detalheCols: any[] = [
     { title: "PEP", dataIndex: "pep", key: "pep", width: 160,
-      sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)) },
+      sorter: (a: any, b: any) => String(a.pep).localeCompare(String(b.pep)),
+      render: (v: string) => (
+        <Button type="link" style={{ padding: 0, fontWeight: 600 }} onClick={() => abrirPep(v)}>{v}</Button>
+      ) },
     { title: "Empresa", dataIndex: "empresa", width: 140 },
     { title: "Vertical", dataIndex: "vertical", width: 140 },
+    { title: "Receita", dataIndex: "receita", align: "right" as const, width: 140,
+      sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
+      render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
+    { title: "Custo Rateado", dataIndex: "custo_rateado", align: "right" as const, width: 140,
+      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
+    { title: "Margem", dataIndex: "margem", align: "right" as const, width: 140,
+      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
+    { title: "Margem %", dataIndex: "margem_pct", align: "right" as const, width: 90,
+      render: (v: any) => <MargemTag value={v} /> },
+    { title: "Horas", dataIndex: "horas", align: "right" as const, width: 90,
+      render: (v: number) => (v || 0) > 0 ? v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—" },
+  ];
+
+  const pessoaCols: any[] = [
+    { title: "Pessoa", dataIndex: "nome_pessoa", key: "nome_pessoa", width: 240, ellipsis: true,
+      render: (v: string) => <span style={{ fontWeight: 600 }}>{toTitleCase(v)}</span>,
+      sorter: (a: any, b: any) => String(a.nome_pessoa).localeCompare(String(b.nome_pessoa), "pt-BR") },
+    { title: "Empresa", dataIndex: "empresa", width: 130 },
+    { title: "Fonte", dataIndex: "fonte", width: 120 },
     { title: "Receita", dataIndex: "receita", align: "right" as const, width: 140,
       sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
       render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
@@ -313,6 +356,63 @@ export default function NovaBaseMargemTab() {
     ...(arr || []).map(v => ({ label: v, value: v })),
     { label: "(Vazio)", value: "__blank__" },
   ];
+
+  // 3o nivel: pessoas dentro de um projeto (PEP)
+  if (selectedPep && selectedCliente) {
+    const tRec = pessoas.reduce((s, r) => s + (r.receita || 0), 0);
+    const tCus = pessoas.reduce((s, r) => s + (r.custo_rateado || 0), 0);
+    const tMar = tRec + tCus;
+    const tHrs = pessoas.reduce((s, r) => s + (r.horas || 0), 0);
+    return (
+      <div>
+        <Breadcrumb style={{ marginBottom: 12 }} items={[
+          { title: <span style={{ cursor: "pointer" }} onClick={voltarClientes}><HomeOutlined /> Clientes</span> },
+          { title: <span style={{ cursor: "pointer" }} onClick={voltarPeps}>{toTitleCase(selectedCliente)}</span> },
+          { title: selectedPep },
+        ]} />
+        <Button icon={<ArrowLeftOutlined />} onClick={voltarPeps} style={{ marginBottom: 12 }}>Voltar para projetos</Button>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+          {[
+            { label: "Receita", value: brl(tRec), color: theme.text },
+            { label: "Custo", value: brl(tCus), color: tCus < 0 ? "#c0392b" : theme.text },
+            { label: "Margem", value: brl(tMar), color: tMar < 0 ? "#c0392b" : "#0a7a3e" },
+            { label: "Margem %", value: tRec ? `${(tMar/tRec*100).toFixed(1)}%` : "—",
+              color: tRec ? (tMar/tRec >= 0.3 ? "#0a7a3e" : tMar/tRec >= 0.1 ? "#856404" : "#c0392b") : "#aaa" },
+          ].map(k => (
+            <Card key={k.label} style={{ flex: 1, minWidth: 150, borderRadius: 10, border: "1px solid #dde3f0" }}
+              styles={{ body: { padding: "0.8rem 1rem", textAlign: "center" } }}>
+              <Statistic title={<span style={{ color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>{k.label}</span>}
+                value={k.value} valueStyle={{ color: k.color, fontSize: "1.1rem", fontWeight: 700 }} />
+            </Card>
+          ))}
+        </div>
+        {loadingPessoas ? <Spin /> : (
+          <Table dataSource={pessoas.map((d, i) => ({ ...d, key: i }))} columns={pessoaCols}
+            size="small" pagination={false} scroll={{ x: "max-content" }}
+            style={{ borderRadius: 10, overflow: "hidden" }}
+            title={() => (
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <Button size="small" type="text" icon={<DownloadOutlined />} style={{ color: "#6b7fa3" }}
+                  onClick={() => exportTableToExcel(pessoaCols, pessoas, `margem_${selectedCliente}_${selectedPep}`)}>Excel</Button>
+              </div>
+            )}
+            summary={() => (
+              <Table.Summary.Row style={{ fontWeight: 700, background: "#dce6f7" }}>
+                <Table.Summary.Cell index={0}>TOTAL</Table.Summary.Cell>
+                <Table.Summary.Cell index={1} />
+                <Table.Summary.Cell index={2} />
+                <Table.Summary.Cell index={3} align="right">{brl(tRec)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={4} align="right"><span style={{ color: "#c0392b" }}>{brl(tCus)}</span></Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align="right"><span style={{ color: tMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(tMar)}</span></Table.Summary.Cell>
+                <Table.Summary.Cell index={6} align="right"><MargemTag value={tRec ? tMar/tRec : null} /></Table.Summary.Cell>
+                <Table.Summary.Cell index={7} align="right">{tHrs > 0 ? tHrs.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</Table.Summary.Cell>
+              </Table.Summary.Row>
+            )}
+          />
+        )}
+      </div>
+    );
+  }
 
   if (selectedCliente) {
     const totDetRec = detalhe.reduce((s, r) => s + (r.receita || 0), 0);

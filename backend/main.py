@@ -2988,6 +2988,72 @@ def get_nova_base_margem_cliente_detalhe(
     return _sanitize(agg.to_dict(orient="records"))
 
 
+@app.get("/api/nova-base/margem/projeto-pessoas")
+def get_nova_base_margem_projeto_pessoas(
+    nome_cliente: str = "", pep: str = "",
+    periodos: str = "", empresas: str = "", verticais: str = "",
+    apuracoes: str = "", no_hierarquias: str = "",
+    user=Depends(get_current_user)
+):
+    """Margem por pessoa dentro de um PEP/projeto de um cliente."""
+    from datetime import datetime
+    df = _get_nova_base().copy()
+    if not periodos:
+        df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
+    else:
+        df = df[df["periodo"].isin([v.strip() for v in periodos.split(",")])]
+
+    def _filt_with_blank(col: str, param: str) -> pd.DataFrame:
+        vals = [v.strip() for v in param.split(",") if v.strip()]
+        if not vals or col not in df.columns: return df
+        col_clean = df[col].fillna("").astype(str).str.strip()
+        regular = [v for v in vals if v != "__blank__"]
+        mask = pd.Series(False, index=df.index)
+        if regular: mask = mask | col_clean.isin(regular)
+        if "__blank__" in vals: mask = mask | (col_clean == "")
+        return df[mask].copy()
+
+    if empresas:       df = _filt_with_blank("empresa", empresas)
+    if verticais:      df = _filt_with_blank("vertical", verticais)
+    if apuracoes:      df = _filt_with_blank("apuracao", apuracoes)
+    if no_hierarquias: df = _filt_with_blank("no_hierarquia", no_hierarquias)
+    for col in ["receita", "custo_rateado", "horas"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    if nome_cliente:
+        df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
+    df["pep_base"] = df["pep"].astype(str).str.split(".").str[0].str.strip() if "pep" in df.columns else ""
+    if pep:
+        df = df[df["pep_base"].str.upper() == pep.upper().strip()]
+    # Margem Bruta = Receita + Custo direto (despesa NAO entra)
+    _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    _fs = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    _socio = _fs.isin(["Custo Socios", "Custo Sócios"])
+    _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
+    df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
+    df["margem"] = df["receita"] + df["custo_rateado"]
+    df["nome_pessoa"] = df["nome_pessoa"].fillna("").astype(str).str.strip()
+    df = df[df["nome_pessoa"].ne("")]
+    group_keys = ["nome_pessoa"]
+    for extra in ("empresa", "fonte"):
+        if extra in df.columns:
+            df[extra] = df[extra].fillna("")
+            group_keys.append(extra)
+    agg = df.groupby(group_keys, as_index=False).agg(
+        receita       = ("receita",       "sum"),
+        custo_rateado = ("custo_rateado", "sum"),
+        horas         = ("horas",         "sum"),
+        margem        = ("margem",        "sum"),
+    )
+    agg["margem_pct"] = agg.apply(
+        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+    )
+    agg = agg.sort_values("receita", ascending=False)
+    return _sanitize(agg.to_dict(orient="records"))
+
+
 @app.get("/api/nova-base/download")
 def download_nova_base(user=Depends(get_current_user)):
     """Baixa base completa como Excel."""
