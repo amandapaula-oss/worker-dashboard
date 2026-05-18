@@ -2210,15 +2210,25 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         ((df["fonte"].astype(str) == "custo_project") & ~df["_eh_clt"])
     )
 
-    # 2. Horas apontadas totais por pessoa × período (soma de custo_project)
-    horas_totais = (df[is_cp & df["_pk"].notna()]
+    # Fonte de horas pro rateio: normalmente custo_project. Mas há meses
+    # (ex.: 2026-03) sem nenhuma linha de custo_project — nesse caso o rateio
+    # usa as horas das próprias linhas de racionais como base.
+    cp_keys = df.loc[is_cp & df["_pk"].notna(), ["_pk", "_periodo_str"]].drop_duplicates()
+    cp_keys["_tem_cp"] = True
+    df = df.merge(cp_keys, on=["_pk", "_periodo_str"], how="left")
+    df["_tem_cp"] = df["_tem_cp"].fillna(False).astype(bool)
+    is_horas_src = is_cp | (is_rac & ~df["_tem_cp"])
+
+    # 2. Horas apontadas totais por pessoa × período (custo_project, ou racionais
+    #    como fallback quando não há custo_project no mês)
+    horas_totais = (df[is_horas_src & df["_pk"].notna()]
                     .groupby(["_pk", "_periodo_str"])["horas"].sum()
                     .rename("_horas_tot").reset_index())
     df = df.merge(horas_totais, on=["_pk", "_periodo_str"], how="left")
     df["_horas_tot"] = df["_horas_tot"].fillna(0)
 
-    # 3. Horas do PEP por pessoa × período (vem do custo_project)
-    horas_por_pep = (df[is_cp & df["_pk"].notna()]
+    # 3. Horas do PEP por pessoa × período
+    horas_por_pep = (df[is_horas_src & df["_pk"].notna()]
                      .groupby(["_pk", "_periodo_str", "pep"])["horas"].sum()
                      .rename("_horas_pep").reset_index())
     df = df.merge(horas_por_pep, on=["_pk", "_periodo_str", "pep"], how="left")
@@ -2330,7 +2340,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=[
         "_pk", "_periodo_str", "_custo_total", "_custo_total_cp", "_custo_cp_raw",
         "_horas_tot", "_horas_pep", "_cpf", "_nome", "_id", "_mapped_cpf",
-        "_eh_clt", "_foi_rateado", "_cp_alocado",
+        "_eh_clt", "_foi_rateado", "_cp_alocado", "_tem_cp",
     ], errors="ignore")
     return df
 
