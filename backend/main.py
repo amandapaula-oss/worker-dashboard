@@ -1916,6 +1916,29 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
                 elif len(ultima_b) <= 2 and ultima_a.startswith(ultima_b):
                     canonicos[nome_b] = nome_a
 
+    # Regra extra: nomes que ficam idênticos ao remover conectores
+    # (DOS/DAS/DA/DE/DO/E) são a mesma pessoa.
+    # Ex: "GABRIEL RAMOS DOS SANTOS" == "GABRIEL RAMOS SANTOS".
+    _CONNS = {"DOS", "DAS", "DA", "DE", "DO", "E"}
+    strip_idx: dict = {}
+    for nome in nomes_unicos:
+        nucleo = " ".join(p for p in nome.split() if p not in _CONNS)
+        if len(nucleo.split()) >= 3:
+            strip_idx.setdefault(nucleo, []).append(nome)
+    for nucleo, grupo in strip_idx.items():
+        if len(grupo) <= 1:
+            continue
+        cpfs_grupo = set()
+        for n in grupo:
+            cpfs_n = cpf_d[df["_pessoa_key"] == n]
+            cpfs_grupo |= set(cpfs_n[cpfs_n.str.len() >= 11].unique())
+        if len(cpfs_grupo) > 1:
+            continue
+        canonico = max(grupo, key=len)  # grafia mais completa
+        for n in grupo:
+            if n != canonico:
+                canonicos[n] = canonico
+
     if canonicos:
         # Resolve transitividade: A → B, B → C ⇒ A → C
         for k in list(canonicos.keys()):
@@ -2069,6 +2092,21 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         mask_generica = emp_str.isin(["FCamara Brasil", "FCAMARA BRASIL", ""]) & empresa_mapeada.notna()
         if mask_generica.any():
             df.loc[mask_generica, "empresa"] = empresa_mapeada[mask_generica].map(COMPANY_NAMES).fillna(empresa_mapeada[mask_generica])
+
+    # Reescreve nome_pessoa para uma grafia única por pessoa unificada, pra que
+    # o rateio e os agrupamentos (que usam nome_pessoa cru) tratem as variantes
+    # como a mesma pessoa. Display = grafia original mais frequente da pessoa.
+    if "_pessoa_key" in df.columns:
+        _orig = df["nome_pessoa"].fillna("").astype(str)
+        def _disp_nome(s: pd.Series) -> str:
+            nz = s[s.str.strip() != ""]
+            m = nz.mode()
+            return m.iloc[0] if len(m) else ""
+        _disp = _orig.groupby(df["_pessoa_key"]).agg(_disp_nome)
+        _mapped = df["_pessoa_key"].map(_disp)
+        df["nome_pessoa"] = _mapped.where(
+            _mapped.fillna("").astype(str).str.strip() != "", df["nome_pessoa"]
+        )
 
     df = df.drop(columns=["_pessoa_key"], errors="ignore")
     return df
