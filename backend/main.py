@@ -3057,7 +3057,11 @@ def get_nova_base_margem_cliente_detalhe(
     if "pep_base" not in df.columns:
         df["pep_base"] = df.get("pep", pd.Series("", index=df.index)).astype(str).str.split(".").str[0]
     df["pep_base"] = df["pep_base"].fillna("").astype(str).str.strip()
-    df = df[df["pep_base"].str.len().gt(0) & ~df["pep_base"].str.lower().isin(["nan", "none", "0", "<na>"])]
+    # Linhas sem PEP (custo orfao — pessoa sem projeto atribuido) NAO sao
+    # descartadas: viram um grupo "(sem PEP)" pra a visao por projeto bater
+    # com o total do cliente na lista de clientes.
+    _sem_pep = ~(df["pep_base"].str.len().gt(0) & ~df["pep_base"].str.lower().isin(["nan", "none", "0", "<na>"]))
+    df.loc[_sem_pep, "pep_base"] = "(sem PEP)"
     # Agrupa SO por PEP (+ periodo se breakdown) — 1 linha por projeto.
     # empresa/vertical viram a moda (valor dominante) pra nao fragmentar.
     group_keys = ["pep_base"] + (["periodo"] if breakdown else [])
@@ -3128,7 +3132,11 @@ def get_nova_base_margem_projeto_pessoas(
         df["pep_base"] = df.get("pep", pd.Series("", index=df.index)).astype(str).str.split(".").str[0]
     df["pep_base"] = df["pep_base"].fillna("").astype(str).str.strip()
     if pep:
-        df = df[df["pep_base"].str.upper() == pep.upper().strip()]
+        if pep.strip().lower() == "(sem pep)":
+            _blank = ~(df["pep_base"].str.len().gt(0) & ~df["pep_base"].str.lower().isin(["nan", "none", "0", "<na>"]))
+            df = df[_blank]
+        else:
+            df = df[df["pep_base"].str.upper() == pep.upper().strip()]
     # Margem Bruta = Receita + Custo direto (despesa NAO entra)
     _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
     _fs = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
