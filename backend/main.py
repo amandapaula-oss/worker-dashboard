@@ -2997,6 +2997,8 @@ def get_nova_base_margem_cliente_detalhe(
         horas         = ("horas",         "sum"),
         margem        = ("margem",        "sum"),
     )
+    # Remove PEPs zerados (so horas, sem receita nem custo) — ruido na visao de margem
+    agg = agg[(agg["receita"].round(2) != 0) | (agg["custo_rateado"].round(2) != 0)]
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
@@ -3074,6 +3076,8 @@ def get_nova_base_margem_projeto_pessoas(
         horas         = ("horas",         "sum"),
         margem        = ("margem",        "sum"),
     )
+    # Remove pessoas zeradas (so horas, sem receita nem custo)
+    agg = agg[(agg["receita"].round(2) != 0) | (agg["custo_rateado"].round(2) != 0)]
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
