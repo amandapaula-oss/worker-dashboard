@@ -1857,12 +1857,31 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "BANCO BV": "BANCO VOTORANTIM S.A.",
         "ODONTOPREV": "ODONTOPREV S.A.",
         "ODONTOPREV S.A.": "ODONTOPREV S.A.",
+        "ALGAR TELECOM S/A": "ALGAR TELECOM S/A",
+        "ALGAR TELECOM": "ALGAR TELECOM S/A",
+        "AMPM": "AmPm",
+        "BANCO INTER S.A": "BANCO INTER S.A.",
+        "BANCO INTER": "BANCO INTER S.A.",
+        "ELECTROLUX DO BRASIL S/A": "ELECTROLUX DO BRASIL S/A",
+        "GRUPO CASAS BAHIA S.A": "GRUPO CASAS BAHIA S.A.",
+        "GRUPO CASAS BAHIA S.A.": "GRUPO CASAS BAHIA S.A.",
+        "KLABIN": "KLABIN S.A.",
+        "KLABIN S.A.": "KLABIN S.A.",
+        "RED HAT BRASIL LTDA": "RED HAT BRASIL LTDA",
+        "RED HAT": "RED HAT BRASIL LTDA",
+        "RENNER": "RENNER",
+        "RUMO": "RUMO S.A.",
+        "RUMO S.A": "RUMO S.A.",
+        "RUMO S.A.": "RUMO S.A.",
     }
     if "nome_cliente" in df.columns:
         _nc = (df["nome_cliente"].fillna("").astype(str)
                .str.strip().str.replace(r"\s+", " ", regex=True))
         _nck = _nc.str.upper()
         df["nome_cliente"] = _nck.map(NOME_CLIENTE_ALIAS).fillna(_nc)
+        # LIGGA: uma das variantes vem com encoding corrompido — casa por prefixo.
+        df.loc[df["nome_cliente"].astype(str).str.upper().str.startswith("LIGGA"),
+               "nome_cliente"] = "LIGGA TELECOMUNICACOES S.A."
 
     if "nome_pessoa" not in df.columns:
         return df
