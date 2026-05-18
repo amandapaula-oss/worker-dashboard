@@ -3061,7 +3061,14 @@ def get_nova_base_margem_cliente_detalhe(
     # descartadas: viram um grupo "(sem PEP)" pra a visao por projeto bater
     # com o total do cliente na lista de clientes.
     _sem_pep = ~(df["pep_base"].str.len().gt(0) & ~df["pep_base"].str.lower().isin(["nan", "none", "0", "<na>"]))
-    df.loc[_sem_pep, "pep_base"] = "(sem PEP)"
+    # Se o cliente tem exatamente 1 PEP real ATIVO (com receita ou custo), o
+    # custo sem PEP é desse projeto.
+    _act = df[~_sem_pep].groupby("pep_base")[["receita", "custo_rateado"]].sum()
+    _reais = sorted(_act[(_act["receita"].round(2) != 0) | (_act["custo_rateado"].round(2) != 0)].index)
+    if nome_cliente and len(_reais) == 1:
+        df.loc[_sem_pep, "pep_base"] = _reais[0]
+    else:
+        df.loc[_sem_pep, "pep_base"] = "(sem PEP)"
     # Agrupa SO por PEP (+ periodo se breakdown) — 1 linha por projeto.
     # empresa/vertical viram a moda (valor dominante) pra nao fragmentar.
     group_keys = ["pep_base"] + (["periodo"] if breakdown else [])
@@ -3132,11 +3139,19 @@ def get_nova_base_margem_projeto_pessoas(
         df["pep_base"] = df.get("pep", pd.Series("", index=df.index)).astype(str).str.split(".").str[0]
     df["pep_base"] = df["pep_base"].fillna("").astype(str).str.strip()
     if pep:
+        _blank = ~(df["pep_base"].str.len().gt(0) & ~df["pep_base"].str.lower().isin(["nan", "none", "0", "<na>"]))
         if pep.strip().lower() == "(sem pep)":
-            _blank = ~(df["pep_base"].str.len().gt(0) & ~df["pep_base"].str.lower().isin(["nan", "none", "0", "<na>"]))
             df = df[_blank]
         else:
-            df = df[df["pep_base"].str.upper() == pep.upper().strip()]
+            _alvo = df["pep_base"].str.upper() == pep.upper().strip()
+            # Cliente com 1 PEP só ativo: custo sem PEP entra nesse projeto.
+            _act = df[~_blank].assign(_pu=df.loc[~_blank, "pep_base"].str.upper()) \
+                              .groupby("_pu")[["receita", "custo_rateado"]].sum()
+            _reais = sorted(_act[(_act["receita"].round(2) != 0) | (_act["custo_rateado"].round(2) != 0)].index)
+            if nome_cliente and len(_reais) == 1 and _reais[0] == pep.upper().strip():
+                df = df[_alvo | _blank]
+            else:
+                df = df[_alvo]
     # Margem Bruta = Receita + Custo direto (despesa NAO entra)
     _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
     _fs = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
