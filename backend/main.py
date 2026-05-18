@@ -2255,22 +2255,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     )
     df.loc[is_rac & ~mask_rac_aloca, "tag_rateio"] = "Receita sem custo atrelado (pessoa sem apontamento no PEP)"
 
-    # 5. CLT/PJ/gerencial: custo vira residual (total - apontado_em_racional_com_custo)
-    # Usa _horas_tot (total apontado) pra calcular a parte já alocada
-    # custo_alocado_total_pessoa = custo_total × (horas_apontadas / horas_totais) = custo_total (se apontou tudo)
-    # residual = custo_total - custo_alocado_total
-    df.loc[is_custo_total_primary, "custo_rateado"] = np.where(
-        df.loc[is_custo_total_primary, "_horas_tot"] > 0,
-        0.0,  # se apontou algo, custo total vai pros PEPs; residual fica 0 nesta linha
-        df.loc[is_custo_total_primary, "custo_rateado"].astype(float),  # não apontou → mantém custo total
-    )
-    df.loc[is_custo_total_primary & (df["_horas_tot"] > 0), "tag_rateio"] = "Custo distribuido aos PEPs via rateio de horas"
-    df.loc[is_custo_total_primary & (df["_horas_tot"] == 0), "tag_rateio"] = "Custo nao rateado (pessoa sem apontamento em custo_project)"
-
-    # 6. Zera custo nas linhas de custo_project conforme caso:
-    # - Pessoa é CLT (tem custo_gerencial): custo do projeto já está em gerencial → zera
-    # - Pessoa é PJ rateado (foi distribuido pra racionais): zera (custo está em racional)
-    # - Pessoa é PJ sem racional matching: mantém custo na linha (residual de PJ)
+    # Marca pessoa-periodo cujo custo foi efetivamente distribuído a racionais.
     pessoa_rateada = df[mask_rac_aloca].groupby(["_pk", "_periodo_str"]).size().reset_index()
     if len(pessoa_rateada) > 0:
         pessoa_rateada["_foi_rateado"] = True
@@ -2278,6 +2263,23 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df["_foi_rateado"] = False
     df["_foi_rateado"] = df["_foi_rateado"].fillna(False)
+
+    # 5. CLT/PJ/gerencial: zera o custo da linha primary SÓ se ele foi
+    # efetivamente distribuído a linhas de racionais. Se a pessoa apontou horas
+    # em custo_project mas não tem racional no período pra receber o custo,
+    # o custo total fica na linha primary (não pode sumir).
+    df.loc[is_custo_total_primary, "custo_rateado"] = np.where(
+        df.loc[is_custo_total_primary, "_foi_rateado"],
+        0.0,  # custo já foi pros PEPs via racionais; residual fica 0 nesta linha
+        df.loc[is_custo_total_primary, "custo_rateado"].astype(float),  # sem racional → mantém custo total
+    )
+    df.loc[is_custo_total_primary & df["_foi_rateado"], "tag_rateio"] = "Custo distribuido aos PEPs via rateio de horas"
+    df.loc[is_custo_total_primary & ~df["_foi_rateado"], "tag_rateio"] = "Custo nao rateado (pessoa sem racional no periodo)"
+
+    # 6. Zera custo nas linhas de custo_project conforme caso:
+    # - Pessoa é CLT (tem custo_gerencial): custo do projeto já está em gerencial → zera
+    # - Pessoa é PJ rateado (foi distribuido pra racionais): zera (custo está em racional)
+    # - Pessoa é PJ sem racional matching: mantém custo na linha (residual de PJ)
 
     df.loc[is_cp & df["_eh_clt"], "custo_rateado"] = 0
     df.loc[is_cp & df["_eh_clt"], "tag_rateio"] = "Fonte de horas (CLT — custo está em custo_gerencial)"
@@ -2289,6 +2291,36 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[mask_cp_pj_residual, "custo_rateado"] = df.loc[mask_cp_pj_residual, "_custo_cp_raw"]
     df.loc[mask_cp_pj_residual, "tag_rateio"] = "PJ — custo na linha custo_project (sem racional matching)"
 
+    # 7. CLT sem racional mas com horas em custo_project: o custo_gerencial
+    # é alocado às linhas de custo_project (que carregam PEP e cliente),
+    # proporcional às horas apontadas. Sem isso o custo ficaria órfão na
+    # linha custo_gerencial (que não tem PEP nem cliente).
+    mask_cp_clt_aloca = (
+        is_cp & df["_eh_clt"] & ~df["_foi_rateado"] & (df["_horas_tot"] > 0)
+    )
+    if mask_cp_clt_aloca.any():
+        horas_cp = pd.to_numeric(df["horas"], errors="coerce").fillna(0)
+        share_cp = np.where(df["_horas_tot"] > 0, horas_cp / df["_horas_tot"], 0.0)
+        df.loc[mask_cp_clt_aloca, "custo_rateado"] = (
+            df.loc[mask_cp_clt_aloca, "_custo_total"].astype(float)
+            * share_cp[mask_cp_clt_aloca]
+        )
+        df.loc[mask_cp_clt_aloca, "tag_rateio"] = "CLT sem racional — custo do PEP alocado via horas apontadas"
+        # zera a linha custo_gerencial dessas pessoas (custo migrou pro custo_project)
+        cp_keys = df.loc[mask_cp_clt_aloca, ["_pk", "_periodo_str"]].drop_duplicates()
+        cp_keys["_cp_alocado"] = True
+        df = df.merge(cp_keys, on=["_pk", "_periodo_str"], how="left")
+        df["_cp_alocado"] = df["_cp_alocado"].fillna(False).astype(bool)
+        mask_ger_zera = is_custo_total_primary & df["_cp_alocado"]
+        df.loc[mask_ger_zera, "custo_rateado"] = 0
+        df.loc[mask_ger_zera, "tag_rateio"] = "Custo alocado às linhas de custo_project (horas apontadas)"
+        if "valor_liquido" in df.columns:
+            df.loc[mask_ger_zera, "valor_liquido"] = 0
+            df.loc[mask_cp_clt_aloca, "valor_liquido"] = (
+                df.loc[mask_cp_clt_aloca, "receita"].fillna(0)
+                + df.loc[mask_cp_clt_aloca, "custo_rateado"].fillna(0)
+            )
+
     # Recalcula margem e valor_liquido
     df["margem"] = df["receita"].fillna(0) + df["custo_rateado"].fillna(0)
     if "valor_liquido" in df.columns:
@@ -2298,7 +2330,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=[
         "_pk", "_periodo_str", "_custo_total", "_custo_total_cp", "_custo_cp_raw",
         "_horas_tot", "_horas_pep", "_cpf", "_nome", "_id", "_mapped_cpf",
-        "_eh_clt", "_foi_rateado",
+        "_eh_clt", "_foi_rateado", "_cp_alocado",
     ], errors="ignore")
     return df
 
