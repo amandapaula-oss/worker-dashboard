@@ -2094,10 +2094,16 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     if "fonte" not in df.columns:
         return df
 
-    # Mapa Pessoas (fontes CLTs e PJs) é apenas cadastro/de-para — não fonte de custo.
-    # Custo CLT vem de custo_gerencial; custo PJ vem de custo_project (taxa × horas).
+    # Custo CLT vem de custo_gerencial; custo PJ vem da PROPRIA fonte PJs
+    # (valor_a_pagar, ja atrelado ao PEP). A fonte CLTs (Mapa) e so cadastro.
+    # custo_project NAO e fonte de custo — entra so como horas no rateio.
     if "custo_rateado" in df.columns:
-        df.loc[df["fonte"].astype(str).isin(["CLTs", "PJs"]), "custo_rateado"] = 0
+        df.loc[df["fonte"].astype(str) == "CLTs", "custo_rateado"] = 0
+        # PJs: custo = -valor_liquido (valor a pagar do PJ)
+        mask_pjs = df["fonte"].astype(str) == "PJs"
+        if mask_pjs.any() and "valor_liquido" in df.columns:
+            _vl = pd.to_numeric(df["valor_liquido"], errors="coerce").fillna(0)
+            df.loc[mask_pjs, "custo_rateado"] = -_vl[mask_pjs].abs()
 
     # Normaliza 3 identificadores por linha: CPF (só dígitos), nome uppercase, numero_pessoal
     cpf_raw = df.get("cpf", pd.Series([""] * len(df), index=df.index)).astype(str)
@@ -2170,10 +2176,9 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
                         .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
                         .rename("_custo_total").reset_index())
 
-    # custo_project: taxa_hora × horas
-    taxa_cp = pd.to_numeric(df.get("taxa_hora", pd.Series(0, index=df.index)), errors="coerce").fillna(0) if "taxa_hora" in df.columns else pd.Series(0, index=df.index)
-    hrs_cp = pd.to_numeric(df.get("horas", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
-    df["_custo_cp_raw"] = np.where(is_cp, -(taxa_cp * hrs_cp), 0)
+    # custo_project NAO e fonte de custo (custo PJ vem da fonte PJs).
+    # Entra so como HORAS no rateio — entao _custo_cp_raw = 0.
+    df["_custo_cp_raw"] = 0.0
     custo_cp_pessoa = (df[is_cp & df["_pk"].notna()]
                        .groupby(["_pk", "_periodo_str"])["_custo_cp_raw"].sum()
                        .rename("_custo_total_cp").reset_index())
@@ -2966,9 +2971,13 @@ def get_nova_base_margem_cliente_detalhe(
     _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
     df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
     df["margem"] = df["receita"] + df["custo_rateado"]
-    df["pep_base"] = df["pep"].astype(str).str.split(".").str[0].str.strip() if "pep" in df.columns else ""
-    # Remove linhas sem PEP (residuais de estrutura/banco) — poluíam a visão por cliente
-    df = df[df["pep_base"].ne("") & df["pep_base"].ne("nan") & df["pep_base"].ne("None")]
+    # pep_base ja vem propagado pelo backend (custo_gerencial/custo_project herdam
+    # o PEP do racional da mesma pessoa+periodo). Usa essa coluna — NAO recompoe
+    # de `pep` (que e vazio em custo_gerencial e excluiria o custo da visao).
+    if "pep_base" not in df.columns:
+        df["pep_base"] = df.get("pep", pd.Series("", index=df.index)).astype(str).str.split(".").str[0]
+    df["pep_base"] = df["pep_base"].fillna("").astype(str).str.strip()
+    df = df[df["pep_base"].str.len().gt(0) & ~df["pep_base"].str.lower().isin(["nan", "none", "0", "<na>"])]
     # Agrupa SO por PEP (+ periodo se breakdown) — 1 linha por projeto.
     # empresa/vertical viram a moda (valor dominante) pra nao fragmentar.
     group_keys = ["pep_base"] + (["periodo"] if breakdown else [])
@@ -3032,7 +3041,10 @@ def get_nova_base_margem_projeto_pessoas(
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     if nome_cliente:
         df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
-    df["pep_base"] = df["pep"].astype(str).str.split(".").str[0].str.strip() if "pep" in df.columns else ""
+    # pep_base ja vem propagado (custo_gerencial herda do racional) — usa a coluna
+    if "pep_base" not in df.columns:
+        df["pep_base"] = df.get("pep", pd.Series("", index=df.index)).astype(str).str.split(".").str[0]
+    df["pep_base"] = df["pep_base"].fillna("").astype(str).str.strip()
     if pep:
         df = df[df["pep_base"].str.upper() == pep.upper().strip()]
     # Margem Bruta = Receita + Custo direto (despesa NAO entra)
@@ -3045,12 +3057,18 @@ def get_nova_base_margem_projeto_pessoas(
     df["margem"] = df["receita"] + df["custo_rateado"]
     df["nome_pessoa"] = df["nome_pessoa"].fillna("").astype(str).str.strip()
     df = df[df["nome_pessoa"].ne("")]
-    group_keys = ["nome_pessoa"]
-    for extra in ("empresa", "fonte"):
-        if extra in df.columns:
-            df[extra] = df[extra].fillna("")
-            group_keys.append(extra)
-    agg = df.groupby(group_keys, as_index=False).agg(
+    for c in ("empresa", "fonte"):
+        if c in df.columns:
+            df[c] = df[c].fillna("")
+
+    def _moda(s):
+        m = s[s.astype(str).str.strip().ne("")].mode()
+        return m.iloc[0] if len(m) else ""
+
+    # 1 linha por pessoa (receita do racional + custo da fonte PJs/custo_gerencial somados)
+    agg = df.groupby("nome_pessoa", as_index=False).agg(
+        empresa       = ("empresa",       _moda),
+        fonte         = ("fonte",         _moda),
         receita       = ("receita",       "sum"),
         custo_rateado = ("custo_rateado", "sum"),
         horas         = ("horas",         "sum"),
