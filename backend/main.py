@@ -3044,7 +3044,7 @@ def get_nova_base_margem_cliente_detalhe(
 def get_nova_base_margem_projeto_pessoas(
     nome_cliente: str = "", pep: str = "",
     periodos: str = "", empresas: str = "", verticais: str = "",
-    apuracoes: str = "", no_hierarquias: str = "",
+    apuracoes: str = "", no_hierarquias: str = "", breakdown: bool = False,
     user=Depends(get_current_user)
 ):
     """Margem por pessoa dentro de um PEP/projeto de um cliente."""
@@ -3100,7 +3100,10 @@ def get_nova_base_margem_projeto_pessoas(
         return m.iloc[0] if len(m) else ""
 
     # 1 linha por pessoa (receita do racional + custo da fonte PJs/custo_gerencial somados)
-    agg = df.groupby("nome_pessoa", as_index=False).agg(
+    group_cols = ["nome_pessoa", "periodo"] if breakdown else ["nome_pessoa"]
+    if breakdown and "periodo" in df.columns:
+        df["periodo"] = df["periodo"].fillna("").astype(str)
+    agg = df.groupby(group_cols, as_index=False).agg(
         empresa       = ("empresa",       _moda),
         fonte         = ("fonte",         _moda),
         receita       = ("receita",       "sum"),
@@ -3113,7 +3116,8 @@ def get_nova_base_margem_projeto_pessoas(
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
-    agg = agg.sort_values("receita", ascending=False)
+    sort_cols = ["nome_pessoa", "periodo"] if breakdown else ["receita"]
+    agg = agg.sort_values(sort_cols, ascending=False if not breakdown else [True, True])
     return _sanitize(agg.to_dict(orient="records"))
 
 

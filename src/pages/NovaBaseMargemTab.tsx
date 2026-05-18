@@ -56,6 +56,7 @@ export default function NovaBaseMargemTab() {
   const [pessoas, setPessoas]         = useState<any[]>([]);
   const [loadingPessoas, setLoadingPessoas] = useState(false);
   const [detalheMensal, setDetalheMensal] = useState(false);
+  const [pessoaMensal, setPessoaMensal] = useState(false);
 
   const [drillOpen, setDrillOpen]       = useState(false);
   const [drillFilters, setDrillFilters] = useState<Record<string, string>>({});
@@ -133,11 +134,12 @@ export default function NovaBaseMargemTab() {
   const voltarClientes = () => { setSelectedCliente(null); setDetalhe([]); setSelectedPep(null); setPessoas([]); };
   const voltarPeps = () => { setSelectedPep(null); setPessoas([]); };
 
-  const abrirPep = (pep: string, periodos = selPeriodos) => {
+  const abrirPep = (pep: string, mensal = pessoaMensal, periodos = selPeriodos) => {
     if (!selectedCliente || !pep) return;
     setSelectedPep(pep);
     setLoadingPessoas(true);
     const params: Record<string, string> = { nome_cliente: selectedCliente, pep };
+    if (mensal)              params.breakdown      = "true";
     if (periodos.length)     params.periodos       = periodos.join(",");
     if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
     if (selVerticais.length) params.verticais      = selVerticais.join(",");
@@ -344,6 +346,11 @@ export default function NovaBaseMargemTab() {
     { title: "Pessoa", dataIndex: "nome_pessoa", key: "nome_pessoa", width: 240, ellipsis: true,
       render: (v: string) => <span style={{ fontWeight: 600 }}>{toTitleCase(v)}</span>,
       sorter: (a: any, b: any) => String(a.nome_pessoa).localeCompare(String(b.nome_pessoa), "pt-BR") },
+    ...(pessoaMensal ? [{
+      title: "Período", dataIndex: "periodo", key: "periodo", width: 90,
+      render: (v: string) => periodoLabel(v),
+      sorter: (a: any, b: any) => String(a.periodo).localeCompare(String(b.periodo)),
+    }] : []),
     { title: "Empresa", dataIndex: "empresa", width: 130 },
     { title: "Fonte", dataIndex: "fonte", width: 120 },
     { title: "Receita", dataIndex: "receita", align: "right" as const, width: 140,
@@ -379,9 +386,12 @@ export default function NovaBaseMargemTab() {
         ]} />
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
           <Button icon={<ArrowLeftOutlined />} onClick={voltarPeps}>Voltar para projetos</Button>
+          <Segmented options={["Consolidado", "Por Mês"]}
+            value={pessoaMensal ? "Por Mês" : "Consolidado"}
+            onChange={(v) => { const m = v === "Por Mês"; setPessoaMensal(m); abrirPep(selectedPep, m); }} />
           <Select mode="multiple" style={{ minWidth: 240 }} placeholder="Período (todos)"
             value={selPeriodos} options={opt(filters.periodos || [])} maxTagCount="responsive" allowClear
-            onChange={(v) => { setSelPeriodos(v); abrirPep(selectedPep, v); }} />
+            onChange={(v) => { setSelPeriodos(v); abrirPep(selectedPep, pessoaMensal, v); }} />
         </div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
           {[
@@ -411,13 +421,14 @@ export default function NovaBaseMargemTab() {
             summary={() => (
               <Table.Summary.Row style={{ fontWeight: 700, background: "#dce6f7" }}>
                 <Table.Summary.Cell index={0}>TOTAL</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} />
+                {pessoaMensal && <Table.Summary.Cell index={1} />}
                 <Table.Summary.Cell index={2} />
-                <Table.Summary.Cell index={3} align="right">{brl(tRec)}</Table.Summary.Cell>
-                <Table.Summary.Cell index={4} align="right"><span style={{ color: "#c0392b" }}>{brl(tCus)}</span></Table.Summary.Cell>
-                <Table.Summary.Cell index={5} align="right"><span style={{ color: tMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(tMar)}</span></Table.Summary.Cell>
-                <Table.Summary.Cell index={6} align="right"><MargemTag value={tRec ? tMar/tRec : null} /></Table.Summary.Cell>
-                <Table.Summary.Cell index={7} align="right">{tHrs > 0 ? tHrs.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</Table.Summary.Cell>
+                <Table.Summary.Cell index={3} />
+                <Table.Summary.Cell index={4} align="right">{brl(tRec)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align="right"><span style={{ color: "#c0392b" }}>{brl(tCus)}</span></Table.Summary.Cell>
+                <Table.Summary.Cell index={6} align="right"><span style={{ color: tMar < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(tMar)}</span></Table.Summary.Cell>
+                <Table.Summary.Cell index={7} align="right"><MargemTag value={tRec ? tMar/tRec : null} /></Table.Summary.Cell>
+                <Table.Summary.Cell index={8} align="right">{tHrs > 0 ? tHrs.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</Table.Summary.Cell>
               </Table.Summary.Row>
             )}
           />
