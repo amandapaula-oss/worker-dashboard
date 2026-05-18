@@ -2928,6 +2928,7 @@ def get_nova_base_margem_cliente_detalhe(
     nome_cliente: str = "",
     periodos: str = "", empresas: str = "", verticais: str = "",
     apuracoes: str = "", no_hierarquias: str = "",
+    breakdown: bool = False,
     user=Depends(get_current_user)
 ):
     from datetime import datetime
@@ -2968,13 +2969,20 @@ def get_nova_base_margem_cliente_detalhe(
     df["pep_base"] = df["pep"].astype(str).str.split(".").str[0].str.strip() if "pep" in df.columns else ""
     # Remove linhas sem PEP (residuais de estrutura/banco) — poluíam a visão por cliente
     df = df[df["pep_base"].ne("") & df["pep_base"].ne("nan") & df["pep_base"].ne("None")]
-    group_keys = ["pep_base", "nome_cliente", "empresa"]
-    if "vertical" in df.columns:
-        group_keys.append("vertical")
+    # Agrupa SO por PEP (+ periodo se breakdown) — 1 linha por projeto.
+    # empresa/vertical viram a moda (valor dominante) pra nao fragmentar.
+    group_keys = ["pep_base"] + (["periodo"] if breakdown else [])
     for k in group_keys:
         if k in df.columns:
             df[k] = df[k].fillna("")
+
+    def _moda(s):
+        m = s[s.astype(str).str.strip().ne("")].mode()
+        return m.iloc[0] if len(m) else ""
+
     agg = df.groupby(group_keys, as_index=False).agg(
+        empresa       = ("empresa",       _moda),
+        vertical      = ("vertical",      _moda),
         receita       = ("receita",       "sum"),
         custo_rateado = ("custo_rateado", "sum"),
         horas         = ("horas",         "sum"),
@@ -2984,7 +2992,8 @@ def get_nova_base_margem_cliente_detalhe(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
     agg = agg.rename(columns={"pep_base": "pep"})
-    agg = agg.sort_values("receita", ascending=False)
+    sort_cols = ["periodo", "receita"] if breakdown else ["receita"]
+    agg = agg.sort_values(sort_cols, ascending=[True, False] if breakdown else False)
     return _sanitize(agg.to_dict(orient="records"))
 
 
