@@ -2168,16 +2168,27 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     if "fonte" not in df.columns:
         return df
 
-    # Custo CLT vem de custo_gerencial; custo PJ vem da PROPRIA fonte PJs
-    # (valor_a_pagar, ja atrelado ao PEP). A fonte CLTs (Mapa) e so cadastro.
+    # Custo de CLT: nos periodos cobertos pelo Mapa Pessoas (fonte CLTs), o
+    # valor oficial vem do Mapa (custo_gerencial_sap) — e a fonte custo_gerencial
+    # (export SAP) zera nesses periodos. Fora deles (ex.: 2025), custo_gerencial
+    # continua sendo o custo. Custo PJ vem da PROPRIA fonte PJs (valor_liquido).
     # custo_project NAO e fonte de custo — entra so como horas no rateio.
     if "custo_rateado" in df.columns:
-        df.loc[df["fonte"].astype(str) == "CLTs", "custo_rateado"] = 0
         # PJs: custo = -valor_liquido (valor a pagar do PJ)
         mask_pjs = df["fonte"].astype(str) == "PJs"
         if mask_pjs.any() and "valor_liquido" in df.columns:
             _vl = pd.to_numeric(df["valor_liquido"], errors="coerce").fillna(0)
             df.loc[mask_pjs, "custo_rateado"] = -_vl[mask_pjs].abs()
+        _clt_mask = df["fonte"].astype(str) == "CLTs"
+        if "custo_gerencial_sap" in df.columns and _clt_mask.any():
+            _per = df["periodo"].astype(str)
+            _periodos_mapa = set(_per[_clt_mask].unique())
+            _cgsap = pd.to_numeric(df["custo_gerencial_sap"], errors="coerce").fillna(0).abs()
+            df.loc[_clt_mask, "custo_rateado"] = -_cgsap[_clt_mask]
+            _cg_mask = df["fonte"].astype(str) == "custo_gerencial"
+            df.loc[_cg_mask & _per.isin(_periodos_mapa), "custo_rateado"] = 0
+        else:
+            df.loc[_clt_mask, "custo_rateado"] = 0
 
     # Normaliza 3 identificadores por linha: CPF (só dígitos), nome uppercase, numero_pessoal
     cpf_raw = df.get("cpf", pd.Series([""] * len(df), index=df.index)).astype(str)
@@ -2245,7 +2256,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     #    - PJ:  vem de custo_project (taxa_hora × horas_apontadas) — só pra quem
     #           NÃO está em custo_gerencial nesse mês (evita CLTs com taxa fake)
     #    - CLTs/PJs do Mapa Pessoas NÃO entram como custo (são apenas cadastro/de-para)
-    is_custo_ger = (df["fonte"].astype(str) == "custo_gerencial") & df["_pk"].notna()
+    is_custo_ger = df["fonte"].astype(str).isin(["custo_gerencial", "CLTs"]) & df["_pk"].notna()
     custo_ger_pessoa = (df[is_custo_ger]
                         .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
                         .rename("_custo_total").reset_index())
@@ -2277,10 +2288,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df["_eh_clt"] = df["_eh_clt"].fillna(False)
 
     # is_custo_total_primary: linha é a fonte de custo daquela pessoa-período.
-    # - custo_gerencial sempre é primary (CLT)
-    # - custo_project é primary SÓ se a pessoa-período NÃO tem custo_gerencial (PJ real)
+    # - custo_gerencial/CLTs sempre é primary (CLT)
+    # - custo_project é primary SÓ se a pessoa-período NÃO é CLT (PJ real)
     is_custo_total_primary = df["_pk"].notna() & (
-        (df["fonte"].astype(str) == "custo_gerencial") |
+        (df["fonte"].astype(str).isin(["custo_gerencial", "CLTs"])) |
         ((df["fonte"].astype(str) == "custo_project") & ~df["_eh_clt"])
     )
 
@@ -2408,8 +2419,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     # Recalcula margem e valor_liquido
     df["margem"] = df["receita"].fillna(0) + df["custo_rateado"].fillna(0)
     if "valor_liquido" in df.columns:
-        mask_rac_aplicou = df["fonte"].astype(str) == "racionais"
-        df.loc[mask_rac_aplicou, "valor_liquido"] = df.loc[mask_rac_aplicou, "margem"]
+        # racionais e fontes de custo (custo_gerencial/CLTs): valor_liquido = margem
+        mask_vl_recalc = df["fonte"].astype(str).isin(
+            ["racionais", "custo_gerencial", "CLTs"])
+        df.loc[mask_vl_recalc, "valor_liquido"] = df.loc[mask_vl_recalc, "margem"]
 
     df = df.drop(columns=[
         "_pk", "_periodo_str", "_custo_total", "_custo_total_cp", "_custo_cp_raw",
@@ -2448,7 +2461,7 @@ def _get_nova_base() -> pd.DataFrame:
                 # vem de fonte=custo_gerencial (SAP). PJs mantem custo (eh a fonte do PJ).
                 if "fonte" in df.columns:
                     mask_clt_mapa = df["fonte"].astype(str) == "CLTs"
-                    for col in ("custo_rateado", "valor_liquido", "margem", "custo_gerencial_sap"):
+                    for col in ("custo_rateado", "valor_liquido", "margem"):
                         if col in df.columns:
                             df.loc[mask_clt_mapa, col] = 0
                 if "empresa" in df.columns:
@@ -2557,7 +2570,7 @@ def _get_nova_base() -> pd.DataFrame:
         # vem de fonte=custo_gerencial (SAP). PJs mantem custo (eh a fonte do PJ).
         if "fonte" in df.columns:
             mask_clt_mapa = df["fonte"].astype(str) == "CLTs"
-            for col in ("custo_rateado", "valor_liquido", "margem", "custo_gerencial_sap"):
+            for col in ("custo_rateado", "valor_liquido", "margem"):
                 if col in df.columns:
                     df.loc[mask_clt_mapa, col] = 0
         df = _adicionar_fonte_familia(df)
@@ -3660,7 +3673,7 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", 
     #   (CLTs/PJs ficam na base como histórico mas não entram no DRE de custos)
     df["macro_area"] = df["macro_area"].fillna("").astype(str).str.strip() if "macro_area" in df.columns else ""
     df["_has_ma"] = df["macro_area"].ne("")
-    df["_is_cg"]  = df["fonte"].astype(str).str.strip() == "custo_gerencial"
+    df["_is_cg"]  = df["fonte"].astype(str).str.strip().isin(["custo_gerencial", "CLTs"])
 
     # Receita (sem macro_area)
     df_rec = df[~df["_has_ma"]]
