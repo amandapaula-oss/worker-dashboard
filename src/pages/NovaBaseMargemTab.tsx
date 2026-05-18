@@ -114,12 +114,12 @@ export default function NovaBaseMargemTab() {
 
   useEffect(() => { loadClientes(); }, [loadClientes]);
 
-  const abrirCliente = (nome: string, mensal = detalheMensal) => {
+  const abrirCliente = (nome: string, mensal = detalheMensal, periodos = selPeriodos) => {
     setSelectedCliente(nome);
     setLoadingDetalhe(true);
     const params: Record<string, string> = { nome_cliente: nome };
     if (mensal)              params.breakdown      = "true";
-    if (selPeriodos.length)  params.periodos       = selPeriodos.join(",");
+    if (periodos.length)     params.periodos       = periodos.join(",");
     if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
     if (selVerticais.length) params.verticais      = selVerticais.join(",");
     if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
@@ -133,12 +133,12 @@ export default function NovaBaseMargemTab() {
   const voltarClientes = () => { setSelectedCliente(null); setDetalhe([]); setSelectedPep(null); setPessoas([]); };
   const voltarPeps = () => { setSelectedPep(null); setPessoas([]); };
 
-  const abrirPep = (pep: string) => {
+  const abrirPep = (pep: string, periodos = selPeriodos) => {
     if (!selectedCliente || !pep) return;
     setSelectedPep(pep);
     setLoadingPessoas(true);
     const params: Record<string, string> = { nome_cliente: selectedCliente, pep };
-    if (selPeriodos.length)  params.periodos       = selPeriodos.join(",");
+    if (periodos.length)     params.periodos       = periodos.join(",");
     if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
     if (selVerticais.length) params.verticais      = selVerticais.join(",");
     if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
@@ -377,7 +377,12 @@ export default function NovaBaseMargemTab() {
           { title: <span style={{ cursor: "pointer" }} onClick={voltarPeps}>{toTitleCase(selectedCliente)}</span> },
           { title: selectedPep },
         ]} />
-        <Button icon={<ArrowLeftOutlined />} onClick={voltarPeps} style={{ marginBottom: 12 }}>Voltar para projetos</Button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+          <Button icon={<ArrowLeftOutlined />} onClick={voltarPeps}>Voltar para projetos</Button>
+          <Select mode="multiple" style={{ minWidth: 240 }} placeholder="Período (todos)"
+            value={selPeriodos} options={opt(filters.periodos || [])} maxTagCount="responsive" allowClear
+            onChange={(v) => { setSelPeriodos(v); abrirPep(selectedPep, v); }} />
+        </div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
           {[
             { label: "Receita", value: brl(tRec), color: theme.text },
@@ -431,11 +436,14 @@ export default function NovaBaseMargemTab() {
           { title: <span style={{ cursor: "pointer" }} onClick={voltarClientes}><HomeOutlined /> Clientes</span> },
           { title: toTitleCase(selectedCliente) },
         ]} />
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
           <Button icon={<ArrowLeftOutlined />} onClick={voltarClientes}>Voltar para clientes</Button>
           <Segmented options={["Consolidado", "Por Mês"]}
             value={detalheMensal ? "Por Mês" : "Consolidado"}
             onChange={(v) => { const m = v === "Por Mês"; setDetalheMensal(m); abrirCliente(selectedCliente, m); }} />
+          <Select mode="multiple" style={{ minWidth: 240 }} placeholder="Período (todos)"
+            value={selPeriodos} options={opt(filters.periodos || [])} maxTagCount="responsive" allowClear
+            onChange={(v) => { setSelPeriodos(v); abrirCliente(selectedCliente, detalheMensal, v); }} />
         </div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
           {[
