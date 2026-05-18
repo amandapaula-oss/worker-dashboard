@@ -1832,6 +1832,9 @@ def _adicionar_fonte_familia(df: pd.DataFrame) -> pd.DataFrame:
     familia[mask_rac] = "Racionais"
     # Resto (raro, fontes auxiliares) → "Outros"
     familia[familia == ""] = "Outros"
+    # PJ e CLT viram familias proprias (pelo fonte), pra permitir filtrar separado.
+    familia[fonte_col == "PJs"]  = "PJs"
+    familia[fonte_col == "CLTs"] = "CLTs"
     df["fonte_familia"] = familia
     return df
 
