@@ -50,10 +50,10 @@ const labelStyle: React.CSSProperties = {
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const ALL_METRICS = ["receita", "custo", "despesa", "margem", "margem_pct", "valor_liquido", "horas"] as const;
+const ALL_METRICS = ["receita", "custo", "despesa", "custo_despesa", "margem", "margem_pct", "valor_liquido", "horas"] as const;
 type Metric = typeof ALL_METRICS[number];
 const METRIC_LABELS: Record<Metric, string> = {
-  receita: "Receita", custo: "Custo", despesa: "Despesa", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", horas: "Horas",
+  receita: "Receita", custo: "Custo", despesa: "Despesa", custo_despesa: "Custo + Despesa", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", horas: "Horas",
 };
 
 function MargemTag({ value }: { value: number | null | undefined }) {
@@ -177,6 +177,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         r[`${p}_margem`] = (r[`${p}_receita`] || 0) + (r[`${p}_custo`] || 0);
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? r[`${p}_margem`] / rec : null;
+        r[`${p}_custo_despesa`] = (r[`${p}_custo`] || 0) + (r[`${p}_despesa`] || 0);
       });
       const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
       const tot_cus = periodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
@@ -187,6 +188,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         total_receita:       tot_rec,
         total_custo:         tot_cus,
         total_despesa:       tot_des,
+        total_custo_despesa: tot_cus + tot_des,
         total_margem:        tot_mar,
         total_margem_pct:    tot_rec !== 0 ? tot_mar / tot_rec : null,
         total_valor_liquido: periodos.reduce((s, p) => s + (r[`${p}_valor_liquido`] || 0), 0),
@@ -208,6 +210,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       key: "__t__", grupo: "TOTAL",
       total_receita: totReceita, total_custo: totCusto,
       total_despesa: totDespesa,
+      total_custo_despesa: totCusto + totDespesa,
       total_margem: totMargem, total_margem_pct: totPct,
       total_valor_liquido: totVL, total_horas: totHoras,
       _isTotal: true,
@@ -216,6 +219,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       totRow[`${p}_receita`]       = pivotData.reduce((s, r) => s + (r[`${p}_receita`]       || 0), 0);
       totRow[`${p}_custo`]         = pivotData.reduce((s, r) => s + (r[`${p}_custo`]         || 0), 0);
       totRow[`${p}_despesa`]       = pivotData.reduce((s, r) => s + (r[`${p}_despesa`]       || 0), 0);
+      totRow[`${p}_custo_despesa`] = (totRow[`${p}_custo`] || 0) + (totRow[`${p}_despesa`] || 0);
       totRow[`${p}_margem`]        = (totRow[`${p}_receita`] || 0) + (totRow[`${p}_custo`] || 0);
       const rec = totRow[`${p}_receita`] || 0;
       totRow[`${p}_margem_pct`]    = rec !== 0 ? totRow[`${p}_margem`] / rec : null;
@@ -226,14 +230,14 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   }, [pivotData, periodos, totReceita, totCusto, totVL, totHoras]);
 
   const columnsDef = useMemo(() => {
-    type MetricKey = "receita" | "custo" | "despesa" | "margem" | "margem_pct" | "valor_liquido" | "horas";
+    type MetricKey = "receita" | "custo" | "despesa" | "custo_despesa" | "margem" | "margem_pct" | "valor_liquido" | "horas";
     // Mapeia métrica do frontend → métrica que o backend entende como filtro
     const metricApiKey: Record<string, string> = {
-      receita: "receita", custo: "custo_rateado", despesa: "despesa", margem: "",
+      receita: "receita", custo: "custo_rateado", despesa: "despesa", custo_despesa: "", margem: "",
       valor_liquido: "valor_liquido", horas: "horas", margem_pct: "",
     };
     const metricLabelMap: Record<string, string> = {
-      receita: "Receita", custo: "Custo Rateado", despesa: "Despesa", margem: "Margem",
+      receita: "Receita", custo: "Custo Rateado", despesa: "Despesa", custo_despesa: "Custo + Despesa", margem: "Margem",
       valor_liquido: "Lucro Bruto", horas: "Horas", margem_pct: "Margem %",
     };
     const clickable = (prefix: string, metric: MetricKey, content: React.ReactNode, row: any, v: any) => (
@@ -273,6 +277,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       { metric: "receita",       title: "Receita",    width: 140 },
       { metric: "custo",         title: "Custo",      width: 130 },
       { metric: "despesa",       title: "Despesa",    width: 130 },
+      { metric: "custo_despesa", title: "Custo + Despesa", width: 150 },
       { metric: "margem",        title: "Margem",     width: 130 },
       { metric: "margem_pct",    title: "%",          width: 75, renderFn: "pct" },
       { metric: "valor_liquido", title: "Lucro Bruto", width: 130 },
