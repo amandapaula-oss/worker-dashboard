@@ -2190,6 +2190,17 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         else:
             df.loc[_clt_mask, "custo_rateado"] = 0
 
+    # Snapshot do custo NA ORIGEM, antes do rateio mover qualquer coisa.
+    # custo_fonte = custo bruto na linha de origem (toda fonte exceto racionais
+    # e custo_project, que são DESTINOS do rateio). O rateio mexe só em
+    # custo_rateado — custo_fonte fica intacto, pra conciliar por fonte
+    # (soma custo_fonte por fonte_familia = planilha de origem).
+    df["custo_fonte"] = 0.0
+    if "custo_rateado" in df.columns:
+        _src_mask = ~df["fonte"].astype(str).isin(["racionais", "custo_project"])
+        df.loc[_src_mask, "custo_fonte"] = pd.to_numeric(
+            df.loc[_src_mask, "custo_rateado"], errors="coerce").fillna(0)
+
     # Normaliza 3 identificadores por linha: CPF (só dígitos), nome uppercase, numero_pessoal
     cpf_raw = df.get("cpf", pd.Series([""] * len(df), index=df.index)).astype(str)
     cpf_digits = cpf_raw.str.replace(r"[^\d]", "", regex=True)
@@ -2754,11 +2765,8 @@ def _sync_nova_base_calculada() -> dict:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    # CLTs do Mapa de Pessoas nao carregam custo (vem de custo_gerencial)
-    if "fonte" in df.columns:
-        mask_clt = df["fonte"].astype(str) == "CLTs"
-        for col in ("custo_rateado", "valor_liquido"):
-            df.loc[mask_clt, col] = 0
+    # NAO zera mais a fonte CLTs: agora ela carrega o custo de CLT (residual
+    # do rateio). custo_rateado ja vem rateado de _get_nova_base.
 
     # Split custo / despesa (mesma regra do Resumo)
     has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
@@ -2945,7 +2953,7 @@ def get_nova_base_resumo(
         df.loc[df["tipo_pessoa"] == "", "tipo_pessoa"] = "Outros"
 
     group_col = agrupar_por if agrupar_por in df.columns else "empresa"
-    for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
+    for col in ["receita", "custo_rateado", "horas", "valor_liquido", "custo_fonte"]:
         if col not in df.columns:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -2984,6 +2992,7 @@ def get_nova_base_resumo(
         despesa       = ("_despesa",      "sum"),
         horas         = ("_horas_direto", "sum"),
         valor_liquido = ("valor_liquido", "sum"),
+        custo_fonte   = ("custo_fonte",   "sum"),
     )
     agg = agg.rename(columns={group_col: "grupo"})
 
