@@ -37,6 +37,7 @@ export default function NovaBaseMargemTab() {
     selPeriodos, setSelPeriodos,
     selEmpresas, setSelEmpresas,
     selVerticais, setSelVerticais,
+    selFontes, setSelFontes,
     selApuracoes, setSelApuracoes,
     selNoHier, setSelNoHier,
     resetFilters, hasAnyFilter,
@@ -72,6 +73,7 @@ export default function NovaBaseMargemTab() {
     if (selPeriodos.length) filters.periodos = selPeriodos.join(",");
     if (selEmpresas.length) filters.empresas = selEmpresas.join(",");
     if (selVerticais.length) filters.verticais = selVerticais.join(",");
+    if (selFontes.length) filters.fontes = selFontes.join(",");
     if (prefix !== "total") filters.periodos = prefix;
     if (metric) filters.metric = metric;
     setDrillFilters(filters);
@@ -108,6 +110,7 @@ export default function NovaBaseMargemTab() {
     if (selPeriodos.length)  params.periodos       = selPeriodos.join(",");
     if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
     if (selVerticais.length) params.verticais      = selVerticais.join(",");
+    if (selFontes.length)    params.fontes         = selFontes.join(",");
     if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
     if (viewMode === "Por Mês") params.breakdown = "true";
@@ -115,7 +118,7 @@ export default function NovaBaseMargemTab() {
       .then(setClientes)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selPeriodos, selEmpresas, selVerticais, selApuracoes, selNoHier, viewMode]);
+  }, [selPeriodos, selEmpresas, selVerticais, selFontes, selApuracoes, selNoHier, viewMode]);
 
   useEffect(() => { loadClientes(); }, [loadClientes]);
 
@@ -127,6 +130,7 @@ export default function NovaBaseMargemTab() {
     if (periodos.length)     params.periodos       = periodos.join(",");
     if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
     if (selVerticais.length) params.verticais      = selVerticais.join(",");
+    if (selFontes.length)    params.fontes         = selFontes.join(",");
     if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
     getNovaBaseMargemClienteDetalhe(params)
@@ -148,6 +152,7 @@ export default function NovaBaseMargemTab() {
     if (periodos.length)     params.periodos       = periodos.join(",");
     if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
     if (selVerticais.length) params.verticais      = selVerticais.join(",");
+    if (selFontes.length)    params.fontes         = selFontes.join(",");
     if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
     getNovaBaseMargemPessoaClientes(params)
@@ -165,6 +170,7 @@ export default function NovaBaseMargemTab() {
     if (periodos.length)     params.periodos       = periodos.join(",");
     if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
     if (selVerticais.length) params.verticais      = selVerticais.join(",");
+    if (selFontes.length)    params.fontes         = selFontes.join(",");
     if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
     getNovaBaseMargemProjetoPessoas(params)
@@ -649,6 +655,11 @@ export default function NovaBaseMargemTab() {
             <div style={labelStyle}>Vertical</div>
             <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
               onChange={setSelVerticais} options={opt(filters.verticais || [])} maxTagCount="responsive" placeholder="Todas" allowClear />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={labelStyle}>Fonte</div>
+            <Select mode="multiple" style={{ width: "100%" }} value={selFontes}
+              onChange={setSelFontes} options={opt(filters.fontes || [])} maxTagCount="responsive" placeholder="Todas" allowClear />
           </div>
           <div style={{ flex: 1, minWidth: 130 }}>
             <div style={labelStyle}>Apuração</div>

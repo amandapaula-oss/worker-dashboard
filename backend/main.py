@@ -2995,7 +2995,7 @@ def get_nova_base_resumo(
 
 @app.get("/api/nova-base/margem/clientes")
 def get_nova_base_margem_clientes(
-    periodos: str = "", empresas: str = "", verticais: str = "",
+    periodos: str = "", empresas: str = "", verticais: str = "", fontes: str = "",
     apuracoes: str = "", no_hierarquias: str = "",
     breakdown: bool = False,
     user=Depends(get_current_user)
@@ -3024,6 +3024,8 @@ def get_nova_base_margem_clientes(
         df = _filt_with_blank("empresa", empresas)
     if verticais:
         df = _filt_with_blank("vertical", verticais)
+    if fontes:
+        df = _filt_with_blank("fonte_familia", fontes)
     if apuracoes:
         df = _filt_with_blank("apuracao", apuracoes)
     if no_hierarquias:
@@ -3051,7 +3053,12 @@ def get_nova_base_margem_clientes(
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
-    agg = agg[agg["receita"].abs() > 0.01]
+    # Normalmente lista clientes com receita; mas se há filtro de fonte
+    # (ex.: só PJs, que não têm receita), mantém também os de custo.
+    if fontes:
+        agg = agg[(agg["receita"].abs() > 0.01) | (agg["custo_rateado"].abs() > 0.01)]
+    else:
+        agg = agg[agg["receita"].abs() > 0.01]
     agg = agg[agg["nome_cliente"].astype(str).str.strip().ne("0")]
     agg = agg.sort_values("receita", ascending=False)
     return _sanitize(agg.to_dict(orient="records"))
@@ -3060,7 +3067,7 @@ def get_nova_base_margem_clientes(
 @app.get("/api/nova-base/margem/cliente-detalhe")
 def get_nova_base_margem_cliente_detalhe(
     nome_cliente: str = "",
-    periodos: str = "", empresas: str = "", verticais: str = "",
+    periodos: str = "", empresas: str = "", verticais: str = "", fontes: str = "",
     apuracoes: str = "", no_hierarquias: str = "",
     breakdown: bool = False,
     user=Depends(get_current_user)
@@ -3084,6 +3091,7 @@ def get_nova_base_margem_cliente_detalhe(
 
     if empresas:       df = _filt_with_blank("empresa", empresas)
     if verticais:      df = _filt_with_blank("vertical", verticais)
+    if fontes:         df = _filt_with_blank("fonte_familia", fontes)
     if apuracoes:      df = _filt_with_blank("apuracao", apuracoes)
     if no_hierarquias: df = _filt_with_blank("no_hierarquia", no_hierarquias)
     for col in ["receita", "custo_rateado", "horas"]:
@@ -3151,7 +3159,7 @@ def get_nova_base_margem_cliente_detalhe(
 @app.get("/api/nova-base/margem/projeto-pessoas")
 def get_nova_base_margem_projeto_pessoas(
     nome_cliente: str = "", pep: str = "",
-    periodos: str = "", empresas: str = "", verticais: str = "",
+    periodos: str = "", empresas: str = "", verticais: str = "", fontes: str = "",
     apuracoes: str = "", no_hierarquias: str = "", breakdown: bool = False,
     user=Depends(get_current_user)
 ):
@@ -3175,6 +3183,7 @@ def get_nova_base_margem_projeto_pessoas(
 
     if empresas:       df = _filt_with_blank("empresa", empresas)
     if verticais:      df = _filt_with_blank("vertical", verticais)
+    if fontes:         df = _filt_with_blank("fonte_familia", fontes)
     if apuracoes:      df = _filt_with_blank("apuracao", apuracoes)
     if no_hierarquias: df = _filt_with_blank("no_hierarquia", no_hierarquias)
     for col in ["receita", "custo_rateado", "horas"]:
@@ -3244,7 +3253,7 @@ def get_nova_base_margem_projeto_pessoas(
 @app.get("/api/nova-base/margem/pessoa-clientes")
 def get_nova_base_margem_pessoa_clientes(
     nome_pessoa: str = "",
-    periodos: str = "", empresas: str = "", verticais: str = "",
+    periodos: str = "", empresas: str = "", verticais: str = "", fontes: str = "",
     apuracoes: str = "", no_hierarquias: str = "", breakdown: bool = False,
     user=Depends(get_current_user)
 ):
@@ -3268,6 +3277,7 @@ def get_nova_base_margem_pessoa_clientes(
 
     if empresas:       df = _filt_with_blank("empresa", empresas)
     if verticais:      df = _filt_with_blank("vertical", verticais)
+    if fontes:         df = _filt_with_blank("fonte_familia", fontes)
     if apuracoes:      df = _filt_with_blank("apuracao", apuracoes)
     if no_hierarquias: df = _filt_with_blank("no_hierarquia", no_hierarquias)
     for col in ["receita", "custo_rateado", "horas"]:
