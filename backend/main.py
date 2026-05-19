@@ -1830,8 +1830,10 @@ def _adicionar_fonte_familia(df: pd.DataFrame) -> pd.DataFrame:
     # Tudo que veio com fonte=racionais e nao bateu acima vai pra Racionais
     mask_rac = (familia == "") & (fonte_col == "racionais")
     familia[mask_rac] = "Racionais"
-    # Resto (raro, fontes auxiliares) → "Outros"
-    familia[familia == ""] = "Outros"
+    # Resto (Hyper, SGA, DOJO, Custo Socios, etc.): usa o proprio nome da fonte,
+    # pra cada uma virar uma opcao filtravel (antes caía tudo em "Outros").
+    _resto = familia == ""
+    familia[_resto] = fonte_col[_resto].where(fonte_col[_resto].str.strip() != "", "Outros")
     # PJ e CLT viram familias proprias (pelo fonte), pra permitir filtrar separado.
     familia[fonte_col == "PJs"]  = "PJs"
     familia[fonte_col == "CLTs"] = "CLTs"
