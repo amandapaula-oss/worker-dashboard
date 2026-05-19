@@ -3679,21 +3679,25 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", 
     def zero_vals():
         return {c: 0.0 for c in columns}
 
-    # ── Separação por fonte para evitar dupla contagem ────────────────────────
-    # Receita: qualquer fonte com receita > 0 (racionais)
-    # Custo direto e Despesas: exclusivamente fonte == "custo_gerencial"
-    #   (CLTs/PJs ficam na base como histórico mas não entram no DRE de custos)
+    # ── Custo x Despesa ───────────────────────────────────────────────────────
+    # Custo direto = TODO custo_rateado que não é despesa. Depois do rateio o
+    # custo de CLT fica espalhado (custo_gerencial/CLTs residual + racionais +
+    # custo_project) e o de PJ na fonte PJs — somar tudo dá o custo total.
+    # Despesa = macro_area, sócios ou classificacao explícita 'despesa'.
     df["macro_area"] = df["macro_area"].fillna("").astype(str).str.strip() if "macro_area" in df.columns else ""
     df["_has_ma"] = df["macro_area"].ne("")
-    df["_is_cg"]  = df["fonte"].astype(str).str.strip().isin(["custo_gerencial", "CLTs"])
+    _fonte_s = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    _socio = _fonte_s.isin(["Custo Socios", "Custo Sócios"])
+    _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    df["_is_desp"] = (_cl == "despesa") | ((_cl != "custo") & (df["_has_ma"] | _socio))
 
-    # Receita (sem macro_area)
+    # Receita: linhas de receita (racionais), sem macro_area
     df_rec = df[~df["_has_ma"]]
     agg_rec = df_rec.groupby("periodo")["receita"].sum().reindex(all_periods, fill_value=0)
 
-    # Custo direto: custo_gerencial SEM macro_area (billable — vai contra projetos)
-    df_cg_direto = df[df["_is_cg"] & ~df["_has_ma"]]
-    agg_cus = df_cg_direto.groupby("periodo")["custo_rateado"].sum().reindex(all_periods, fill_value=0)
+    # Custo direto: tudo que não é despesa
+    df_cus = df[~df["_is_desp"]]
+    agg_cus = df_cus.groupby("periodo")["custo_rateado"].sum().reindex(all_periods, fill_value=0)
 
     agg_gp = agg_rec + agg_cus  # custo_rateado já é negativo
 
@@ -3704,25 +3708,20 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", 
         {"name": "Gross Margin %", "is_subtotal": True,  "is_pct": True,  "is_group": False, "values": pct_vals(agg_rec, agg_gp)},
     ]
 
-    # ── Despesas por Macro Área: custo_gerencial COM macro_area ───────────────
-    df_cg_desp = df[df["_is_cg"] & df["_has_ma"]]
+    # ── Despesas: tudo classificado como despesa ──────────────────────────────
+    df_desp = df[df["_is_desp"]]
     if _macro_area_filter:
-        df_cg_desp = df_cg_desp[df_cg_desp["macro_area"].isin(_macro_area_filter)]
+        df_desp = df_desp[df_desp["macro_area"].isin(_macro_area_filter)]
     agg_desp_total = pd.Series(0.0, index=all_periods)
-    if not df_cg_desp.empty:
-        agg_ma_raw = (
-            df_cg_desp
-            .groupby(["macro_area", "periodo"])["custo_rateado"]
-            .sum()
-            .reset_index()
-        )
-        if not agg_ma_raw.empty:
-            # Total despesas por período (linha "Despesas" agora carrega o total)
-            agg_desp_total = (df_cg_desp
-                              .groupby("periodo")["custo_rateado"]
-                              .sum()
-                              .reindex(all_periods, fill_value=0))
-            rows.append({"name": "Despesas", "is_subtotal": True, "is_pct": False, "is_group": True, "values": row_vals(agg_desp_total)})
+    if not df_desp.empty:
+        agg_desp_total = (df_desp.groupby("periodo")["custo_rateado"]
+                          .sum().reindex(all_periods, fill_value=0))
+        rows.append({"name": "Despesas", "is_subtotal": True, "is_pct": False, "is_group": True, "values": row_vals(agg_desp_total)})
+        # Detalhe por macro área (linhas de despesa que têm macro_area)
+        df_desp_ma = df_desp[df_desp["_has_ma"]]
+        if not df_desp_ma.empty:
+            agg_ma_raw = (df_desp_ma.groupby(["macro_area", "periodo"])["custo_rateado"]
+                          .sum().reset_index())
             for ma in sorted(agg_ma_raw["macro_area"].unique().tolist()):
                 sub_cus = (agg_ma_raw[agg_ma_raw["macro_area"] == ma]
                            .set_index("periodo")["custo_rateado"]
