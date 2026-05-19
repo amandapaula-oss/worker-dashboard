@@ -2359,16 +2359,24 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         df["_foi_rateado"] = False
     df["_foi_rateado"] = df["_foi_rateado"].fillna(False)
 
-    # 5. CLT/PJ/gerencial: zera o custo da linha primary SÓ se ele foi
-    # efetivamente distribuído a linhas de racionais. Se a pessoa apontou horas
-    # em custo_project mas não tem racional no período pra receber o custo,
-    # o custo total fica na linha primary (não pode sumir).
-    df.loc[is_custo_total_primary, "custo_rateado"] = np.where(
-        df.loc[is_custo_total_primary, "_foi_rateado"],
-        0.0,  # custo já foi pros PEPs via racionais; residual fica 0 nesta linha
-        df.loc[is_custo_total_primary, "custo_rateado"].astype(float),  # sem racional → mantém custo total
+    # Soma do custo efetivamente alocado a racionais, por pessoa-periodo.
+    aloc_tot = (df[mask_rac_aloca].groupby(["_pk", "_periodo_str"])["custo_rateado"]
+                .sum().rename("_aloc_tot").reset_index())
+    df = df.merge(aloc_tot, on=["_pk", "_periodo_str"], how="left")
+    df["_aloc_tot"] = df["_aloc_tot"].fillna(0.0)
+
+    # 5. Linha primary (CLT/PJ): mantém o RESIDUAL = custo_total − alocado.
+    # Se a pessoa foi rateada em todos os PEPs, residual ≈ 0. Se foi rateada só
+    # em parte (PEPs sem racional pra receber), o restante NÃO some — fica aqui.
+    _ct = pd.to_numeric(df["_custo_total"], errors="coerce").fillna(0.0)
+    _resid_frac = ((_ct - df["_aloc_tot"]) / _ct).where(_ct != 0, 1.0)
+    _cur_primary = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0.0)
+    _new_primary = pd.Series(
+        np.where(df["_foi_rateado"], _cur_primary * _resid_frac, _cur_primary),
+        index=df.index,
     )
-    df.loc[is_custo_total_primary & df["_foi_rateado"], "tag_rateio"] = "Custo distribuido aos PEPs via rateio de horas"
+    df.loc[is_custo_total_primary, "custo_rateado"] = _new_primary[is_custo_total_primary]
+    df.loc[is_custo_total_primary & df["_foi_rateado"], "tag_rateio"] = "Custo rateado aos PEPs (residual de PEP sem racional fica aqui)"
     df.loc[is_custo_total_primary & ~df["_foi_rateado"], "tag_rateio"] = "Custo nao rateado (pessoa sem racional no periodo)"
 
     # 6. Zera custo nas linhas de custo_project conforme caso:
@@ -2427,7 +2435,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=[
         "_pk", "_periodo_str", "_custo_total", "_custo_total_cp", "_custo_cp_raw",
         "_horas_tot", "_horas_pep", "_cpf", "_nome", "_id", "_mapped_cpf",
-        "_eh_clt", "_foi_rateado", "_cp_alocado", "_tem_cp",
+        "_eh_clt", "_foi_rateado", "_cp_alocado", "_tem_cp", "_aloc_tot",
     ], errors="ignore")
     return df
 
