@@ -1859,6 +1859,7 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "BANCO BV": "BANCO VOTORANTIM S.A.",
         "ODONTOPREV": "ODONTOPREV S.A.",
         "ODONTOPREV S.A.": "ODONTOPREV S.A.",
+        "ODONTOPREV - TESTES ALWAYS ON": "ODONTOPREV S.A.",
         "ALGAR TELECOM S/A": "ALGAR TELECOM S/A",
         "ALGAR TELECOM": "ALGAR TELECOM S/A",
         "AMPM": "AmPm",
