@@ -1882,9 +1882,6 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
                .str.strip().str.replace(r"\s+", " ", regex=True))
         _nck = _nc.str.upper()
         df["nome_cliente"] = _nck.map(NOME_CLIENTE_ALIAS).fillna(_nc)
-        # LIGGA: uma das variantes vem com encoding corrompido — casa por prefixo.
-        df.loc[df["nome_cliente"].astype(str).str.upper().str.startswith("LIGGA"),
-               "nome_cliente"] = "LIGGA TELECOMUNICACOES S.A."
 
     if "nome_pessoa" not in df.columns:
         return df
