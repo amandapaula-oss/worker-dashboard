@@ -2365,14 +2365,14 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         ((df["fonte"].astype(str) == "custo_project") & ~df["_eh_clt"])
     )
 
-    # Fonte de horas pro rateio: normalmente custo_project. Mas há meses
-    # (ex.: 2026-03) sem nenhuma linha de custo_project — nesse caso o rateio
-    # usa as horas das próprias linhas de racionais como base.
-    cp_keys = df.loc[is_cp & df["_pk"].notna(), ["_pk", "_periodo_str"]].drop_duplicates()
-    cp_keys["_tem_cp"] = True
-    df = df.merge(cp_keys, on=["_pk", "_periodo_str"], how="left")
-    df["_tem_cp"] = df["_tem_cp"].fillna(False).astype(bool)
-    is_horas_src = is_cp | (is_rac & ~df["_tem_cp"])
+    # Fonte de horas pro rateio: racional é a fonte PRIMÁRIA (mais confiável).
+    # custo_project entra só pra pessoa-período que NÃO tem racional — pega o
+    # apontamento de horas dela pra distribuir o custo nos PEPs onde trabalhou.
+    rac_keys = df.loc[is_rac & df["_pk"].notna(), ["_pk", "_periodo_str"]].drop_duplicates()
+    rac_keys["_tem_rac"] = True
+    df = df.merge(rac_keys, on=["_pk", "_periodo_str"], how="left")
+    df["_tem_rac"] = df["_tem_rac"].fillna(False).astype(bool)
+    is_horas_src = is_rac | (is_cp & ~df["_tem_rac"])
 
     # 2. Horas apontadas totais por pessoa × período (custo_project, ou racionais
     #    como fallback quando não há custo_project no mês)
@@ -2505,7 +2505,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=[
         "_pk", "_periodo_str", "_custo_total", "_custo_total_cp", "_custo_cp_raw",
         "_horas_tot", "_horas_pep", "_cpf", "_nome", "_id", "_mapped_cpf",
-        "_eh_clt", "_foi_rateado", "_cp_alocado", "_tem_cp", "_aloc_tot",
+        "_eh_clt", "_foi_rateado", "_cp_alocado", "_tem_rac", "_aloc_tot",
     ], errors="ignore")
     return df
 
