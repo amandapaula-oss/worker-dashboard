@@ -73,6 +73,7 @@ export default function NovaBaseTab() {
     selVerticais, setSelVerticais,
     selApuracoes, setSelApuracoes,
     selNoHier, setSelNoHier,
+    selClientes, setSelClientes,
     resetFilters, hasAnyFilter,
   } = useNovaBaseFilters();
   const [rows, setRows]                     = useState<any[]>([]);
@@ -104,11 +105,12 @@ export default function NovaBaseTab() {
     if (selVerticais.length)  params.verticais      = selVerticais.join(",");
     if (selApuracoes.length)  params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)     params.no_hierarquias = selNoHier.join(",");
+    if (selClientes.length)   params.clientes       = selClientes.join(",");
     if (searchTerm.trim())    params.search         = searchTerm.trim();
     getNovaBaseData(params)
       .then(r => { setRows(r.rows); setTotal(r.total); setTruncated(r.truncated); })
       .finally(() => setLoading(false));
-  }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif, selVerticais, selApuracoes, selNoHier]);
+  }, [selPeriodos, selFontes, selEmpresas, selMacroAreas, selTipos, selClassif, selVerticais, selApuracoes, selNoHier, selClientes]);
 
   useEffect(() => { if (filtersReady) load(""); }, [filtersReady, load]);
 
@@ -291,6 +293,12 @@ export default function NovaBaseTab() {
           <Select mode="multiple" style={{ width: "100%" }} value={selNoHier}
             onChange={setSelNoHier} options={opt(filters.no_hierarquias ?? [])}
             maxTagCount="responsive" placeholder="Todos" allowClear />
+        </div>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <div style={labelStyle}>Cliente</div>
+          <Select mode="multiple" style={{ width: "100%" }} value={selClientes}
+            onChange={setSelClientes} options={opt(filters.clientes ?? [])}
+            maxTagCount="responsive" placeholder="Todos" allowClear showSearch />
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
           {hasAnyFilter && (

@@ -2936,6 +2936,7 @@ def get_nova_base_filters(user=Depends(get_current_user)):
         "verticais":       uniq("vertical"),
         "apuracoes":       uniq("apuracao"),
         "no_hierarquias":  uniq("no_hierarquia"),
+        "clientes":        uniq("nome_cliente"),
     }
 
 @app.get("/api/nova-base/resumo")
@@ -3552,6 +3553,7 @@ def get_nova_base_data(
     apuracoes: str = "",
     no_hierarquias: str = "",
     nome_cliente: str = "",
+    clientes: str = "",
     tipo_pessoa: str = "",
     metric: str = "",
     search: str = "",
@@ -3586,6 +3588,7 @@ def get_nova_base_data(
     if verticais:      df = filt("vertical", verticais)
     if apuracoes:      df = filt("apuracao", apuracoes)
     if no_hierarquias: df = filt("no_hierarquia", no_hierarquias)
+    if clientes:       df = filt("nome_cliente", clientes)
 
     # Busca textual server-side em vários campos (case-insensitive)
     if search:

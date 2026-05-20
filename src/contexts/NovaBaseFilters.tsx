@@ -12,6 +12,7 @@ interface NovaBaseFiltersState {
   selVerticais: string[];     setSelVerticais: (v: string[]) => void;
   selApuracoes: string[];     setSelApuracoes: (v: string[]) => void;
   selNoHier: string[];        setSelNoHier: (v: string[]) => void;
+  selClientes: string[];      setSelClientes: (v: string[]) => void;
   resetFilters: () => void;
   hasAnyFilter: boolean;
 }
@@ -28,6 +29,7 @@ export function NovaBaseFiltersProvider({ children }: { children: ReactNode }) {
   const [selVerticais, setSelVerticais] = useState<string[]>([]);
   const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
   const [selNoHier, setSelNoHier]       = useState<string[]>([]);
+  const [selClientes, setSelClientes]   = useState<string[]>([]);
 
   const resetFilters = useCallback(() => {
     setSelPeriodos(DEFAULT_PERIODOS);
@@ -39,6 +41,7 @@ export function NovaBaseFiltersProvider({ children }: { children: ReactNode }) {
     setSelVerticais([]);
     setSelApuracoes([]);
     setSelNoHier([]);
+    setSelClientes([]);
   }, []);
 
   // hasAnyFilter: qualquer filtro diferente do default
@@ -46,7 +49,8 @@ export function NovaBaseFiltersProvider({ children }: { children: ReactNode }) {
     selPeriodos.every(p => DEFAULT_PERIODOS.includes(p));
   const hasAnyFilter = !isPeriodosDefault || selEmpresas.length > 0 || selFontes.length > 0
     || selMacroAreas.length > 0 || selTipos.length > 0 || selClassif.length > 0
-    || selVerticais.length > 0 || selApuracoes.length > 0 || selNoHier.length > 0;
+    || selVerticais.length > 0 || selApuracoes.length > 0 || selNoHier.length > 0
+    || selClientes.length > 0;
 
   return (
     <Ctx.Provider value={{
@@ -59,6 +63,7 @@ export function NovaBaseFiltersProvider({ children }: { children: ReactNode }) {
       selVerticais, setSelVerticais,
       selApuracoes, setSelApuracoes,
       selNoHier, setSelNoHier,
+      selClientes, setSelClientes,
       resetFilters, hasAnyFilter,
     }}>
       {children}
