@@ -1934,6 +1934,8 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     EMPRESA_ALIAS = {
         "BETA-I": "BETA-I",
         "BETAI":  "BETA-I",
+        "DFENSE": "Dfense",
+        "DFENSE (VIPERX)": "Dfense",
     }
     if "empresa" in df.columns:
         _e  = df["empresa"].fillna("").astype(str).str.strip()
