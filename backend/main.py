@@ -1930,6 +1930,16 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[df["nome_cliente"].astype(str).str.upper().str.startswith("FUTEBOLCARD"),
                "nome_cliente"] = "FUTEBOLCARD SISTEMAS LTDA"
 
+    # Aliases de nome de empresa — variantes da mesma empresa em grafias diferentes.
+    EMPRESA_ALIAS = {
+        "BETA-I": "BETA-I",
+        "BETAI":  "BETA-I",
+    }
+    if "empresa" in df.columns:
+        _e  = df["empresa"].fillna("").astype(str).str.strip()
+        _ek = _e.str.upper()
+        df["empresa"] = _ek.map(EMPRESA_ALIAS).fillna(_e)
+
     if "nome_pessoa" not in df.columns:
         return df
 
