@@ -1700,15 +1700,34 @@ HYPER_CLIENTES = {
 
 
 def _reclassificar_hyper(df: pd.DataFrame) -> pd.DataFrame:
-    """Move clientes da carteira Hyper que estao com vertical="Others" pra "Hyper".
-    Nao toca em clientes ja em BU definida (BU Finance/Retail/etc.) — respeita
-    a classificacao existente.
+    """1) Cliente-consistency: se algum row do cliente tem BU explicita
+       (BU Finance/Health/Logistics/Multisector/Retail/Others), propaga essa
+       BU pras outras linhas do MESMO cliente — a BU explicita ganha sobre
+       Hyper e Others. Respeita o que veio da planilha de origem.
+    2) HYPER list: clientes que ainda estao em "Others" (sem nenhuma BU
+       explicita em lugar nenhum) e estao na carteira Hyper -> "Hyper".
     """
     if "nome_cliente" not in df.columns or "vertical" not in df.columns:
         return df
+    BU_DEF = {"BU Finance", "BU Health", "BU Logistics",
+              "BU Multisector", "BU Retail", "BU Others"}
     nc = df["nome_cliente"].fillna("").astype(str).str.upper().str.strip()
     v  = df["vertical"].fillna("").astype(str).str.strip()
-    mask = nc.isin(HYPER_CLIENTES) & v.str.lower().eq("others")
+
+    # 1) Propaga BU explicita por cliente
+    explicit_rows = df[v.isin(BU_DEF)]
+    if not explicit_rows.empty:
+        explicit_by_cli = (explicit_rows.groupby("nome_cliente")["vertical"]
+                           .agg(lambda s: s.mode().iloc[0] if len(s.mode()) else s.iloc[0]))
+        mapped = df["nome_cliente"].map(explicit_by_cli)
+        mask_prop = mapped.notna() & ~v.isin(BU_DEF)
+        if mask_prop.any():
+            df.loc[mask_prop, "vertical"] = mapped[mask_prop]
+
+    # 2) Aplica HYPER nos que sobraram em Others (clientes da carteira sem
+    #    nenhuma BU explicita em lugar nenhum)
+    v2 = df["vertical"].fillna("").astype(str).str.strip()
+    mask = nc.isin(HYPER_CLIENTES) & v2.str.lower().eq("others")
     if mask.any():
         df.loc[mask, "vertical"] = "Hyper"
     return df
@@ -1862,9 +1881,9 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
         print(f"[vertical_sem_bu] falhou: {e}")
 
     # 5. Override: lista de clientes que pertencem a "Hyper" (FCamara Hyper).
-    # Sobrepoe qualquer BU derivada acima. Casa por nome normalizado (UPPER,
-    # sem espacos extras) — pega tambem aliases ja consolidados (BV -> Banco
-    # Votorantim, ULTRA -> Ultrapar, REDHAT -> Red Hat, etc.).
+    # NAO sobrepoe BU oficial — so muda quando o cliente esta sem BU (Others,
+    # vazio, etc.). Se o dado de origem (racional/planilha) diz BU Multisector,
+    # essa BU ganha sobre o override Hyper.
     try:
         if "nome_cliente" in df.columns:
             nc_hy = df["nome_cliente"].fillna("").astype(str).apply(
@@ -1940,7 +1959,10 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
                 "VLI",
                 "ZENVIA",
             }
-            df.loc[nc_hy.isin(CLIENTES_HYPER), "vertical"] = "Hyper"
+            _BU_DEF = {"BU Finance","BU Health","BU Logistics",
+                       "BU Multisector","BU Retail","BU Others"}
+            v_cur = df["vertical"].fillna("").astype(str).str.strip()
+            df.loc[nc_hy.isin(CLIENTES_HYPER) & ~v_cur.isin(_BU_DEF), "vertical"] = "Hyper"
     except Exception as e:
         print(f"[vertical_hyper] falhou: {e}")
     return df
