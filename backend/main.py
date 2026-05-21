@@ -1662,6 +1662,58 @@ def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Carteira Hyper — clientes que devem ter vertical = "Hyper".
+# Inclui nomes brutos da lista FP&A + variantes canonicas que aparecem na base
+# apos a unificacao de aliases. Aplicado SOMENTE em linhas cuja vertical atual
+# e "Others" — clientes ja em BU definida (BU Finance, BU Retail, etc.) sao
+# mantidos como estao.
+HYPER_CLIENTES = {
+    # Lista crua FP&A (uppercase, sem espaços extras)
+    "ALGAR", "ALVEAN", "IBM", "MARISTA", "MULTIPLAN", "MULTIPLAN EMPREENDIMENTOS IMOB S/A",
+    "NUCLEA", "TD SYNNEX", "TOKIO MARINE", "ULTRA", "ULTRAPAR PARTICIPACOES S/A",
+    "BV", "BANCO BV", "BANCO VOTORANTIM S.A.", "BS2", "CPFL ENERGIA", "CPFL PAULISTA",
+    "CREFISA", "DANONE", "FC HYPER", "GRU", "GRUPO CASAS BAHIA", "IRANI", "LIGGA TELECOM",
+    "NEXA RESOURCES", "PARAISO GOLD", "RED HAT BRASIL LTDA", "REDHAT", "TELEFONICA",
+    "UNIMED NACIONAL", "UNIMED CURITIBA", "UNIMED", "CIRION", "DURATEX", "DURATEX S.A.",
+    "DEXCO", "ELECTROLUX", "EVOLUA", "FIS", "GRUPO ELFA", "HDI", "INTERCEMENT",
+    "KYNDRYL", "KYNDRYL BRASIL SERVICOS LTDA.", "OLX", "PORTICO", "SMILES", "SOMPO",
+    "ZENVIA", "MARFRIG", "BRF", "BRASIL FOODS (BRF)", "EQUINIX", "RUMO", "BRASILPREV",
+    "CVC BRASIL", "INGRAM", "VIGOR", "ODONTOPREV", "ODONTOPREV S.A.", "PRIVALIA",
+    "RODOBENS", "GRUPO RODOBENS", "HEXIS", "MERCADO LIVRE", "COPERSUCAR", "RIACHUELO",
+    "VLI", "OURIBANK", "MUFG", "BANCO MUFG", "FCAMARA", "GRUPO FCAMARA", "COBAP",
+    "TOYOTA", "AB INBEV", "VIA VAREJO", "DEL TORO", "INTEGRATION", "BANCO VOLKSWAGEN",
+    "GRUPO HYPERAUTOMATION", "AMBIPAR", "CIATECH", "LINKCALL",
+    # Canonicos pos-alias (como aparecem na base atualmente)
+    "ALGAR TELECOM S/A", "AMBIPAR PARTICIPACOES E EMPREENDIMENTOS",
+    "ANHEUSER-BUSCH INBEV NV", "BANCO BS2 S.A.", "BANCO MUFG BRASIL S.A.", "BRF S.A.",
+    "CASAS BAHIA", "CIRION TECHNOLOGIES DO BRASIL LTDA", "DEL TORO LOAN SERVICING, INC",
+    "DANONE - AI STRATEGY", "ELECTROLUX DO BRASIL S/A",
+    "EQUINIX DO BRASIL SOLUCOES DE TECNOLOGIA", "FC HYPERAUTOMATION CONSULTORIA LTDA",
+    "FCAMARA CONSULTORIA E FORMACAO EM INFORM", "FIDELITY / FIS SOLUCOES",
+    "GRU AIRPORT", "GRUPO CASAS BAHIA S.A.", "IRANI PAPEL E EMBALAGEM S.A.", "LIGGA",
+    "LINKCALL SERVICOS DE CALL CENTER S.A", "MERCADO LIVRE /MERCADO.PAGO",
+    "MULTIPLAN EMPREENDIMENTOS IMOBILIARIOS S", "PARAISO GOLD LOTEAMENTOS",
+    "RODOBENS ADMINISTRADORA DE CONSORCIOS LT", "RUMO S.A.", "TELEFONICA BRASIL S.A.",
+    "TOKIO MARINE SEGURADORA S.A.", "VIGOR ALIMENTOS S.A", "VLI MULTIMODAL S.A.",
+    "ZENVIA MOBILE",
+}
+
+
+def _reclassificar_hyper(df: pd.DataFrame) -> pd.DataFrame:
+    """Move clientes da carteira Hyper que estao com vertical="Others" pra "Hyper".
+    Nao toca em clientes ja em BU definida (BU Finance/Retail/etc.) — respeita
+    a classificacao existente.
+    """
+    if "nome_cliente" not in df.columns or "vertical" not in df.columns:
+        return df
+    nc = df["nome_cliente"].fillna("").astype(str).str.upper().str.strip()
+    v  = df["vertical"].fillna("").astype(str).str.strip()
+    mask = nc.isin(HYPER_CLIENTES) & v.str.lower().eq("others")
+    if mask.any():
+        df.loc[mask, "vertical"] = "Hyper"
+    return df
+
+
 def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
     """Deriva a vertical (BU) a partir do PEP (projeto) e, como fallback, do cliente.
     O projeto define a BU — nao o cadastro da pessoa.
@@ -2638,6 +2690,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _enriquecer_dados_pessoa(df)
                 df = _aplicar_rateio_custos(df)
                 df = _aplicar_vertical_por_pep(df)
+                df = _reclassificar_hyper(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
             except Exception as e:
@@ -2739,6 +2792,7 @@ def _get_nova_base() -> pd.DataFrame:
         df = _enriquecer_dados_pessoa(df)
         df = _aplicar_rateio_custos(df)
         df = _aplicar_vertical_por_pep(df)
+        df = _reclassificar_hyper(df)
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
