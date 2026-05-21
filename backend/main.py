@@ -1808,6 +1808,89 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             df.loc[sem_bu, "vertical"] = ""
     except Exception as e:
         print(f"[vertical_sem_bu] falhou: {e}")
+
+    # 5. Override: lista de clientes que pertencem a "Hyper" (FCamara Hyper).
+    # Sobrepoe qualquer BU derivada acima. Casa por nome normalizado (UPPER,
+    # sem espacos extras) — pega tambem aliases ja consolidados (BV -> Banco
+    # Votorantim, ULTRA -> Ultrapar, REDHAT -> Red Hat, etc.).
+    try:
+        if "nome_cliente" in df.columns:
+            nc_hy = df["nome_cliente"].fillna("").astype(str).apply(
+                lambda s: re.sub(r"\s+", " ", str(s)).strip().upper())
+            CLIENTES_HYPER = {
+                "AB INBEV",
+                "ALGAR", "ALGAR TELECOM", "ALGAR TELECOM S/A",
+                "ALVEAN",
+                "AMBIPAR", "AMBIPAR PARTICIPACOES E EMPREENDIMENTOS",
+                "BANCO BV", "BANCO VOTORANTIM S.A.", "BV",
+                "BANCO MUFG", "BANCO MUFG BRASIL S.A.", "MUFG",
+                "BANCO VOLKSWAGEN",
+                "BRASILPREV",
+                "BRF", "BRASIL FOODS (BRF)",
+                "BS2",
+                "CIATECH",
+                "CIRION", "CIRION TECHNOLOGIES DO BRASIL LTDA",
+                "COBAP",
+                "COPERSUCAR",
+                "CPFL ENERGIA", "CPFL PAULISTA",
+                "CREFISA",
+                "CVC BRASIL",
+                "DANONE",
+                "DEL TORO", "DEL TORO LOAN SERVICING, INC",
+                "DEXCO", "DURATEX", "DURATEX S.A.",
+                "ELECTROLUX", "ELECTROLUX DO BRASIL S/A",
+                "EQUINIX",
+                "EVOLUA",
+                "FC HYPER",
+                "FCAMARA", "GRUPO FCAMARA",
+                "FIS",
+                "GRU",
+                "GRUPO CASAS BAHIA", "GRUPO CASAS BAHIA S.A.",
+                "GRUPO ELFA",
+                "GRUPO HYPERAUTOMATION",
+                "GRUPO RODOBENS", "RODOBENS",
+                "HDI",
+                "HEXIS",
+                "IBM",
+                "INGRAM",
+                "INTEGRATION",
+                "INTERCEMENT",
+                "IRANI", "IRANI PAPEL E EMBALAGEM S.A.",
+                "KYNDRYL", "KYNDRYL BRASIL SERVICOS LTDA.",
+                "LIGGA", "LIGGA TELECOM",
+                "LINKCALL", "LINKCALL SERVICOS DE CALL CENTER S.A",
+                "MARFRIG",
+                "MARISTA",
+                "MERCADO LIVRE", "MERCADO LIVRE /MERCADO.PAGO",
+                "MULTIPLAN", "MULTIPLAN EMPREENDIMENTOS IMOB S/A",
+                "MULTIPLAN EMPREENDIMENTOS IMOBILIARIOS S",
+                "NEXA RESOURCES",
+                "NUCLEA", "CIP / NUCLEA", "CIP S.A.",
+                "ODONTOPREV", "ODONTOPREV S.A.",
+                "OLX",
+                "OURIBANK",
+                "PARAISO GOLD",
+                "PORTICO",
+                "PRIVALIA",
+                "REDHAT", "RED HAT", "RED HAT BRASIL LTDA",
+                "RIACHUELO",
+                "RUMO", "RUMO S.A.",
+                "SMILES",
+                "SOMPO",
+                "TD SYNNEX",
+                "TELEFONICA",
+                "TOKIO MARINE", "TOKIO MARINE SEGURADORA S.A.",
+                "TOYOTA",
+                "ULTRA", "GRUPO ULTRA", "ULTRAPAR PARTICIPACOES S/A",
+                "UNIMED", "UNIMED CURITIBA", "UNIMED NACIONAL",
+                "VIA VAREJO",
+                "VIGOR",
+                "VLI",
+                "ZENVIA",
+            }
+            df.loc[nc_hy.isin(CLIENTES_HYPER), "vertical"] = "Hyper"
+    except Exception as e:
+        print(f"[vertical_hyper] falhou: {e}")
     return df
 
 
