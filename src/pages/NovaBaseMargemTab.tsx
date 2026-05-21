@@ -732,6 +732,8 @@ export default function NovaBaseMargemTab() {
             const cells: React.ReactNode[] = [];
             let idx = 0;
             cells.push(<Table.Summary.Cell key="lbl" index={idx++}>TOTAL ({filteredClientes.length})</Table.Summary.Cell>);
+            cells.push(<Table.Summary.Cell key="bu" index={idx++} />);
+            cells.push(<Table.Summary.Cell key="cl" index={idx++} />);
             ALL_METRICS.forEach(m => {
               if (!visibleMetrics.has(m)) return;
               if (m === "receita") cells.push(<Table.Summary.Cell key={m} index={idx++} align="right">{brl(totRec)}</Table.Summary.Cell>);
