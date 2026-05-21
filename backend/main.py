@@ -1596,6 +1596,33 @@ def _load_nova_base_supabase() -> pd.DataFrame:
         offset += page_size
     client.close()
     print(f"[nova_base] loaded {len(all_rows)} rows from Supabase")
+    df = pd.DataFrame(all_rows)
+    # Linhas Budget vivem na mesma tabela mas NAO passam pelo pipeline
+    # de rateio/enriquecimento. Sao consumidas apenas pelo endpoint
+    # /api/budget-vs-realizado via _load_budget_supabase().
+    if "fonte" in df.columns:
+        df = df[df["fonte"].astype(str) != "Budget"].copy()
+    return df
+
+
+def _load_budget_supabase() -> pd.DataFrame:
+    """Fetch apenas as linhas fonte='Budget' da nova_base."""
+    url = f"{SUPABASE_URL}/rest/v1/nova_base"
+    headers = _supabase_headers()
+    all_rows = []
+    page_size = 1000
+    offset = 0
+    client = httpx.Client(timeout=30)
+    while True:
+        r = client.get(f"{url}?select=periodo,vertical,nome_cliente,receita,custo_rateado,valor_liquido&fonte=eq.Budget&order=id&offset={offset}&limit={page_size}", headers=headers)
+        if r.status_code != 200:
+            raise RuntimeError(f"Supabase error {r.status_code}: {r.text[:200]}")
+        data = r.json()
+        all_rows.extend(data)
+        if len(data) < page_size:
+            break
+        offset += page_size
+    client.close()
     return pd.DataFrame(all_rows)
 
 
@@ -2110,6 +2137,106 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
 
     nome_norm = _norm(df["nome_pessoa"])
     df["_pessoa_key"] = nome_norm
+
+    # Aliases manuais nome_pessoa — casos que a heuristica nao pega
+    # (ex: nome curto com 2 palavras vs nome longo com 3+).
+    NOME_PESSOA_ALIAS = {
+        # Truncamentos (corte em 32-36 chars no upload original)
+        "ALINE NAYARA PEREIRA DE LIMA GOME": "ALINE NAYARA PEREIRA DE LIMA GOMES",
+        "ALLESSON RODRIGO CAVALCANTE DA SI": "ALLESSON RODRIGO CAVALCANTE DA SILVA",
+        "ANA CRISTINA CONCEICAO MALVEIRA N": "ANA CRISTINA CONCEICAO MALVEIRA NOGUEIRA",
+        "ANA PAULA RODRIGUES PAIVA FERREIR": "ANA PAULA RODRIGUES PAIVA FERREIRA",
+        "CAIO CEZAR BARBOSA DA SILVA BATIS": "CAIO CEZAR BARBOSA DA SILVA BATISTA",
+        "CICERO ALYSSON DO NASCIMENTO ARAU": "CICERO ALYSSON DO NASCIMENTO ARAUJO",
+        "DANIEL ARISTOTELIS ASSUNCAO DA SI": "DANIEL ARISTOTELIS ASSUNCAO DA SILVA",
+        "ERIBERTO SANTANA FLORENCIO DE LIM": "ERIBERTO SANTANA FLORENCIO DE LIMA",
+        "FERNANDO ANTONIO PARAISO CAVALCAN": "FERNANDO ANTONIO PARAISO CAVALCANTI",
+        "FERNANDO JOSE ALVES DA SILVA JUNI": "FERNANDO JOSE ALVES DA SILVA JUNIOR",
+        "GABRIELLA MARIA BACK BEBIANO MONT": "GABRIELLA MARIA BACK BEBIANO MONTINI",
+        "GABRIELLY VITORIA RODRIGUES DOS S": "GABRIELLY VITORIA RODRIGUES DOS SANTOS",
+        "GISLAINE CRISTINA RIBEIRO MENEGAT": "GISLAINE CRISTINA RIBEIRO MENEGATTI",
+        "GUILHERME ISSAMU NASCIMENTO KISHI": "GUILHERME ISSAMU NASCIMENTO KISHIDA",
+        "HENRIQUE ANTONIO CONTADOR PANTARO": "HENRIQUE ANTONIO CONTADOR PANTAROTO",
+        "ISABELLE DE ARAUJO RODRIGUES VIEI": "ISABELLE DE ARAUJO RODRIGUES VIEIRA",
+        "JAMILLE RENATA FERREIRA PEREIRA R": "JAMILLE RENATA FERREIRA PEREIRA RICHTER",
+        "JENNIFER PALOMA DE MORAES MARCIAN": "JENNIFER PALOMA DE MORAES MARCIANO",
+        "JERONIMO DOS REIS CORDEIRO DE PAI": "JERONIMO DOS REIS CORDEIRO DE PAIVA",
+        "JOAO BATISTA OLIVEIRA DE SOUZA JU": "JOAO BATISTA OLIVEIRA DE SOUZA JUNIOR",
+        "JOAO OCTAVIO TOGNI ZAMBON MANTOVA": "JOAO OCTAVIO TOGNI ZAMBON MANTOVANI",
+        "JONATAN CRISTOFER TEIXEIRA ALBUQU": "JONATAN CRISTOFER TEIXEIRA ALBUQUERQUE",
+        "JUDSON KERLLER ALVES MORAIS JUNIO": "JUDSON KERLLER ALVES MORAIS JUNIOR",
+        "KAISA FERNANDA PEREIRA DE ALMEIDA SANTIA": "KAISA FERNANDA PEREIRA DE ALMEIDA SANTIAGO",
+        "MARCIA ANDREA LOPES DE OLIVEIRA E": "MARCIA ANDREA LOPES DE OLIVEIRA EDEL",
+        "MARIA GABRIELA QUINTAO NEUBERT FE": "MARIA GABRIELA QUINTAO NEUBERT FERNANDES",
+        "MARIANA DA CONCEICAO ALVES DA SIL": "MARIANA DA CONCEICAO ALVES DA SILVA",
+        "MATHEUS HENRIQUE VALENTIM FERNAND": "MATHEUS HENRIQUE VALENTIM FERNANDES",
+        "MAURICIO ANTUNES NASCIMENTO DOS S": "MAURICIO ANTUNES NASCIMENTO DOS SANTOS",
+        "PABLO APARECIDO TEIXEIRA DE OLIVE": "PABLO APARECIDO TEIXEIRA DE OLIVEIRA",
+        "PAULA CUNHA MEDEIROS DE ALMEIDA A": "PAULA CUNHA MEDEIROS DE ALMEIDA ALCALA",
+        "PAULO DE ALMEIDA COSTA NONATO FIL": "PAULO DE ALMEIDA COSTA NONATO FILHO",
+        "PEDRO HENRIQUE DALMAZO GARCIA BAR": "PEDRO HENRIQUE DALMAZO GARCIA BARRETO",
+        "RAFAEL MARTINS CORDEIRO DOS SANTO": "RAFAEL MARTINS CORDEIRO DOS SANTOS",
+        "RIAN DE OLIVEIRA NORONHA RODRIGUE": "RIAN DE OLIVEIRA NORONHA RODRIGUES",
+        "RODRIGO RODRIGUEZ F DE OLIVEIRA S": "RODRIGO RODRIGUEZ F DE OLIVEIRA SILVA",
+        "SUZANA CRISTINA PEREIRA DE OLIVEI": "SUZANA CRISTINA PEREIRA DE OLIVEIRA",
+        "THARSIS LAMIN LUMUMBA BOA MORTE Q": "THARSIS LAMIN LUMUMBA BOA MORTE QUEIROZ",
+        "VINICIUS MATHEUS SOUZA OLIVEIRA S": "VINICIUS MATHEUS SOUZA OLIVEIRA SANTOS",
+        "VINICIUS PEREIRA AMARAL DOS SANTO": "VINICIUS PEREIRA AMARAL DOS SANTOS",
+        "VINICIUS RICARDO DA SILVA FERREIR": "VINICIUS RICARDO DA SILVA FERREIRA",
+        "WALTER DO ESPIRITO SANTO SOUZA FI": "WALTER DO ESPIRITO SANTO SOUZA FILHO",
+        "WELLINGTON LUIZ BENEDITO OSTEMBER": "WELLINGTON LUIZ BENEDITO OSTEMBERG",
+
+        # JR / JUNIOR
+        "JOAO FELIX MEDEIROS JR": "JOAO FELIX MEDEIROS JUNIOR",
+        "MARIO CESAR MIRANDA JR": "MARIO CESAR MIRANDA JUNIOR",
+        "PAULO CESAR DE ALMEIDA FERREIRA JR": "PAULO CEZAR DE ALMEIDA FERREIRA JUNIOR",
+        "PAULO CEZAR DE ALMEIDA FERREIRA JR": "PAULO CEZAR DE ALMEIDA FERREIRA JUNIOR",
+        "PAULO CEZAR DE ALMEIDA FERREIRA J": "PAULO CEZAR DE ALMEIDA FERREIRA JUNIOR",
+
+        # Typos / variantes de grafia
+        "ALAN VILAS BOAS MORELLI": "ALAN VILLAS BOAS MORELLI",
+        "ALEXANDRE WILLIAN DA SILVA": "ALEXANDRE WILLIAM DA SILVA",
+        "BRUNO PASSOS MOARES": "BRUNO PASSOS MORAES",
+        "FELIPE DE ASSUNCAO ARAUJO": "FELIPE DE ASSUMPCAO ARAUJO",
+        "FELIPE LOBO DE OLIVEIRA VALIM": "FELIPE LOBO DE OLIVEIRA VALLIM",
+        "GUSTAVO ALBURQUERQUE LIMA": "GUSTAVO ALBUQUERQUE LIMA",
+        "IGOR MOREIRA DELESPOTI": "IGOR MOREIRA DELESPOSTI",
+        "JOAO CARLOS MAZIEIRO": "JOAO CARLOS MAZIERO",
+        "JOSE RICARDO DAMACENO DOS REIS": "JOSE RICARDO DAMASCENO DOS REIS",
+        "KAIQUE SPAGNOL TOFOLI": "KAIQUE SPAGNOL TOFFOLI",
+        "LARISSA CHARADIA DA SILVA": "LARISSA CHIARADIA DA SILVA",
+        "LEONARDO DA SIVA PIPOLI": "LEONARDO DA SILVA PIPOLI",
+        "LEONARDO SOUZA CARVALHO": "LEONARDO SOUSA CARVALHO",
+        "LETICIA DANIELE PEROTI": "LETICIA DANIELE PEROTTI",
+        "LINHA SETE SOLUAAES LTDA": "LINHA SETE SOLUCOES LTDA",
+        "MARCELO QUADRELI OINHEIRO": "MARCELO QUADRELLI PINHEIRO",
+        "MATHEUS MAGALHAES BASBOSA CAMPELO": "MATHEUS MAGALHAES BARBOSA CAMPELO",
+        "PATRICK ALAN CUSTODIO": "PATRICK ALLAN CUSTODIO",
+        "PEDRO SIQUIRA NETO": "PEDRO SIQUEIRA NETO",
+        "PEDRO VIEIRA DE SOUZA NETO": "PEDRO VIEIRA DE SOUSA NETO",
+        "TATIANE CORREA CAMILO": "TATIANE CORREIA CAMILO",
+        "THIAGO RAMA DA SIVA": "THIAGO RAMA DA SILVA",
+        "VITOR SANDER BARREIROS DE OLIVERA": "VITOR SANDER BARREIROS DE OLIVEIRA",
+        "WANDER WILLIAN DE OLIVEIRA": "WANDER WILLIAM DE OLIVEIRA",
+        "WELLINGTON BORGES DE SOUZA": "WELLINGTON BORGES DE SOUSA",
+
+        # Apostrofe
+        "ALEXANDRE AZEVEDO D'AMOEDO E SILVA": "ALEXANDRE AZEVEDO DAMOEDO E SILVA",
+
+        # Nome curto / abreviado vs completo
+        "ANA CAROLINA TEORODO": "ANA CAROLINA TEODORO",
+        "ANDSON LOURENCO": "ANDSON LOURENCO ALVES",
+        "CATHARINA GAISSLER": "CATHARINA GAISSLER SANTOS",
+        "MARCELA AN": "MARCELA AN.",
+        "MATHEUS ANVERSA": "MATHEUS ANVERSA VIERA",
+        "RAMON CAMPOS SILVA": "RAMON CAMPOS SILVA-SERVICOS",
+        "ROSANGELA DANTAS": "ROSANGELA DANTAS LIMA",
+        "STEPHANI BOECHAT": "STEPHANI BOECHAT ROCHA",
+        "LUCIANE BALLE": "LUCIANE BALLE LTDA",
+        "ANALISTA PLENO": "ANALISTA PLENO (GRC)",
+    }
+    df["_pessoa_key"] = df["_pessoa_key"].map(lambda x: NOME_PESSOA_ALIAS.get(x, x))
+    nome_norm = df["_pessoa_key"]
 
     # Unificação de variantes de nome: nome curto que é prefixo (palavra-a-palavra)
     # de nome mais longo é considerado a mesma pessoa.
@@ -3228,6 +3355,83 @@ def get_nova_base_resumo(
         agg = agg[agg["periodo"].isin(periodos_com_dados)]
 
     return _sanitize(agg.to_dict(orient="records"))
+
+@app.get("/api/budget-vs-realizado")
+def get_budget_vs_realizado(
+    verticais: str = "", clientes: str = "",
+    user=Depends(get_current_user)
+):
+    """Budget 2026 (fonte=Budget) vs Realizado 2026 (nova_base sem Budget).
+    Retorna agregado por (periodo, vertical, nome_cliente).
+    Custo armazenado como negativo; LB / Receita positivos.
+    """
+    import numpy as np
+
+    # === Budget ===
+    bud = _load_budget_supabase()
+    if bud.empty:
+        bud = pd.DataFrame(columns=["periodo", "vertical", "nome_cliente", "receita", "custo_rateado", "valor_liquido"])
+    bud = bud.rename(columns={"custo_rateado": "custo", "valor_liquido": "lb"})
+    for c in ("receita", "custo", "lb"):
+        bud[c] = pd.to_numeric(bud[c], errors="coerce").fillna(0)
+    bud["nome_cliente"] = bud["nome_cliente"].fillna("").astype(str).str.strip()
+    bud["vertical"] = bud["vertical"].fillna("").astype(str).str.strip()
+
+    # === Realizado ===
+    df = _get_nova_base().copy()
+    df = df[df["periodo"].fillna("").astype(str).str.startswith("2026-")]
+    for c in ("receita", "custo_rateado", "valor_liquido"):
+        if c not in df.columns:
+            df[c] = 0.0
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+
+    # Separa custo (somente custo direto, exclui despesa)
+    has_ma = df.get("macro_area", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().ne("")
+    classif = df.get("classificacao", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().str.lower()
+    expl_desp = classif == "despesa"
+    expl_cus = classif == "custo"
+    is_despesa = expl_desp | ((~expl_cus) & has_ma)
+    df["_custo"] = np.where(~is_despesa, df["custo_rateado"], 0.0)
+    # LB realizado = receita + custo (custo negativo)
+    df["_lb"] = df["receita"] + df["_custo"]
+
+    real = df.groupby(["periodo", "vertical", "nome_cliente"], dropna=False).agg(
+        real_receita=("receita", "sum"),
+        real_custo=("_custo", "sum"),
+        real_lb=("_lb", "sum"),
+    ).reset_index()
+    real["nome_cliente"] = real["nome_cliente"].fillna("").astype(str).str.strip()
+    real["vertical"] = real["vertical"].fillna("").astype(str).str.strip()
+
+    # join outer
+    bud_agg = bud.groupby(["periodo", "vertical", "nome_cliente"], dropna=False).agg(
+        bud_receita=("receita", "sum"),
+        bud_custo=("custo", "sum"),
+        bud_lb=("lb", "sum"),
+    ).reset_index()
+
+    merged = pd.merge(
+        bud_agg, real,
+        on=["periodo", "vertical", "nome_cliente"], how="outer"
+    ).fillna(0)
+
+    # Filtros
+    vert_list = [v.strip() for v in verticais.split(",") if v.strip()]
+    if vert_list:
+        merged = merged[merged["vertical"].isin(vert_list)]
+    cli_list = [c.strip() for c in clientes.split(",") if c.strip()]
+    if cli_list:
+        merged = merged[merged["nome_cliente"].isin(cli_list)]
+
+    for c in ("bud_receita", "bud_custo", "bud_lb", "real_receita", "real_custo", "real_lb"):
+        merged[c] = merged[c].round(2)
+
+    return {
+        "rows": merged.to_dict(orient="records"),
+        "verticais_disponiveis": sorted([v for v in merged["vertical"].dropna().unique().tolist() if v]),
+        "clientes_disponiveis": sorted([c for c in merged["nome_cliente"].dropna().unique().tolist() if c]),
+    }
+
 
 @app.get("/api/nova-base/margem/clientes")
 def get_nova_base_margem_clientes(

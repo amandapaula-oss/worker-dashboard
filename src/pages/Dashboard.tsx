@@ -20,6 +20,7 @@ import NovaBaseTab from "./NovaBaseTab";
 import NovaBaseResumoTab, { NovaDreTab } from "./NovaBaseResumoTab";
 import NovaBaseMargemTab from "./NovaBaseMargemTab";
 import NovaBasePivotTab from "./NovaBasePivotTab";
+import BudgetVsRealizadoTab from "./BudgetVsRealizadoTab";
 import { uploadNovaBase, clearNovaBaseCache } from "../api";
 import { ReloadOutlined } from "@ant-design/icons";
 
@@ -371,6 +372,7 @@ export default function Dashboard() {
                 { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
                 { key: "apuracao",  label: <span><AimOutlined /> Apuração</span>,               children: <NovaBaseResumoTab agruparPor="apuracao" /> },
                 { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
+                { key: "budgetReal", label: <span><AimOutlined /> Budget vs Realizado</span>,   children: <BudgetVsRealizadoTab /> },
               ]}
             />
             </NovaBaseFiltersProvider>

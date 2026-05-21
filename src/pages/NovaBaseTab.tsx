@@ -130,8 +130,7 @@ export default function NovaBaseTab() {
   const [columns, setColumns] = useState<any[]>([
     { title: "Fonte", dataIndex: "fonte_familia", key: "fonte_familia", width: 140, sorter: sortStr("fonte_familia"),
       render: (v: string) => <Tag color={FONTE_COLORS[v] ?? "default"}>{v}</Tag> },
-    { title: "Aba", dataIndex: "fonte", key: "fonte", width: 130, ellipsis: true, sorter: sortStr("fonte") },
-    { title: "Arquivo", dataIndex: "fonte_dados", key: "fonte_dados", width: 220, ellipsis: true, sorter: sortStr("fonte_dados") },
+    { title: "Arquivo", dataIndex: "fonte_dados", key: "fonte_dados", width: 260, ellipsis: true, sorter: sortStr("fonte_dados") },
     { title: "Período",    dataIndex: "periodo",         key: "periodo",         width: 90,  sorter: sortStr("periodo") },
     { title: "Empresa",    dataIndex: "empresa",         key: "empresa",         width: 90,  sorter: sortStr("empresa") },
     { title: "PEP",        dataIndex: "pep_base",        key: "pep_base",        width: 130, sorter: sortStr("pep_base") },
