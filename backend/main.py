@@ -3279,12 +3279,21 @@ def get_nova_base_margem_clientes(
     _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
     df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
     df["margem"] = df["receita"] + df["custo_rateado"]
+    def _moda_cli(s):
+        nz = s[s.fillna("").astype(str).str.strip().ne("")]
+        m = nz.mode()
+        return m.iloc[0] if len(m) else ""
+    for _c in ("vertical", "no_hierarquia"):
+        if _c not in df.columns:
+            df[_c] = ""
     group_keys = ["nome_cliente", "periodo"] if breakdown else ["nome_cliente"]
     agg = df.groupby(group_keys, as_index=False).agg(
-        receita       = ("receita",       "sum"),
-        custo_rateado = ("custo_rateado", "sum"),
-        horas         = ("horas",         "sum"),
-        margem        = ("margem",        "sum"),
+        receita        = ("receita",       "sum"),
+        custo_rateado  = ("custo_rateado", "sum"),
+        horas          = ("horas",         "sum"),
+        margem         = ("margem",        "sum"),
+        vertical       = ("vertical",      _moda_cli),
+        no_hierarquia  = ("no_hierarquia", _moda_cli),
     )
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
@@ -3818,7 +3827,7 @@ def get_nova_base_data(
     cols_show = [
         "fonte_familia", "fonte", "fonte_dados", "periodo", "empresa", "pep_base", "nome_pessoa",
         "nome_cliente", "tipo_contrato", "classificacao", "area",
-        "centro_lucro", "macro_area", "vertical", "tipos", "agrupador",
+        "no_hierarquia", "macro_area", "vertical", "apuracao", "tipos", "agrupador",
         "receita", "custo_rateado", "horas", "margem",
         "valor_liquido", "taxa_hora", "billable_category", "tag_rateio", "Comentarios",
     ]

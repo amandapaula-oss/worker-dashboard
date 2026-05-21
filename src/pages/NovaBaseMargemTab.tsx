@@ -283,6 +283,10 @@ export default function NovaBaseMargemTab() {
           ),
           sorter: (a: any, b: any) => String(a.nome_cliente).localeCompare(String(b.nome_cliente), "pt-BR"),
         },
+        { title: "BU", dataIndex: "vertical", key: "vertical", width: 140, ellipsis: true,
+          sorter: (a: any, b: any) => String(a.vertical || "").localeCompare(String(b.vertical || "")) },
+        { title: "Centro de Lucro", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 170, ellipsis: true,
+          sorter: (a: any, b: any) => String(a.no_hierarquia || "").localeCompare(String(b.no_hierarquia || "")) },
       ];
       const metricCols: Record<Metric, any> = {
         receita: { title: "Receita", dataIndex: "receita", key: "receita", align: "right" as const, width: 150,

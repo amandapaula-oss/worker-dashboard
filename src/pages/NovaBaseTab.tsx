@@ -138,6 +138,7 @@ export default function NovaBaseTab() {
     { title: "Área",       dataIndex: "area",            key: "area",            width: 140 },
     { title: "Macro Área", dataIndex: "macro_area",      key: "macro_area",      width: 130 },
     { title: "Vertical",   dataIndex: "vertical",        key: "vertical",        width: 140, ellipsis: true },
+    { title: "Centro de Lucro", dataIndex: "no_hierarquia", key: "no_hierarquia", width: 160, ellipsis: true },
     { title: "Apuração",   dataIndex: "apuracao",        key: "apuracao",        width: 110,
       render: (v: string) => v ? <Tag color={v === "NG" ? "magenta" : "geekblue"}>{v}</Tag> : "—" },
     { title: "Descrição",  dataIndex: "tipos",           key: "tipos",           width: 180, ellipsis: true },
