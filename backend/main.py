@@ -2049,6 +2049,17 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     # Aliases de nome de cliente — variantes que são o mesmo cliente.
     # Chave = nome normalizado (UPPER, sem espaços extras); valor = nome canônico.
     NOME_CLIENTE_ALIAS = {
+        "CARTOS": "CARTOS",
+        "CARTOS SOCIEDADE DE CREDITO DIRETO": "CARTOS",
+        "CARTOS SOCIEDADE DE CREDITO DIRETO S.A.": "CARTOS",
+        "M33 CONSULTORIA, MEDICINA E GESTAO": "M33 CONSULTORIA, MEDICINA E GESTAO LTDA",
+        "M33 CONSULTORIA, MEDICINA E GESTAO LTDA": "M33 CONSULTORIA, MEDICINA E GESTAO LTDA",
+        "RAIA DROGASIL S/A - 0001-51": "RAIA DROGASIL S/A",
+        "RAIA DROGASIL S/A": "RAIA DROGASIL S/A",
+        "STRADA PAY INSTITUICAO DE PAGAMENTO": "STRADA PAY INSTITUICAO DE PAGAMENTO LTDA",
+        "STRADA PAY INSTITUICAO DE PAGAMENTO LTDA": "STRADA PAY INSTITUICAO DE PAGAMENTO LTDA",
+        "DANONE": "DANONE",
+        "DANONE LTDA": "DANONE",
         "TRANSUNION": "TransUnion",
         "TRANSUNION BRASIL SISTEMAS EM INFOR": "TransUnion",
         "TRANSUNION BRASIL SISTEMAS EM INFORMATIC": "TransUnion",
