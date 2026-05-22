@@ -1853,7 +1853,13 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             distintos = df["nome_cliente"].fillna("").unique()
             resol = {nc: _resolve(nc) for nc in distintos}
             override = df["nome_cliente"].fillna("").map(resol)
-            df.loc[override.notna(), "vertical"] = override[override.notna()]
+            # NAO sobrepoe BU explicita da linha de origem (planilha) — so
+            # preenche onde a vertical esta vazia/Others.
+            _BU_DEF = {"BU Finance", "BU Health", "BU Logistics",
+                       "BU Multisector", "BU Retail", "BU Others"}
+            v_cur = df["vertical"].fillna("").astype(str).str.strip()
+            mask_apply = override.notna() & ~v_cur.isin(_BU_DEF)
+            df.loc[mask_apply, "vertical"] = override[mask_apply]
     except Exception as e:
         print(f"[vertical_por_cliente] falhou: {e}")
 
@@ -1892,7 +1898,10 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
                        .agg(lambda s: s.mode().iloc[0]))
                 dom_map = dom.to_dict()
                 cli_bu = cli.map(dom_map)
-                aplica = cli_bu.notna() & cli.ne("") & ~cli.isin(["0", "nan"])
+                # Preserva BU explicita da linha de origem (planilha): so aplica
+                # a BU dominante onde a linha esta vazia/Others.
+                aplica = (cli_bu.notna() & cli.ne("") & ~cli.isin(["0", "nan"])
+                          & ~vv.isin(BUS_OK))
                 df.loc[aplica, "vertical"] = cli_bu[aplica]
     except Exception as e:
         print(f"[vertical_consistencia_cliente] falhou: {e}")
@@ -2040,6 +2049,9 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     # Aliases de nome de cliente — variantes que são o mesmo cliente.
     # Chave = nome normalizado (UPPER, sem espaços extras); valor = nome canônico.
     NOME_CLIENTE_ALIAS = {
+        "TRANSUNION": "TransUnion",
+        "TRANSUNION BRASIL SISTEMAS EM INFOR": "TransUnion",
+        "TRANSUNION BRASIL SISTEMAS EM INFORMATIC": "TransUnion",
         "BANCO BV": "BANCO VOTORANTIM S.A.",
         "ODONTOPREV": "ODONTOPREV S.A.",
         "ODONTOPREV S.A.": "ODONTOPREV S.A.",
