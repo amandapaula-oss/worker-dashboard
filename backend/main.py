@@ -2632,6 +2632,11 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
 
     is_cp = df["fonte"].astype(str) == "custo_project"
     is_rac = df["fonte"].astype(str) == "racionais"
+    is_orange = df["fonte"].astype(str) == "base Orange"
+    # Orange so participa do rateio se a linha tem nome_cliente (senao migrar
+    # custo CLT pra Orange sem cliente piora o "sem cliente").
+    _has_cli = df.get("nome_cliente", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.strip().ne("")
+    is_orange_cli = is_orange & _has_cli
 
     # 1. Custo total por pessoa × período:
     #    - CLT: vem de custo_gerencial (planilha SAP — só de CLTs)
@@ -2684,7 +2689,21 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     rac_keys["_tem_rac"] = True
     df = df.merge(rac_keys, on=["_pk", "_periodo_str"], how="left")
     df["_tem_rac"] = df["_tem_rac"].fillna(False).astype(bool)
-    is_horas_src = is_rac | (is_cp & ~df["_tem_rac"])
+
+    # NOVA REGRA: per-PEP. Racional tem prioridade; Orange-cli complementa
+    # apenas pra (pessoa, periodo, PEP) que NAO tem racional. Usa string-key
+    # + set check (sem merge novo, memoria leve).
+    _pep_k3 = (df["_pk"].fillna("").astype(str) + "|"
+               + df["_periodo_str"].fillna("").astype(str) + "|"
+               + df["pep"].fillna("").astype(str))
+    _rac_pep_set = set(_pep_k3[is_rac & df["_pk"].notna()])
+    is_orange_eligible = is_orange_cli & ~_pep_k3.isin(_rac_pep_set)
+
+    # Fonte de horas: racional (primario), cp como fallback se pessoa sem racional,
+    # Orange-eligible (linha com cliente, PEP sem racional naquela pessoa-periodo).
+    is_horas_src = is_rac | (is_cp & ~df["_tem_rac"]) | is_orange_eligible
+    # Destinos do rateio (linhas que recebem custo): racional + Orange-eligible.
+    is_alloc_target = is_rac | is_orange_eligible
 
     # 2. Horas apontadas totais por pessoa × período (custo_project, ou racionais
     #    como fallback quando não há custo_project no mês)
@@ -2701,38 +2720,36 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df = df.merge(horas_por_pep, on=["_pk", "_periodo_str", "pep"], how="left")
     df["_horas_pep"] = df["_horas_pep"].fillna(0)
 
-    # 3b. Horas em racionais por PEP (denominador pra split quando há
-    #     múltiplas linhas de racional no mesmo PEP da pessoa).
-    is_rac = df["fonte"].astype(str) == "racionais"
-    horas_rac_por_pep = (df[is_rac & df["_pk"].notna()]
-                         .groupby(["_pk", "_periodo_str", "pep"])["horas"].sum()
-                         .rename("_horas_rac_pep").reset_index())
-    df = df.merge(horas_rac_por_pep, on=["_pk", "_periodo_str", "pep"], how="left")
-    df["_horas_rac_pep"] = df["_horas_rac_pep"].fillna(0)
+    # 3b. Horas por PEP dos destinos do rateio (racional + Orange-eligible) —
+    #     denominador pra split quando ha multiplas linhas no mesmo PEP.
+    horas_dest_por_pep = (df[is_alloc_target & df["_pk"].notna()]
+                          .groupby(["_pk", "_periodo_str", "pep"])["horas"].sum()
+                          .rename("_horas_dest_pep").reset_index())
+    df = df.merge(horas_dest_por_pep, on=["_pk", "_periodo_str", "pep"], how="left")
+    df["_horas_dest_pep"] = df["_horas_dest_pep"].fillna(0)
 
-    # 4. Aloca custo nas linhas de racionais.
-    # custo_pep_total = custo_total × (horas_pep_em_cp / horas_tot_cp)  -- fatia do PEP
-    # custo_linha     = custo_pep_total × (linha_horas / horas_rac_no_pep)  -- split dentro do PEP
-    # Quando só há 1 linha de racional por PEP, share_within_pep=1 e a fórmula
-    # reduz ao comportamento original.
-    mask_rac_aloca = is_rac & (df["_horas_tot"] > 0) & (df["_custo_total"] != 0) & (df["_horas_pep"] > 0)
+    # 4. Aloca custo nas linhas de racionais E Orange-eligible.
+    # custo_pep_total = custo_total × (horas_pep / horas_tot)  -- fatia do PEP
+    # custo_linha     = custo_pep_total × (linha_horas / horas_dest_no_pep)  -- split dentro do PEP
+    mask_rac_aloca = is_alloc_target & (df["_horas_tot"] > 0) & (df["_custo_total"] != 0) & (df["_horas_pep"] > 0)
     horas_linha = pd.to_numeric(df["horas"], errors="coerce").fillna(0)
     share_pep         = np.where(df["_horas_tot"]      > 0, df["_horas_pep"] / df["_horas_tot"],     0.0)
-    share_within_pep  = np.where(df["_horas_rac_pep"]  > 0, horas_linha       / df["_horas_rac_pep"], 1.0)
+    share_within_pep  = np.where(df["_horas_dest_pep"] > 0, horas_linha       / df["_horas_dest_pep"], 1.0)
     custo_alocado = np.where(
         mask_rac_aloca,
         df["_custo_total"] * share_pep * share_within_pep,
         0.0,
     )
     df.loc[mask_rac_aloca, "custo_rateado"] = custo_alocado[mask_rac_aloca]
-    df.loc[mask_rac_aloca, "tag_rateio"] = (
-        "Rateio: " + horas_linha[mask_rac_aloca].round(1).astype(str)
-        + "h da linha (PEP " + df.loc[mask_rac_aloca, "_horas_rac_pep"].round(1).astype(str)
-        + "h, pessoa " + df.loc[mask_rac_aloca, "_horas_tot"].round(1).astype(str) + "h)"
+    df.loc[mask_rac_aloca & is_rac, "tag_rateio"] = (
+        "Rateio (racional): " + horas_linha[mask_rac_aloca & is_rac].round(1).astype(str) + "h"
     )
-    df.loc[is_rac & ~mask_rac_aloca, "tag_rateio"] = "Receita sem custo atrelado (pessoa sem apontamento no PEP)"
+    df.loc[mask_rac_aloca & is_orange_eligible, "tag_rateio"] = (
+        "Rateio (Orange): " + horas_linha[mask_rac_aloca & is_orange_eligible].round(1).astype(str) + "h"
+    )
+    df.loc[is_alloc_target & ~mask_rac_aloca, "tag_rateio"] = "Receita/aponta sem custo atrelado"
 
-    # Marca pessoa-periodo cujo custo foi efetivamente distribuído a racionais.
+    # Marca pessoa-periodo cujo custo foi efetivamente rateado.
     pessoa_rateada = df[mask_rac_aloca].groupby(["_pk", "_periodo_str"]).size().reset_index()
     if len(pessoa_rateada) > 0:
         pessoa_rateada["_foi_rateado"] = True
@@ -2816,7 +2833,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.drop(columns=[
         "_pk", "_periodo_str", "_custo_total", "_custo_total_cp", "_custo_cp_raw",
-        "_horas_tot", "_horas_pep", "_cpf", "_nome", "_id", "_mapped_cpf",
+        "_horas_tot", "_horas_pep", "_horas_dest_pep", "_cpf", "_nome", "_id", "_mapped_cpf",
         "_eh_clt", "_foi_rateado", "_cp_alocado", "_tem_rac", "_aloc_tot",
     ], errors="ignore")
     return df
