@@ -2621,6 +2621,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
+    # Persistente: CPF enriquecido (digits only) por linha — usado pelo sync
+    # da calculada e demais views. Junta o CPF da propria linha + lookup nome.
+    df["cpf"] = np.where(df["_cpf"] != "", df["_cpf"], df["_mapped_cpf"])
+
     # ─── Rateio proporcional ─────────────────────────────────────────────
     # Ideia: custo_real_pessoa (Custo Gerencial SAP pra CLT, valor_liquido pra PJ)
     # é distribuído proporcionalmente às horas apontadas em cada PEP via custo_project.
@@ -3189,6 +3193,7 @@ def _sync_nova_base_calculada() -> dict:
         "macro_area": _s("macro_area"), "area": _s("area"),
         "fonte": _s("fonte"), "fonte_familia": _s("fonte_familia"), "fonte_dados": _s("fonte_dados"),
         "nome_pessoa": _s("nome_pessoa"), "nome_cliente": _s("nome_cliente"),
+        "cpf": _s("cpf"),
         "pep": _s("pep"), "pep_base": _s("pep_base"),
         "tipo_contrato": _s("tipo_contrato"), "classificacao": _s("classificacao"),
         "billable_category": _s("billable_category"), "tipos": _s("tipos"), "agrupador": _s("agrupador"),
