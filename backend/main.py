@@ -1628,26 +1628,68 @@ def _load_budget_supabase() -> pd.DataFrame:
 
 _pessoal_cache: dict = {"map_nome": None, "map_id": None}
 
+def _norm_pessoa_nome(s):
+    """Normalizacao completa: upper, sem acentos, colapsa espacos."""
+    import unicodedata, re as _re
+    if not isinstance(s, str) or not s:
+        return ""
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+    return _re.sub(r"\s+", " ", s).strip().upper()
+
+
 def _carregar_pessoal_depara() -> tuple[dict, dict]:
-    """Carrega o de-para pessoal (nome/id → cpf) uma vez e cacheia."""
+    """Carrega o de-para pessoal (nome/id → cpf) e cacheia. Fontes:
+    1) pessoal_depara.csv (CSV historico)
+    2) tabela `pessoas` no Supabase (master CPF) — sobrescreve conflitos.
+    Normalizacao: NFKD + upper + collapse spaces (casa com acentos/typos).
+    """
     if _pessoal_cache["map_nome"] is not None:
         return _pessoal_cache["map_nome"], _pessoal_cache["map_id"]
+    import re as _re
+
+    map_nome: dict = {}
+    map_id: dict = {}
+
+    # 1) CSV
     path = os.path.join(_BASE_DIR, "pessoal_depara.csv")
-    if not os.path.exists(path):
-        _pessoal_cache["map_nome"] = {}
-        _pessoal_cache["map_id"] = {}
-        return {}, {}
-    p = pd.read_csv(path, dtype=str).dropna(subset=["cpf"])
-    p["nome_norm"] = p["nome"].astype(str).str.upper().str.strip()
-    p["id"] = p["id"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
-    # cpf em formato BRCPF... — extrai só dígitos pra consistência
-    p["cpf_digits"] = p["cpf"].astype(str).str.replace(r"[^\d]", "", regex=True)
-    p = p[p["cpf_digits"].str.len() >= 11]
-    map_nome = p.drop_duplicates("nome_norm").set_index("nome_norm")["cpf_digits"].to_dict()
-    map_id   = p.drop_duplicates("id").set_index("id")["cpf_digits"].to_dict()
+    if os.path.exists(path):
+        p = pd.read_csv(path, dtype=str).dropna(subset=["cpf"])
+        p["nome_norm"] = p["nome"].apply(_norm_pessoa_nome)
+        p["id"] = p["id"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+        p["cpf_digits"] = p["cpf"].astype(str).str.replace(r"[^\d]", "", regex=True)
+        p = p[p["cpf_digits"].str.len() >= 11]
+        map_nome.update(p.drop_duplicates("nome_norm").set_index("nome_norm")["cpf_digits"].to_dict())
+        map_id.update(p.drop_duplicates("id").set_index("id")["cpf_digits"].to_dict())
+
+    # 2) Supabase pessoas (master) — sobrescreve
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            headers = _supabase_headers()
+            all_rows = []
+            off = 0
+            with httpx.Client(timeout=30) as c:
+                while True:
+                    r = c.get(f"{SUPABASE_URL}/rest/v1/pessoas?select=cpf,nome&offset={off}&limit=1000", headers=headers)
+                    if r.status_code != 200:
+                        break
+                    data = r.json()
+                    all_rows.extend(data)
+                    if len(data) < 1000:
+                        break
+                    off += 1000
+            for row in all_rows:
+                cpf = _re.sub(r"[^\d]", "", str(row.get("cpf") or ""))
+                if len(cpf) < 11:
+                    continue
+                nome_n = _norm_pessoa_nome(row.get("nome") or "")
+                if nome_n:
+                    map_nome[nome_n] = cpf
+        except Exception as e:
+            print(f"[pessoas table] {e}")
+
     _pessoal_cache["map_nome"] = map_nome
-    _pessoal_cache["map_id"]   = map_id
-    print(f"[pessoal_depara] {len(map_nome)} nomes, {len(map_id)} ids carregados")
+    _pessoal_cache["map_id"] = map_id
+    print(f"[pessoal_depara] {len(map_nome)} nomes, {len(map_id)} ids carregados (CSV+pessoas)")
     return map_nome, map_id
 
 
@@ -2581,7 +2623,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     # Essencial pra custo_gerencial que só tem nome+id, sem CPF
     map_nome_cpf, map_id_cpf = _carregar_pessoal_depara()
     if map_nome_cpf or map_id_cpf:
-        nome_pre = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index)).astype(str).str.upper().str.strip()
+        # Usa normalizacao completa (NFKD + upper + collapse spaces) pra casar
+        # com a depara mesmo com acentos/typos/double-space.
+        nome_raw_serie = df.get("nome_pessoa", pd.Series([""] * len(df), index=df.index))
+        nome_pre = nome_raw_serie.apply(_norm_pessoa_nome)
         id_pre = df.get("numero_pessoal", pd.Series([""] * len(df), index=df.index)).astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
         cpf_from_nome = nome_pre.map(map_nome_cpf).fillna("")
         cpf_from_id   = id_pre.map(map_id_cpf).fillna("")
