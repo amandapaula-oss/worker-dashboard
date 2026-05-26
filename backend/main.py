@@ -4152,13 +4152,42 @@ def _split_custo_despesa(df: pd.DataFrame) -> tuple:
     )
 
 
+def _load_pessoas_lookup() -> dict:
+    """CPF (digits) -> dict com nome, contrato, razao_social, cnpj, email."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return {}
+    try:
+        headers = _supabase_headers()
+        out = {}
+        off = 0
+        import re as _re
+        with httpx.Client(timeout=30) as c:
+            while True:
+                r = c.get(f"{SUPABASE_URL}/rest/v1/pessoas?select=cpf,nome,email,contrato,razao_social,cnpj&offset={off}&limit=1000", headers=headers)
+                if r.status_code != 200:
+                    break
+                data = r.json()
+                for row in data:
+                    cpf_d = _re.sub(r"[^\d]", "", str(row.get("cpf") or ""))
+                    if len(cpf_d) >= 11:
+                        out[cpf_d] = row
+                if len(data) < 1000:
+                    break
+                off += 1000
+        return out
+    except Exception as e:
+        print(f"[pessoas_lookup] {e}")
+        return {}
+
+
 @app.get("/api/workers")
 def get_workers(
     periodos: str = "",
     verticais: str = "",
     user=Depends(get_current_user),
 ):
-    """Lista de pessoas com receita, custo, margem e horas agregados."""
+    """Lista de pessoas com receita, custo, margem e horas agregados.
+    Inclui CPF, contrato, razao_social via JOIN com tabela pessoas."""
     df = _get_nova_base().copy()
     if periodos:
         pers = [p.strip() for p in periodos.split(",") if p.strip()]
@@ -4180,6 +4209,8 @@ def get_workers(
 
     custo_s, _, _ = _split_custo_despesa(df)
     df["_custo"] = custo_s
+    if "cpf" not in df.columns:
+        df["cpf"] = ""
 
     agg = df.groupby("nome_pessoa").agg(
         receita=("receita", "sum"),
@@ -4188,7 +4219,16 @@ def get_workers(
         tipo_contrato=("tipo_contrato", lambda s: s.dropna().mode().iloc[0] if len(s.dropna().mode()) else ""),
         vertical=("vertical", lambda s: s.dropna().mode().iloc[0] if len(s.dropna().mode()) else ""),
         n_clientes=("nome_cliente", lambda s: s.fillna("").astype(str).str.strip().replace("", pd.NA).nunique()),
+        cpf=("cpf", lambda s: s.dropna().astype(str).replace("", pd.NA).dropna().mode().iloc[0] if len(s.dropna().astype(str).replace("", pd.NA).dropna()) else ""),
     ).reset_index()
+
+    # JOIN com pessoas (CPF -> contrato, razao_social, cnpj)
+    pessoas = _load_pessoas_lookup()
+    agg["contrato"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(c, {}) or {}).get("contrato") or "")
+    agg["razao_social"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(c, {}) or {}).get("razao_social") or "")
+    agg["cnpj"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(c, {}) or {}).get("cnpj") or "")
+    agg["email"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(c, {}) or {}).get("email") or "")
+
     agg["margem"] = agg["receita"] + agg["custo"]
     agg["margem_pct"] = (agg["margem"] / agg["receita"]).where(agg["receita"] != 0, 0).round(4)
     for c in ("receita", "custo", "margem", "horas"):

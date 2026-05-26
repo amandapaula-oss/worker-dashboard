@@ -10,6 +10,11 @@ import { theme } from "../theme";
 
 type Row = {
   nome_pessoa: string;
+  cpf?: string;
+  contrato?: string;
+  razao_social?: string;
+  cnpj?: string;
+  email?: string;
   receita: number; custo: number; margem: number; horas: number;
   margem_pct: number; vertical: string; tipo_contrato: string; n_clientes: number;
 };
@@ -78,19 +83,32 @@ export default function WorkersTab() {
       .finally(() => setLoadingDet(false));
   };
 
+  const formatCpf = (s?: string) => {
+    if (!s) return "—";
+    const d = String(s).replace(/\D/g, "");
+    if (d.length !== 11) return s;
+    return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
+  };
+  const contratoColor: Record<string, string> = { CLT: "blue", PJ: "purple", INTERN: "cyan", "Estagiário": "geekblue", OTHER: "default" };
+
   const columns = [
-    { title: "Pessoa", dataIndex: "nome_pessoa", key: "nome_pessoa", fixed: "left" as const, width: 280,
+    { title: "Pessoa", dataIndex: "nome_pessoa", key: "nome_pessoa", fixed: "left" as const, width: 240,
       render: (v: string) => (
         <a onClick={() => openDet(v)} style={{ cursor: "pointer" }}>
           <UserOutlined style={{ marginRight: 6 }} />{v}
         </a>
       ),
       sorter: (a: Row, b: Row) => a.nome_pessoa.localeCompare(b.nome_pessoa, "pt-BR") },
+    { title: "CPF", dataIndex: "cpf", key: "cpf", width: 140,
+      render: (v: string) => <span style={{ fontFamily: "monospace", fontSize: 12 }}>{formatCpf(v)}</span> },
+    { title: "Contrato", dataIndex: "contrato", key: "contrato", width: 95,
+      render: (v: string) => v ? <Tag color={contratoColor[v] || "default"}>{v}</Tag> : "—",
+      sorter: (a: Row, b: Row) => (a.contrato || "").localeCompare(b.contrato || "") },
+    { title: "Razão Social", dataIndex: "razao_social", key: "razao_social", width: 220, ellipsis: true,
+      render: (v: string) => v || "—" },
     { title: "BU", dataIndex: "vertical", key: "vertical", width: 130,
       render: (v: string) => v ? <Tag>{v}</Tag> : "—",
       sorter: (a: Row, b: Row) => (a.vertical || "").localeCompare(b.vertical || "") },
-    { title: "Contrato", dataIndex: "tipo_contrato", key: "tipo_contrato", width: 80,
-      sorter: (a: Row, b: Row) => (a.tipo_contrato || "").localeCompare(b.tipo_contrato || "") },
     { title: "Horas", dataIndex: "horas", key: "horas", align: "right" as const, width: 90,
       render: num, sorter: (a: Row, b: Row) => a.horas - b.horas },
     { title: "Receita", dataIndex: "receita", key: "receita", align: "right" as const, width: 130,
@@ -172,7 +190,7 @@ export default function WorkersTab() {
           rowKey="nome_pessoa"
           size="small"
           pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `${t} pessoas` }}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1600 }}
         />
       </Card>
 

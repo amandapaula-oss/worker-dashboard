@@ -21,9 +21,15 @@ CREATE TABLE IF NOT EXISTS pessoas (
     cpf TEXT UNIQUE NOT NULL,
     nome TEXT NOT NULL,
     email TEXT,
+    contrato TEXT,
+    razao_social TEXT,
+    cnpj TEXT,
     fonte_dados TEXT,
     atualizado_em TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE pessoas ADD COLUMN IF NOT EXISTS contrato TEXT;
+ALTER TABLE pessoas ADD COLUMN IF NOT EXISTS razao_social TEXT;
+ALTER TABLE pessoas ADD COLUMN IF NOT EXISTS cnpj TEXT;
 CREATE INDEX IF NOT EXISTS idx_pessoas_nome ON pessoas (nome);
 CREATE INDEX IF NOT EXISTS idx_pessoas_cpf ON pessoas (cpf);
 """
@@ -41,11 +47,17 @@ def main():
 
     # 2. Carrega master
     m = pd.read_excel(MASTER, sheet_name="monthly_hours_history")
-    m = m[["consultant_name", "email", "worker_id"]].dropna(subset=["worker_id"])
-    m = m.drop_duplicates(subset="worker_id")
+    cols = ["consultant_name", "email", "worker_id", "contrato", "razao_social", "cnpj"]
+    m = m[cols].dropna(subset=["worker_id"])
+    # Pra cada worker_id, pega o registro com mais info (razao_social preenchida ganha)
+    m["_score"] = m["razao_social"].notna().astype(int) + m["cnpj"].notna().astype(int)
+    m = m.sort_values("_score", ascending=False).drop_duplicates(subset="worker_id")
+    m = m.drop(columns=["_score"])
     m = m.rename(columns={"consultant_name": "nome", "worker_id": "cpf"})
     m["fonte_dados"] = "Cadastro Pessoa - BRCPF e e-mail.xlsx"
     print(f"Master: {len(m)} pessoas a inserir")
+    print(f"  com razao_social: {m['razao_social'].notna().sum()}")
+    print(f"  contratos: {m['contrato'].value_counts().to_dict()}")
 
     # 3. Insert via REST com upsert por cpf
     url, key = load_creds()
@@ -53,7 +65,7 @@ def main():
         "apikey": key, "Authorization": f"Bearer {key}",
         "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal",
     }
-    records = m[["cpf", "nome", "email", "fonte_dados"]].to_dict(orient="records")
+    records = m[["cpf", "nome", "email", "contrato", "razao_social", "cnpj", "fonte_dados"]].to_dict(orient="records")
     # Remove NaN
     for r in records:
         for k in list(r.keys()):
