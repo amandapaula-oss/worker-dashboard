@@ -2052,6 +2052,9 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "CARTOS": "CARTOS",
         "CARTOS SOCIEDADE DE CREDITO DIRETO": "CARTOS",
         "CARTOS SOCIEDADE DE CREDITO DIRETO S.A.": "CARTOS",
+        "SADA": "SADA TRANSPORTES E ARMAZENAGENS LTDA",
+        "SADA TRANSPORTES E ARMAZENAGENS LTD": "SADA TRANSPORTES E ARMAZENAGENS LTDA",
+        "SADA TRANSPORTES E ARMAZENAGENS LTDA": "SADA TRANSPORTES E ARMAZENAGENS LTDA",
         "M33 CONSULTORIA, MEDICINA E GESTAO": "M33 CONSULTORIA, MEDICINA E GESTAO LTDA",
         "M33 CONSULTORIA, MEDICINA E GESTAO LTDA": "M33 CONSULTORIA, MEDICINA E GESTAO LTDA",
         "RAIA DROGASIL S/A - 0001-51": "RAIA DROGASIL S/A",
@@ -2629,6 +2632,12 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
 
     is_cp = df["fonte"].astype(str) == "custo_project"
     is_rac = df["fonte"].astype(str) == "racionais"
+    is_orange = df["fonte"].astype(str) == "base Orange"
+    # Orange so participa do rateio se a linha tem nome_cliente — senao migrar
+    # custo CLT pra Orange sem cliente PIORA o "sem cliente" (sai do CLT que
+    # tinha cliente do Mapa, vai pra Orange sem cliente). Mantem na CLT.
+    has_cli = df.get("nome_cliente", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.strip().ne("")
+    is_orange_cli = is_orange & has_cli
 
     # 1. Custo total por pessoa × período:
     #    - CLT: vem de custo_gerencial (planilha SAP — só de CLTs)
@@ -2677,11 +2686,17 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     # Fonte de horas pro rateio: racional é a fonte PRIMÁRIA (mais confiável).
     # custo_project entra só pra pessoa-período que NÃO tem racional — pega o
     # apontamento de horas dela pra distribuir o custo nos PEPs onde trabalhou.
+    # base Orange entra so pra pessoa-periodo que NAO tem racional nem custo_project
+    # — ultimo fallback de horas pra pessoas que so apareceram na Orange.
     rac_keys = df.loc[is_rac & df["_pk"].notna(), ["_pk", "_periodo_str"]].drop_duplicates()
     rac_keys["_tem_rac"] = True
     df = df.merge(rac_keys, on=["_pk", "_periodo_str"], how="left")
     df["_tem_rac"] = df["_tem_rac"].fillna(False).astype(bool)
-    is_horas_src = is_rac | (is_cp & ~df["_tem_rac"])
+    cp_keys = df.loc[is_cp & df["_pk"].notna(), ["_pk", "_periodo_str"]].drop_duplicates()
+    cp_keys["_tem_cp"] = True
+    df = df.merge(cp_keys, on=["_pk", "_periodo_str"], how="left")
+    df["_tem_cp"] = df["_tem_cp"].fillna(False).astype(bool)
+    is_horas_src = is_rac | (is_cp & ~df["_tem_rac"]) | (is_orange_cli & ~df["_tem_rac"] & ~df["_tem_cp"])
 
     # 2. Horas apontadas totais por pessoa × período (custo_project, ou racionais
     #    como fallback quando não há custo_project no mês)
@@ -2773,34 +2788,35 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[mask_cp_pj_residual, "custo_rateado"] = df.loc[mask_cp_pj_residual, "_custo_cp_raw"]
     df.loc[mask_cp_pj_residual, "tag_rateio"] = "PJ — custo na linha custo_project (sem racional matching)"
 
-    # 7. CLT sem racional mas com horas em custo_project: o custo_gerencial
-    # é alocado às linhas de custo_project (que carregam PEP e cliente),
-    # proporcional às horas apontadas. Sem isso o custo ficaria órfão na
-    # linha custo_gerencial (que não tem PEP nem cliente).
-    mask_cp_clt_aloca = (
-        is_cp & df["_eh_clt"] & ~df["_foi_rateado"] & (df["_horas_tot"] > 0)
+    # 7. CLT sem racional mas com horas apontadas (custo_project ou base Orange):
+    # o custo_gerencial e alocado as linhas com PEP/cliente apontados,
+    # proporcional as horas. Sem isso o custo ficaria orfao na linha
+    # custo_gerencial (sem PEP nem cliente).
+    mask_aux_clt_aloca = (
+        (is_cp | is_orange_cli) & df["_eh_clt"] & ~df["_foi_rateado"] & (df["_horas_tot"] > 0)
     )
-    if mask_cp_clt_aloca.any():
-        horas_cp = pd.to_numeric(df["horas"], errors="coerce").fillna(0)
-        share_cp = np.where(df["_horas_tot"] > 0, horas_cp / df["_horas_tot"], 0.0)
-        df.loc[mask_cp_clt_aloca, "custo_rateado"] = (
-            df.loc[mask_cp_clt_aloca, "_custo_total"].astype(float)
-            * share_cp[mask_cp_clt_aloca]
+    if mask_aux_clt_aloca.any():
+        horas_aux = pd.to_numeric(df["horas"], errors="coerce").fillna(0)
+        share_aux = np.where(df["_horas_tot"] > 0, horas_aux / df["_horas_tot"], 0.0)
+        df.loc[mask_aux_clt_aloca, "custo_rateado"] = (
+            df.loc[mask_aux_clt_aloca, "_custo_total"].astype(float)
+            * share_aux[mask_aux_clt_aloca]
         )
-        df.loc[mask_cp_clt_aloca, "tag_rateio"] = "CLT sem racional — custo do PEP alocado via horas apontadas"
-        # zera a linha custo_gerencial dessas pessoas (custo migrou pro custo_project)
-        cp_keys = df.loc[mask_cp_clt_aloca, ["_pk", "_periodo_str"]].drop_duplicates()
-        cp_keys["_cp_alocado"] = True
-        df = df.merge(cp_keys, on=["_pk", "_periodo_str"], how="left")
+        df.loc[mask_aux_clt_aloca & is_cp, "tag_rateio"] = "CLT sem racional — custo do PEP alocado via horas (custo_project)"
+        df.loc[mask_aux_clt_aloca & is_orange_cli, "tag_rateio"] = "CLT sem racional — custo do PEP alocado via horas (base Orange)"
+        # zera a linha custo_gerencial dessas pessoas (custo migrou pra outra fonte)
+        aux_keys = df.loc[mask_aux_clt_aloca, ["_pk", "_periodo_str"]].drop_duplicates()
+        aux_keys["_cp_alocado"] = True
+        df = df.merge(aux_keys, on=["_pk", "_periodo_str"], how="left")
         df["_cp_alocado"] = df["_cp_alocado"].fillna(False).astype(bool)
         mask_ger_zera = is_custo_total_primary & df["_cp_alocado"]
         df.loc[mask_ger_zera, "custo_rateado"] = 0
-        df.loc[mask_ger_zera, "tag_rateio"] = "Custo alocado às linhas de custo_project (horas apontadas)"
+        df.loc[mask_ger_zera, "tag_rateio"] = "Custo alocado às linhas com horas apontadas"
         if "valor_liquido" in df.columns:
             df.loc[mask_ger_zera, "valor_liquido"] = 0
-            df.loc[mask_cp_clt_aloca, "valor_liquido"] = (
-                df.loc[mask_cp_clt_aloca, "receita"].fillna(0)
-                + df.loc[mask_cp_clt_aloca, "custo_rateado"].fillna(0)
+            df.loc[mask_aux_clt_aloca, "valor_liquido"] = (
+                df.loc[mask_aux_clt_aloca, "receita"].fillna(0)
+                + df.loc[mask_aux_clt_aloca, "custo_rateado"].fillna(0)
             )
 
     # Recalcula margem e valor_liquido
