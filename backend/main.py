@@ -4249,7 +4249,7 @@ def get_workers(
     for c in ("receita", "custo", "margem", "horas"):
         agg[c] = agg[c].round(2)
     agg = agg.sort_values("receita", ascending=False)
-    return {"rows": agg.to_dict(orient="records")}
+    return _sanitize({"rows": agg.to_dict(orient="records")})
 
 
 @app.get("/api/workers/detalhe")
@@ -4261,8 +4261,9 @@ def get_worker_detalhe(
     """Detalhe de uma pessoa: totais por periodo e por cliente."""
     if not nome:
         raise HTTPException(400, "nome obrigatorio")
-    df = _get_nova_base().copy()
-    df = df[df["nome_pessoa"].astype(str) == nome]
+    # Filtra ANTES de copiar (evita copiar 29K linhas inteiras pra extrair umas dezenas).
+    df_full = _get_nova_base()
+    df = df_full[df_full["nome_pessoa"].astype(str) == nome].copy()
     if periodos:
         pers = [p.strip() for p in periodos.split(",") if p.strip()]
         if pers:
@@ -4302,13 +4303,13 @@ def get_worker_detalhe(
             if c in sub.columns:
                 sub[c] = sub[c].round(2)
 
-    return {
+    return _sanitize({
         "nome": nome,
         "totais": {"horas": round(tot_horas, 2), "receita": round(tot_receita, 2),
                    "custo": round(tot_custo, 2), "margem": round(tot_receita + tot_custo, 2)},
         "por_periodo": por_per.to_dict(orient="records"),
         "por_cliente": por_cli.to_dict(orient="records"),
-    }
+    })
 
 
 @app.get("/api/nova-base/dre")
