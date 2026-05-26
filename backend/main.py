@@ -2119,6 +2119,8 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         # Unimeds: unifica variantes DENTRO de cada cidade (mantem cidades separadas)
         "UNIMED BELO HORIZONTE": "UNIMED BELO HORIZONTE",
         "UNIMED BELO HORIZONTE COOPERATIVA DE TRA": "UNIMED BELO HORIZONTE",
+        "UNIMED BELO HORIZONTE COOPERATIVA D": "UNIMED BELO HORIZONTE",
+        "UNIMED": "UNIMED NACIONAL",
         "UNIMED CURITIBA": "UNIMED CURITIBA",
         "UNIMED CURITIBA - SOCIEDADE COOPERA": "UNIMED CURITIBA",
         "UNIMED CURITIBA - SOCIEDADE COOPERATIVA": "UNIMED CURITIBA",
