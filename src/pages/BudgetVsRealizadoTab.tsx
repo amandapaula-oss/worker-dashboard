@@ -27,10 +27,14 @@ const MES_LABEL: Record<string, string> = {
 type Metric = "receita" | "custo" | "lb";
 const METRIC_LABEL: Record<Metric, string> = { receita: "Receita", custo: "Custo", lb: "Lucro Bruto" };
 
-export default function BudgetVsRealizadoTab() {
+type GroupBy = "vertical" | "nome_cliente";
+
+export default function BudgetVsRealizadoTab({
+  fixedGroupBy,
+}: { fixedGroupBy?: GroupBy } = {}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [groupBy, setGroupBy] = useState<"vertical" | "nome_cliente">("vertical");
+  const [groupBy, setGroupBy] = useState<GroupBy>(fixedGroupBy ?? "vertical");
   const [metric, setMetric] = useState<Metric>("receita");
   const [selVerts, setSelVerts] = useState<string[]>([]);
   const [selCli, setSelCli] = useState<string[]>([]);
@@ -125,17 +129,19 @@ export default function BudgetVsRealizadoTab() {
     <div>
       <Card size="small" style={{ marginBottom: 12 }}>
         <Row gutter={[12, 12]} align="middle">
-          <Col>
-            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Visão</div>
-            <Segmented
-              value={groupBy}
-              onChange={(v) => setGroupBy(v as any)}
-              options={[
-                { label: "Por BU", value: "vertical" },
-                { label: "Por Cliente", value: "nome_cliente" },
-              ]}
-            />
-          </Col>
+          {!fixedGroupBy && (
+            <Col>
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Visão</div>
+              <Segmented
+                value={groupBy}
+                onChange={(v) => setGroupBy(v as any)}
+                options={[
+                  { label: "Por BU", value: "vertical" },
+                  { label: "Por Cliente", value: "nome_cliente" },
+                ]}
+              />
+            </Col>
+          )}
           <Col>
             <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Métrica do gráfico</div>
             <Segmented

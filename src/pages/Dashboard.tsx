@@ -202,7 +202,7 @@ function WorkerTab({ dark }: { dark: boolean }) {
   );
 }
 
-type Section = "worker" | "cockpit" | "metas" | "nova_base" | "nova_base_pivot" | "obsoleto" | null;
+type Section = "worker" | "cockpit" | "metas" | "nova_base" | "nova_base_pivot" | "budget" | "obsoleto" | null;
 
 export default function Dashboard() {
   const [section, setSection] = useState<Section>(null);
@@ -275,6 +275,7 @@ export default function Dashboard() {
               {(section === null
                 ? [
                     { key: "nova_base", icon: <DatabaseOutlined />,  title: "Financeiro - Nova Base", desc: "Base unificada 2026 com todas as fontes",     sub: "Nova Base · 2026" },
+                    { key: "budget", icon: <AimOutlined />,         title: "Budget vs Realizado",     desc: "Comparativo orçado vs realizado 2026",        sub: "Budget · 2026" },
                     { key: "nova_base_pivot", icon: <TableOutlined />, title: "Visão Personalizada",   desc: "Tabela dinâmica sobre a Nova Base 2026",      sub: "Pivot · Drag-and-drop" },
                     { key: "obsoleto",  icon: <InboxOutlined />,     title: "Obsoleto",               desc: "Telas legadas (Worker, Financeiro SAP, Metas Q4/Q3)", sub: "Arquivo" },
                   ] as const
@@ -374,9 +375,24 @@ export default function Dashboard() {
                 { key: "apuracao",  label: <span><AimOutlined /> Apuração</span>,               children: <NovaBaseResumoTab agruparPor="apuracao" /> },
                 { key: "workers",   label: <span><TeamOutlined /> Workers</span>,                children: <WorkersTab /> },
                 { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
-                { key: "budgetReal", label: <span><AimOutlined /> Budget vs Realizado</span>,   children: <BudgetVsRealizadoTab /> },
               ]}
             />
+            </NovaBaseFiltersProvider>
+          )}
+
+          {section === "budget" && (
+            <NovaBaseFiltersProvider>
+              <Tabs
+                defaultActiveKey="bu"
+                type="card"
+                size="large"
+                items={[
+                  { key: "empresa", label: <span><FileTextOutlined /> Resumo por Empresa</span>, children: <BudgetVsRealizadoTab fixedGroupBy="vertical" /> },
+                  { key: "bu",      label: <span><ApartmentOutlined /> Resumo por BU</span>,     children: <BudgetVsRealizadoTab fixedGroupBy="vertical" /> },
+                  { key: "cliente", label: <span><FundOutlined /> Margem por Cliente</span>,    children: <BudgetVsRealizadoTab fixedGroupBy="nome_cliente" /> },
+                  { key: "dre",     label: <span><BankOutlined /> DRE</span>,                    children: <BudgetVsRealizadoTab fixedGroupBy="vertical" /> },
+                ]}
+              />
             </NovaBaseFiltersProvider>
           )}
 
