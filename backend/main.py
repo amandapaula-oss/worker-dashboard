@@ -2677,9 +2677,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    # Persistente: CPF enriquecido (digits only) por linha — usado pelo sync
-    # da calculada e demais views. Junta o CPF da propria linha + lookup nome.
-    df["cpf"] = np.where(df["_cpf"] != "", df["_cpf"], df["_mapped_cpf"])
+    # Persistente: CPF enriquecido com prefixo BRCPF (padrao master Orange)
+    # — usado pelo sync da calculada e demais views.
+    _cpf_d = np.where(df["_cpf"] != "", df["_cpf"], df["_mapped_cpf"])
+    df["cpf"] = np.where(_cpf_d != "", "BRCPF" + _cpf_d.astype(str), "")
 
     # ─── Rateio proporcional ─────────────────────────────────────────────
     # Ideia: custo_real_pessoa (Custo Gerencial SAP pra CLT, valor_liquido pra PJ)
