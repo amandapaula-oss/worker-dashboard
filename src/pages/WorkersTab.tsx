@@ -64,7 +64,13 @@ export default function WorkersTab() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter(r => r.nome_pessoa.toLowerCase().includes(q));
+    const qDigits = q.replace(/\D/g, "");
+    return rows.filter(r => {
+      if (r.nome_pessoa.toLowerCase().includes(q)) return true;
+      if ((r.razao_social || "").toLowerCase().includes(q)) return true;
+      if (qDigits.length >= 3 && (r.cpf || "").replace(/\D/g, "").includes(qDigits)) return true;
+      return false;
+    });
   }, [rows, search]);
 
   const tot = useMemo(() => filtered.reduce((a, r) => ({
@@ -167,7 +173,7 @@ export default function WorkersTab() {
           <Col flex="auto">
             <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Buscar pessoa</div>
             <Input prefix={<SearchOutlined />} value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Nome..." allowClear />
+              placeholder="Nome, CPF ou razão social..." allowClear />
           </Col>
         </Row>
       </Card>

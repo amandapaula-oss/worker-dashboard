@@ -4234,12 +4234,15 @@ def get_workers(
         cpf=("cpf", lambda s: s.dropna().astype(str).replace("", pd.NA).dropna().mode().iloc[0] if len(s.dropna().astype(str).replace("", pd.NA).dropna()) else ""),
     ).reset_index()
 
-    # JOIN com pessoas (CPF -> contrato, razao_social, cnpj)
+    # JOIN com pessoas (CPF -> contrato, razao_social, cnpj). Strippa BRCPF
+    # prefix pra casar com as chaves digit-only do _load_pessoas_lookup.
+    import re as _re_cpf
+    def _cpf_d(c): return _re_cpf.sub(r"\D", "", str(c or ""))
     pessoas = _load_pessoas_lookup()
-    agg["contrato"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(c, {}) or {}).get("contrato") or "")
-    agg["razao_social"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(c, {}) or {}).get("razao_social") or "")
-    agg["cnpj"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(c, {}) or {}).get("cnpj") or "")
-    agg["email"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(c, {}) or {}).get("email") or "")
+    agg["contrato"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(_cpf_d(c), {}) or {}).get("contrato") or "")
+    agg["razao_social"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(_cpf_d(c), {}) or {}).get("razao_social") or "")
+    agg["cnpj"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(_cpf_d(c), {}) or {}).get("cnpj") or "")
+    agg["email"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(_cpf_d(c), {}) or {}).get("email") or "")
 
     agg["margem"] = agg["receita"] + agg["custo"]
     agg["margem_pct"] = (agg["margem"] / agg["receita"]).where(agg["receita"] != 0, 0).round(4)
