@@ -1662,6 +1662,8 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
         map_id.update(p.drop_duplicates("id").set_index("id")["cpf_digits"].to_dict())
 
     # 2) Supabase pessoas (master) — sobrescreve
+    # Inclui nome, razao_social (PJ) e variantes truncadas (32-40 chars)
+    # pra casar com nomes que vieram truncados nos uploads originais.
     if SUPABASE_URL and SUPABASE_KEY:
         try:
             headers = _supabase_headers()
@@ -1669,7 +1671,7 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
             off = 0
             with httpx.Client(timeout=30) as c:
                 while True:
-                    r = c.get(f"{SUPABASE_URL}/rest/v1/pessoas?select=cpf,nome&offset={off}&limit=1000", headers=headers)
+                    r = c.get(f"{SUPABASE_URL}/rest/v1/pessoas?select=cpf,nome,razao_social&offset={off}&limit=1000", headers=headers)
                     if r.status_code != 200:
                         break
                     data = r.json()
@@ -1684,6 +1686,15 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
                 nome_n = _norm_pessoa_nome(row.get("nome") or "")
                 if nome_n:
                     map_nome[nome_n] = cpf
+                rs_n = _norm_pessoa_nome(row.get("razao_social") or "")
+                if rs_n:
+                    map_nome[rs_n] = cpf
+                    # Variantes truncadas (uploads originais cortaram em 32-40 chars)
+                    for L in (32, 33, 34, 35, 36, 37, 38, 39, 40):
+                        if len(rs_n) > L:
+                            trunc = rs_n[:L].rstrip()
+                            if trunc not in map_nome:
+                                map_nome[trunc] = cpf
         except Exception as e:
             print(f"[pessoas table] {e}")
 
