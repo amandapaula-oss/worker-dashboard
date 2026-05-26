@@ -4083,6 +4083,129 @@ def get_nova_base_data(
     cols_show = [c for c in cols_show if c in df.columns]
     return _sanitize({"total": total, "truncated": total > MAX, "rows": df[cols_show].to_dict(orient="records")})
 
+
+def _split_custo_despesa(df: pd.DataFrame) -> tuple:
+    """Retorna (custo_series, despesa_series, is_despesa_mask) com mesma logica
+    do _sync_nova_base_calculada (despesa = macro_area filled ou Socios, exceto
+    se classificacao explicita == 'custo')."""
+    import numpy as np
+    has_ma = df.get("macro_area", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().ne("")
+    fonte_s = df.get("fonte", pd.Series("", index=df.index)).fillna("").astype(str).str.strip()
+    is_socio = fonte_s.isin(["Custo Socios", "Custo Sócios"])
+    classif = df.get("classificacao", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().str.lower()
+    is_despesa = (classif == "despesa") | ((classif != "custo") & (has_ma | is_socio))
+    custo_raw = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0)
+    return (
+        np.where(~is_despesa, custo_raw, 0.0),
+        np.where(is_despesa, custo_raw, 0.0),
+        is_despesa,
+    )
+
+
+@app.get("/api/workers")
+def get_workers(
+    periodos: str = "",
+    verticais: str = "",
+    user=Depends(get_current_user),
+):
+    """Lista de pessoas com receita, custo, margem e horas agregados."""
+    df = _get_nova_base().copy()
+    if periodos:
+        pers = [p.strip() for p in periodos.split(",") if p.strip()]
+        if pers:
+            df = df[df["periodo"].astype(str).isin(pers)]
+    else:
+        from datetime import datetime
+        df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
+    if verticais:
+        verts = [v.strip() for v in verticais.split(",") if v.strip()]
+        if verts:
+            df = df[df["vertical"].astype(str).isin(verts)]
+
+    df = df[df["nome_pessoa"].fillna("").astype(str).str.strip().ne("")]
+    for c in ("receita", "custo_rateado", "horas"):
+        if c not in df.columns:
+            df[c] = 0.0
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+
+    custo_s, _, _ = _split_custo_despesa(df)
+    df["_custo"] = custo_s
+
+    agg = df.groupby("nome_pessoa").agg(
+        receita=("receita", "sum"),
+        custo=("_custo", "sum"),
+        horas=("horas", "sum"),
+        tipo_contrato=("tipo_contrato", lambda s: s.dropna().mode().iloc[0] if len(s.dropna().mode()) else ""),
+        vertical=("vertical", lambda s: s.dropna().mode().iloc[0] if len(s.dropna().mode()) else ""),
+        n_clientes=("nome_cliente", lambda s: s.fillna("").astype(str).str.strip().replace("", pd.NA).nunique()),
+    ).reset_index()
+    agg["margem"] = agg["receita"] + agg["custo"]
+    agg["margem_pct"] = (agg["margem"] / agg["receita"]).where(agg["receita"] != 0, 0).round(4)
+    for c in ("receita", "custo", "margem", "horas"):
+        agg[c] = agg[c].round(2)
+    agg = agg.sort_values("receita", ascending=False)
+    return {"rows": agg.to_dict(orient="records")}
+
+
+@app.get("/api/workers/detalhe")
+def get_worker_detalhe(
+    nome: str,
+    periodos: str = "",
+    user=Depends(get_current_user),
+):
+    """Detalhe de uma pessoa: totais por periodo e por cliente."""
+    if not nome:
+        raise HTTPException(400, "nome obrigatorio")
+    df = _get_nova_base().copy()
+    df = df[df["nome_pessoa"].astype(str) == nome]
+    if periodos:
+        pers = [p.strip() for p in periodos.split(",") if p.strip()]
+        if pers:
+            df = df[df["periodo"].astype(str).isin(pers)]
+    if df.empty:
+        return {"nome": nome, "totais": {"horas": 0, "receita": 0, "custo": 0, "margem": 0},
+                "por_periodo": [], "por_cliente": []}
+
+    for c in ("receita", "custo_rateado", "horas"):
+        if c not in df.columns:
+            df[c] = 0.0
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+
+    custo_s, _, _ = _split_custo_despesa(df)
+    df["_custo"] = custo_s
+    df["_cli"] = df["nome_cliente"].fillna("").astype(str).str.strip().replace("", "(sem cliente)")
+
+    tot_receita = float(df["receita"].sum())
+    tot_custo = float(df["_custo"].sum())
+    tot_horas = float(df["horas"].sum())
+
+    por_per = df.groupby("periodo").agg(
+        horas=("horas", "sum"), receita=("receita", "sum"), custo=("_custo", "sum"),
+    ).reset_index()
+    por_per["margem"] = por_per["receita"] + por_per["custo"]
+    por_per = por_per.sort_values("periodo")
+
+    por_cli = df.groupby("_cli").agg(
+        horas=("horas", "sum"), receita=("receita", "sum"), custo=("_custo", "sum"),
+    ).reset_index().rename(columns={"_cli": "nome_cliente"})
+    por_cli["margem"] = por_cli["receita"] + por_cli["custo"]
+    por_cli["pct_horas"] = (por_cli["horas"] / tot_horas).where(tot_horas != 0, 0).round(4) if tot_horas else 0
+    por_cli = por_cli.sort_values("horas", ascending=False)
+
+    for sub in (por_per, por_cli):
+        for c in ("receita", "custo", "margem", "horas"):
+            if c in sub.columns:
+                sub[c] = sub[c].round(2)
+
+    return {
+        "nome": nome,
+        "totais": {"horas": round(tot_horas, 2), "receita": round(tot_receita, 2),
+                   "custo": round(tot_custo, 2), "margem": round(tot_receita + tot_custo, 2)},
+        "por_periodo": por_per.to_dict(orient="records"),
+        "por_cliente": por_cli.to_dict(orient="records"),
+    }
+
+
 @app.get("/api/nova-base/dre")
 def get_nova_base_dre(
     periodos: str = "",

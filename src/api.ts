@@ -260,6 +260,14 @@ export async function getBudgetVsRealizado(params: Record<string, string> = {}) 
   return apiFetch(`/api/budget-vs-realizado${buildQuery(params)}`);
 }
 
+export async function getWorkers(params: Record<string, string> = {}) {
+  return apiFetch(`/api/workers${buildQuery(params)}`);
+}
+
+export async function getWorkerDetalhe(params: Record<string, string> = {}) {
+  return apiFetch(`/api/workers/detalhe${buildQuery(params)}`);
+}
+
 export async function downloadNovaBase(): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/nova-base/download`, {
     headers: { Authorization: `Bearer ${getToken()}` },
