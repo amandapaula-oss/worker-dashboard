@@ -1,0 +1,208 @@
+================================================================================
+                 AJUSTES MANUAIS - BASE WORKER DASHBOARD
+                          Periodo: Mai-2026
+================================================================================
+
+Este arquivo documenta TODOS os ajustes manuais aplicados diretamente nos
+dados (Supabase) e nas configuracoes de alias do pipeline.
+
+
+================================================================================
+1. CORRECOES DE ATRIBUICAO DE CLIENTE
+================================================================================
+
+1.1 PEP BR02CLP000310 -> cliente ALMAP (antes era DISTRITO TECNOLOGIA)
+    - 8 linhas afetadas (Orange + racionais, Jan-Abr/2026)
+    - empresa: BR02 FCamara
+    - vertical: BU Multisector
+
+1.2 LEONARDO SOUZA DE FREITAS (CLTs) -> cliente ALMAP
+    - 3 linhas Jan/Fev/Mar 2026 (antes era INTELIPOST)
+    - Apenas linhas CLT (cadastro); racionais Intelipost preservadas
+
+1.3 TATIANE CORREA CAMILO -> nome_cliente='TransUnion', vertical='BU Finance'
+    - 13 linhas (CLT + racionais + custo_gerencial 2025-2026)
+
+1.4 VITOR COELHO RAFAEL -> Loja Eletrica LTDA a partir de 2026
+    - Ja estava aplicado nos dados (sem alteracao adicional)
+
+
+================================================================================
+2. CORRECOES DE NO_HIERARQUIA (CENTRO DE LUCRO)
+================================================================================
+
+2.1 PJs com coluna W='Vertical' -> no_hierarquia='DC002 Dedicated Teams'
+    - 174 linhas atualizadas via PJs.xlsx Profit Center.1 lookup
+    - Cobre 1195 linhas no total (1021 ja estavam corretas)
+
+2.2 Adicao de codigo DC nas categorias que vinham so com rotulo:
+    - 'E-commerce'             -> 'DC004 E-commerce'        (8 linhas)
+    - 'FC Consult. B. Sales'   -> 'DC040 FC Consult. B. Sales' (15 linhas)
+    - 'FC Consult. New Rev'    -> 'DC029 FC Consult. New Rev'  (6 linhas)
+    - 'FC Consult. New Ver'    -> 'DC029 FC Consult. New Rev'  (2 linhas, fix typo)
+    - 'Imagine'                -> 'DC007 Imagine'           (3 linhas)
+    - 'Open-X'                 -> 'DC005 Open-X'            (14 linhas)
+    Total: 48 linhas
+
+2.3 'Consulting (Play)' -> 'DC029 FC Consult. New Rev'
+    - 36 linhas (fonte Play)
+
+2.4 RODRIGO FONSECA BURGERS -> no_hierarquia='DC029 FC Consult. New Rev'
+    - 9 linhas (fonte Custo Socios, Jan-Set/2026)
+
+
+================================================================================
+3. MACRO AREA / CLASSIFICACAO TDM
+================================================================================
+
+3.1 11 pessoas TDM marcadas em 31 linhas:
+    - macro_area='TDM'
+    - classificacao='custo' (garante que nao caia como despesa)
+    - Pessoas: Guilherme Amaral Bonilha, Rafael Macedo, Marcelo Pereira Lima,
+      Fernando Pereira Lisboa, Roberto Antonio Ribeiro Caracciolo Junior,
+      Leonardo Barbetta de Oliveira, Jamil Dias Costa, Leandro de Brito,
+      Thiago Vieira Tersariol, Fabiano da Silva Remiao Monteiro,
+      Jefferson da Silva Leal
+    - Escopo: 20 linhas PJs + 11 linhas TDMs (placeholders). Racionais
+      revenue lines do Jefferson nao afetadas.
+
+
+================================================================================
+4. UPLOAD BASE ORANGE
+================================================================================
+
+4.1 Upload de 4.704 apontamentos da Base Orange (Jan-Abr/2026):
+    - fonte='base Orange'
+    - Para periodos 1-2 (Jan/Fev): Base Orange - Jan a Abr.xlsx
+    - Para periodos 3-4 (Mar/Abr): Base Orange - Mar e Abr.xlsx
+    - Filtro: apenas pessoas SEM racional naquele periodo
+    - Horas = aprovadas + liberadas_aprovacao
+    - 964 pessoas distintas, 336.675 horas totais
+
+4.2 Populacao de nome_cliente nas linhas Orange:
+    - 1.791 linhas atualizadas via lookup PEP_base nas demais fontes
+    - 2.117 linhas adicionais atualizadas via parsing do project_name
+      (formato '<PEP> - <CLIENTE> - <sub>')
+    - 1.179 linhas continuam sem cliente (internos: Hyper, ND, SGA, CG, DOJO,
+      Symphony, Play Studio, Dojo Labs, Sistemas Internos FC, Managed
+      Services, INATIVO_Alocacao)
+
+
+================================================================================
+5. AJUSTES GERENCIAIS (FALTA RACIONAL + INVESTIDAS FORA DO SAP)
+================================================================================
+
+48 linhas inseridas com fonte='Ajuste Gerencial', distribuidas em 5 batches.
+Receita total adicionada: R$ 4.421.336
+
+5.1 Retail (12 linhas, R$ 820.843)
+    Falta Racional (BR02 FCamara, BU Retail, DC002):
+      STRADA PAY INSTITUICAO DE PAGAMENTO LTDA: Jan 50.590, Fev 54.873, Mar 16.123
+      GRUPO CASAS BAHIA S.A.:                  Jan 73.069, Fev 73.069
+      LOJAS RENNER S.A.:                       Jan 97.883, Fev 67.143, Mar 73.349
+      GIMBA:                                   Jan 64.456, Fev 64.456, Mar 64.456
+    Investidas fora do SAP (Distrito, DISTRITO, BU Retail):
+      GRUPO CASAS BAHIA S.A.:                  Mar 121.376
+
+5.2 Health (12 linhas, R$ 994.926)
+    Falta Racional:
+      UNIMED NACIONAL (BR07 Hyper, DC002):     Jan 138.845, Fev 138.845
+      ODONTOPREV S.A. (BR02 FCamara, DC002):   Jan 86.000, Fev 86.000, Mar 86.000
+      GRUPO ELFA (BR02 FCamara, DC040):        Jan 3.000, Fev 3.000, Mar 3.000
+      GRUPO ELFA (BR02 FCamara, DC007 Imagine):Fev 141.500
+    Investidas fora do SAP (Avanti, Avanti, BU Health):
+      ADCOS:                                   Jan 102.912, Fev 102.912, Mar 102.912
+
+5.3 Finance (6 linhas, R$ 547.515)
+    Falta Racional (BR02 FCamara, BU Finance, DC002):
+      BANCO OURINVEST S/A:                     Jan 69.484, Fev 69.484, Mar 69.484
+    Investidas fora do SAP (Distrito, DISTRITO, BU Finance):
+      BMG:                                     Jan 113.021, Fev 113.021, Mar 113.021
+
+5.4 Multisector (11 linhas, R$ 1.332.145)
+    Falta Racional (BR02 FCamara, BU Multisector):
+      ASGROUP (DC002):                         Jan 43.922, Fev 43.922, Mar 43.922
+      FUTEBOLCARD SISTEMAS LTDA (DC002):       Jan 442.392, Fev 292.872, Mar 421.833
+      DURATEX (DC040):                         Jan 2.658, Fev 2.658, Mar 2.658
+      KLABIN (DC002):                          Fev 17.654, Mar 17.654
+
+5.5 Logistics (7 linhas, R$ 725.907)
+    Falta Racional (BR02 FCamara, BU Logistics, DC002):
+      KLABIN:                                  Jan 106.010, Fev 106.010, Mar 106.010
+      MMG:                                     Mar 26.313
+      ORACLE (SERVICO BANCO BV):               Mar 291.564
+    Investidas fora do SAP (Distrito, DISTRITO, BU Logistics):
+      JSL:                                     Jan 45.000, Fev 45.000
+
+
+================================================================================
+6. CADASTRO DE PESSOAS (CPF)
+================================================================================
+
+6.1 Tabela 'pessoas' criada no Supabase
+    - 2.048 entries (master Cadastro Pessoa + extras das CLT/PJ sheets)
+    - Colunas: cpf, nome, email, contrato (CLT/PJ/INTERN/Estagiario),
+      razao_social, cnpj
+    - 1.171 CLT, 815 PJ, 7 INTERN, 2 Estagiario, 1 OTHER
+
+6.2 pessoal_depara.csv expandido
+    - De 1.952 entries -> 2.730 entries (+778)
+    - Adicoes: 236 do master, 542 dos sheets CLT/PJ (aliases adicionais), 8 fuzzy
+    - Cobre nomes alternativos (ex: BEATRIZ EVELYN ROSA vs SIQUEIRA, typos)
+
+6.3 Coluna 'cpf' adicionada em nova_base_calculada (DDL)
+    - Padrao: 'BRCPF' + 11 digitos (alinhado com sistema Orange)
+    - Cobertura final CLTs: 100% (837/837)
+    - Cobertura final PJs:  100% (813/813)
+
+
+================================================================================
+7. ALIASES (NOME_PESSOA_ALIAS e NOME_CLIENTE_ALIAS) - via codigo
+================================================================================
+
+7.1 NOME_PESSOA_ALIAS (~78 entradas adicionadas):
+    - Truncamentos (32-36 chars): ~43 entradas
+    - Typos: ~25 (DAMACENO/DAMASCENO, VALIM/VALLIM, BASBOSA/BARBOSA, etc)
+    - JR/JUNIOR: 5
+    - Apostrofes: 1 (D'AMOEDO)
+    - Aliases de pessoa explicitos:
+        ROSANGELA DANTAS                  -> ROSANGELA DANTAS LIMA
+        MARCELO QUADRELI OINHEIRO         -> MARCELO QUADRELLI PINHEIRO
+
+7.2 NOME_CLIENTE_ALIAS (adicoes nesta sessao):
+    - CARTOS (3 variantes)              -> CARTOS
+    - M33 CONSULTORIA...                -> M33 CONSULTORIA, MEDICINA E GESTAO LTDA
+    - RAIA DROGASIL (com sufixo CNPJ)   -> RAIA DROGASIL S/A
+    - STRADA PAY                        -> STRADA PAY INSTITUICAO DE PAGAMENTO LTDA
+    - DANONE / DANONE LTDA              -> DANONE
+    - SADA (3 variantes)                -> SADA TRANSPORTES E ARMAZENAGENS LTDA
+    - UNIMED BELO HORIZONTE COOPERATIVA D -> UNIMED BELO HORIZONTE
+    - UNIMED (generico, 3 linhas Play)  -> UNIMED NACIONAL
+    - TRANSUNION (3 variantes)          -> TransUnion
+
+
+================================================================================
+8. RATEIO ESTENDIDO (codigo)
+================================================================================
+
+8.1 _aplicar_rateio_custos agora considera Base Orange como fallback
+    - Regra: per-PEP, racional tem prioridade. Onde nao tem racional, usa
+      horas da Base Orange (apenas se linha Orange tem nome_cliente).
+    - Custo CLT/PJ rateado proporcional, distribuido em linhas racional + Orange
+    - Reducao Q1/2026 custo sem cliente: R$ 2.383K -> R$ 1.211K (-49,2%)
+
+
+================================================================================
+RESUMO
+================================================================================
+
+- 48 ajustes gerenciais (R$ 4.421.336 receita inserida)
+- 4.704 linhas Orange + ~3.900 atualizacoes de cliente
+- ~280+ correcoes de no_hierarquia/cliente em linhas existentes
+- 100% cobertura CPF (CLT+PJ)
+- 1 nova tabela Supabase: pessoas (2.048 entries)
+- Coluna cpf adicionada em nova_base_calculada
+- ~78 aliases de nome de pessoa, ~9 aliases de nome de cliente
+- Rateio estendido com Base Orange como fallback
+
+Documentado em 2026-05-27.
