@@ -4313,7 +4313,7 @@ def get_worker_detalhe(
         horas=("horas", "sum"), receita=("receita", "sum"), custo=("_custo", "sum"),
     ).reset_index().rename(columns={"_cli": "nome_cliente"})
     por_cli["margem"] = por_cli["receita"] + por_cli["custo"]
-    por_cli["pct_horas"] = (por_cli["horas"] / tot_horas).where(tot_horas != 0, 0).round(4) if tot_horas else 0
+    por_cli["pct_horas"] = (por_cli["horas"] / tot_horas).round(4) if tot_horas else 0.0
     por_cli = por_cli.sort_values("horas", ascending=False)
 
     for sub in (por_per, por_cli):
