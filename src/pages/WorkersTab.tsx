@@ -21,9 +21,11 @@ type Row = {
 
 type Detalhe = {
   nome: string;
-  totais: { horas: number; receita: number; custo: number; margem: number };
+  totais: { horas: number; receita: number; custo: number; despesa?: number; margem: number };
   por_periodo: { periodo: string; horas: number; receita: number; custo: number; margem: number }[];
   por_cliente: { nome_cliente: string; horas: number; receita: number; custo: number; margem: number; pct_horas: number }[];
+  por_fonte?: { fonte: string; horas: number; receita: number; custo: number }[];
+  por_cliente_fonte?: { nome_cliente: string; fonte: string; horas: number; receita: number; custo: number }[];
 };
 
 const brl = (v: number) =>
@@ -220,24 +222,53 @@ export default function WorkersTab() {
                 valueStyle={{ color: detalhe.totais.margem >= 0 ? "#52c41a" : "#ff4d4f" }} /></Card></Col>
             </Row>
 
-            <Card size="small" title="Por período" style={{ marginBottom: 12 }}>
+            <Card size="small" title="Custo vs Receita por período" style={{ marginBottom: 12 }}>
               <div style={{ width: "100%", height: 220 }}>
                 <ResponsiveContainer>
-                  <BarChart data={detalhe.por_periodo}>
+                  <BarChart data={detalhe.por_periodo.map(p => ({ ...p, custo_abs: Math.abs(p.custo) }))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                     <XAxis dataKey="periodo" />
-                    <YAxis yAxisId="left" tickFormatter={v => `${v}h`} />
-                    <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${(v/1000).toFixed(0)}K`} />
-                    <Tooltip formatter={(v: any, name: any) => String(name) === "Horas" ? `${num(Number(v))}h` : brl(Number(v))} />
+                    <YAxis tickFormatter={v => `${(v/1000).toFixed(0)}K`} />
+                    <Tooltip formatter={(v: any) => brl(Number(v))} />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="horas" name="Horas" fill="#a0b3d6" />
-                    <Bar yAxisId="right" dataKey="receita" name="Receita" fill={theme.accent} />
+                    <Bar dataKey="receita" name="Receita" fill={theme.accent} />
+                    <Bar dataKey="custo_abs" name="Custo" fill="#ff7a7a" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </Card>
 
-            <Card size="small" title={`Horas por cliente (${detalhe.por_cliente.length})`}>
+            {detalhe.por_fonte && detalhe.por_fonte.length > 0 && (
+              <Card size="small" title="Origem do rateio (por fonte)" style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+                  Mostra de onde vêm as horas e o custo: <b>racionais</b> = apontamento c/ receita ·
+                  <b> base Orange</b> = apontamento Orange · <b>custo_project</b> = horas SAP ·
+                  <b> CLTs/PJs</b> = origem do custo
+                </div>
+                <Table
+                  size="small"
+                  dataSource={detalhe.por_fonte}
+                  rowKey="fonte"
+                  pagination={false}
+                  columns={[
+                    { title: "Fonte", dataIndex: "fonte", key: "fonte",
+                      render: (v: string) => <Tag color={
+                        v === "racionais" ? "green" :
+                        v === "base Orange" ? "orange" :
+                        v === "CLTs" ? "blue" :
+                        v === "PJs" ? "purple" :
+                        v === "custo_project" ? "geekblue" : "default"
+                      }>{v}</Tag> },
+                    { title: "Horas", dataIndex: "horas", align: "right" as const, render: num, width: 100 },
+                    { title: "Receita", dataIndex: "receita", align: "right" as const, render: brl, width: 130 },
+                    { title: "Custo", dataIndex: "custo", align: "right" as const, width: 130,
+                      render: (v: number) => <span style={{ color: v < 0 ? "#ff4d4f" : undefined }}>{brl(v)}</span> },
+                  ]}
+                />
+              </Card>
+            )}
+
+            <Card size="small" title={`Horas por cliente (${detalhe.por_cliente.length})`} style={{ marginBottom: 12 }}>
               <Row gutter={12}>
                 <Col span={10}>
                   <div style={{ width: "100%", height: 280 }}>
@@ -264,6 +295,32 @@ export default function WorkersTab() {
                 </Col>
               </Row>
             </Card>
+
+            {detalhe.por_cliente_fonte && detalhe.por_cliente_fonte.length > 1 && (
+              <Card size="small" title="Detalhe: horas por cliente x fonte">
+                <Table
+                  size="small"
+                  dataSource={detalhe.por_cliente_fonte}
+                  rowKey={(r: any) => `${r.nome_cliente}__${r.fonte}`}
+                  pagination={{ pageSize: 20, size: "small" }}
+                  columns={[
+                    { title: "Cliente", dataIndex: "nome_cliente", key: "nome_cliente", ellipsis: true },
+                    { title: "Fonte", dataIndex: "fonte", key: "fonte", width: 130,
+                      render: (v: string) => <Tag color={
+                        v === "racionais" ? "green" :
+                        v === "base Orange" ? "orange" :
+                        v === "CLTs" ? "blue" :
+                        v === "PJs" ? "purple" :
+                        v === "custo_project" ? "geekblue" : "default"
+                      }>{v}</Tag> },
+                    { title: "Horas", dataIndex: "horas", align: "right" as const, render: num, width: 100 },
+                    { title: "Receita", dataIndex: "receita", align: "right" as const, render: brl, width: 120 },
+                    { title: "Custo", dataIndex: "custo", align: "right" as const, width: 120,
+                      render: (v: number) => <span style={{ color: v < 0 ? "#ff4d4f" : undefined }}>{brl(v)}</span> },
+                  ]}
+                />
+              </Card>
+            )}
           </>
         )}
       </Modal>

@@ -4267,7 +4267,7 @@ def get_worker_detalhe(
     import urllib.parse
     nome_q = urllib.parse.quote(nome, safe="")
     headers = _supabase_headers()
-    params = f"select=periodo,nome_cliente,receita,custo,despesa,horas&nome_pessoa=eq.{nome_q}"
+    params = f"select=periodo,nome_cliente,receita,custo,despesa,horas,fonte,fonte_familia,empresa&nome_pessoa=eq.{nome_q}"
     rows = []
     off = 0
     with httpx.Client(timeout=30) as c:
@@ -4296,19 +4296,23 @@ def get_worker_detalhe(
         if c not in df.columns:
             df[c] = 0.0
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-    df["_custo"] = df["custo"]  # calculada ja separou custo de despesa
+    df["_custo"] = df["custo"]
     df["_cli"] = df["nome_cliente"].fillna("").astype(str).str.strip().replace("", "(sem cliente)")
+    df["_fonte"] = df["fonte"].fillna("").astype(str).str.strip()
 
     tot_receita = float(df["receita"].sum())
     tot_custo = float(df["_custo"].sum())
+    tot_despesa = float(df["despesa"].sum()) if "despesa" in df.columns else 0.0
     tot_horas = float(df["horas"].sum())
 
+    # Por periodo
     por_per = df.groupby("periodo").agg(
         horas=("horas", "sum"), receita=("receita", "sum"), custo=("_custo", "sum"),
     ).reset_index()
     por_per["margem"] = por_per["receita"] + por_per["custo"]
     por_per = por_per.sort_values("periodo")
 
+    # Por cliente
     por_cli = df.groupby("_cli").agg(
         horas=("horas", "sum"), receita=("receita", "sum"), custo=("_custo", "sum"),
     ).reset_index().rename(columns={"_cli": "nome_cliente"})
@@ -4316,17 +4320,39 @@ def get_worker_detalhe(
     por_cli["pct_horas"] = (por_cli["horas"] / tot_horas).round(4) if tot_horas else 0.0
     por_cli = por_cli.sort_values("horas", ascending=False)
 
-    for sub in (por_per, por_cli):
+    # Por fonte (mostra de onde vem horas/custo/receita — exibe a "engrenagem" do rateio)
+    por_fonte = df.groupby("_fonte").agg(
+        horas=("horas", "sum"), receita=("receita", "sum"), custo=("_custo", "sum"),
+    ).reset_index().rename(columns={"_fonte": "fonte"})
+    por_fonte = por_fonte[(por_fonte["horas"] != 0) | (por_fonte["receita"] != 0) | (por_fonte["custo"] != 0)]
+    por_fonte = por_fonte.sort_values("custo")  # mais negativo (CLT cgsap) primeiro
+
+    # Por (cliente, fonte) — mostra de onde vieram as horas pra cada cliente
+    por_cli_fonte = df.groupby(["_cli", "_fonte"]).agg(
+        horas=("horas", "sum"), receita=("receita", "sum"), custo=("_custo", "sum"),
+    ).reset_index().rename(columns={"_cli": "nome_cliente", "_fonte": "fonte"})
+    por_cli_fonte = por_cli_fonte[
+        (por_cli_fonte["horas"] != 0) | (por_cli_fonte["receita"] != 0) | (por_cli_fonte["custo"] != 0)
+    ]
+
+    for sub in (por_per, por_cli, por_fonte, por_cli_fonte):
         for c in ("receita", "custo", "margem", "horas"):
             if c in sub.columns:
                 sub[c] = sub[c].round(2)
 
     return _sanitize({
         "nome": nome,
-        "totais": {"horas": round(tot_horas, 2), "receita": round(tot_receita, 2),
-                   "custo": round(tot_custo, 2), "margem": round(tot_receita + tot_custo, 2)},
+        "totais": {
+            "horas": round(tot_horas, 2),
+            "receita": round(tot_receita, 2),
+            "custo": round(tot_custo, 2),
+            "despesa": round(tot_despesa, 2),
+            "margem": round(tot_receita + tot_custo, 2),
+        },
         "por_periodo": por_per.to_dict(orient="records"),
         "por_cliente": por_cli.to_dict(orient="records"),
+        "por_fonte": por_fonte.to_dict(orient="records"),
+        "por_cliente_fonte": por_cli_fonte.to_dict(orient="records"),
     })
 
 
