@@ -60,7 +60,11 @@ for _, r in df.iterrows():
     pep_base = pep.split(".")[0] if pep else None
     empresa_sap = clean(r.get("EMPRESA"))
     empresa = COMPANY_NAMES.get(empresa_sap, empresa_sap) if empresa_sap else None
-    receita = num(r.get("VALOR TOTAL")) or 0
+    # Receita = Valor Liquido (realizada/liquida). Fallback pra VALOR TOTAL
+    # quando liquido nao existir.
+    liquido = num(r.get("Valor Liquido :)"))
+    bruto = num(r.get("VALOR TOTAL"))
+    receita = liquido if liquido is not None else (bruto or 0)
     horas_v = num(r.get("HRS APROVADAS")) or 0
     rows_te.append({
         "upload_id": UID, "uploaded_at": AT, "uploaded_by": BY,
@@ -77,7 +81,7 @@ for _, r in df.iterrows():
         "horas": horas_v,
         "custo_rateado": 0,
         "margem": receita,
-        "valor_liquido": num(r.get("Valor Liquido :)")) or receita,
+        "valor_liquido": receita,
     })
 
 # ========== <> T&E Mar26 ==========
