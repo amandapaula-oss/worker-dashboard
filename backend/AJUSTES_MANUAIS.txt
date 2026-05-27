@@ -3,6 +3,15 @@
                           Periodo: Mai-2026
 ================================================================================
 
+*** ATENCAO: depois de cada upload novo de CLT/PJ, rode: ***
+    cd backend && python re_aplicar_ajustes.py --apply
+    e em seguida o clear-cache pelo site.
+
+Esse script (re_aplicar_ajustes.py) eh IDEMPOTENTE e re-aplica todos os
+ajustes documentados aqui. Roda sem flag pra dry-run (so reporta).
+
+
+
 Este arquivo documenta TODOS os ajustes manuais aplicados diretamente nos
 dados (Supabase) e nas configuracoes de alias do pipeline.
 
