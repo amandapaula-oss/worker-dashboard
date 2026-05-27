@@ -35,6 +35,16 @@ dados (Supabase) e nas configuracoes de alias do pipeline.
 1.4 VITOR COELHO RAFAEL -> Loja Eletrica LTDA a partir de 2026
     - Ja estava aplicado nos dados (sem alteracao adicional)
 
+1.5 FERNANDO HENRIQUE DOURADO BOLDRIN (PJ) -> KLABIN S.A.
+    - 3 linhas PJ Q1/2026 (antes CBMM/Cia Brasileira Metalurgia)
+    - vertical BU Logistics
+    - Aplicado em 2026-05-27 (apos upload abr26)
+
+1.6 IT SOLUTION SOLUCOES TECNOLOGICAS L (PJ) -> POLIEDRO SISTEMA DE ENSINO LTDA
+    - 2 linhas PJ Q1/2026 (antes CBMM/Cia Brasileira Metalurgia)
+    - vertical BU Logistics
+    - Aplicado em 2026-05-27 (apos upload abr26)
+
 
 ================================================================================
 2. CORRECOES DE NO_HIERARQUIA (CENTRO DE LUCRO)

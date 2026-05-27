@@ -62,6 +62,22 @@ def regra_tatiane_transunion():
           "Tatiane Camilo")
 
 
+def regra_fernando_boldrin_klabin():
+    """1.4 - Fernando Henrique Dourado Boldrin (PJ): CBMM -> KLABIN S.A."""
+    print("\n[1.4] Fernando Boldrin (PJ CBMM) -> Klabin")
+    patch("fonte=eq.PJs&nome_pessoa=ilike.*FERNANDO*HENRIQUE*DOURADO*BOLDRIN*&nome_cliente=ilike.*METALURGIA*",
+          {"nome_cliente": "KLABIN S.A.", "vertical": "BU Logistics"},
+          "Fernando Boldrin")
+
+
+def regra_it_solution_poliedro():
+    """1.5 - IT SOLUTION SOLUCOES TECNOLOGICAS (PJ): CBMM -> POLIEDRO SISTEMA DE ENSINO LTDA"""
+    print("\n[1.5] IT Solution (PJ CBMM) -> Poliedro")
+    patch("fonte=eq.PJs&nome_pessoa=ilike.*IT*SOLUTION*SOLUCOES*&nome_cliente=ilike.*METALURGIA*",
+          {"nome_cliente": "POLIEDRO SISTEMA DE ENSINO LTDA", "vertical": "BU Logistics"},
+          "IT Solution")
+
+
 def regra_no_hierarquia_codes():
     """2.2 - Adiciona codigo DC nas categorias com so rotulo"""
     print("\n[2.2] no_hierarquia: rotulo -> codigo DC")
@@ -192,6 +208,8 @@ def main():
     regra_pep_almap()
     regra_leonardo_almap()
     regra_tatiane_transunion()
+    regra_fernando_boldrin_klabin()
+    regra_it_solution_poliedro()
     regra_no_hierarquia_codes()
     regra_rodrigo_burgers()
     regra_tdm()
