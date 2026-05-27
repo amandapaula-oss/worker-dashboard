@@ -4196,10 +4196,14 @@ def _load_pessoas_lookup() -> dict:
 def get_workers(
     periodos: str = "",
     verticais: str = "",
+    clientes: str = "",
     user=Depends(get_current_user),
 ):
     """Lista de pessoas com receita, custo, margem e horas agregados.
-    Inclui CPF, contrato, razao_social via JOIN com tabela pessoas."""
+    Inclui CPF, contrato, razao_social via JOIN com tabela pessoas.
+    Filtro `clientes`: mostra so pessoas que tem alguma linha desses clientes
+    (mantem o agregado completo da pessoa).
+    """
     df = _get_nova_base().copy()
     if periodos:
         pers = [p.strip() for p in periodos.split(",") if p.strip()]
@@ -4212,6 +4216,12 @@ def get_workers(
         verts = [v.strip() for v in verticais.split(",") if v.strip()]
         if verts:
             df = df[df["vertical"].astype(str).isin(verts)]
+    if clientes:
+        cli_list = [c.strip() for c in clientes.split(",") if c.strip()]
+        if cli_list:
+            # Filtra linhas pra o(s) cliente(s) — os agregados refletem so o que
+            # esta atribuido a esses clientes.
+            df = df[df["nome_cliente"].astype(str).isin(cli_list)]
 
     df = df[df["nome_pessoa"].fillna("").astype(str).str.strip().ne("")]
     for c in ("receita", "custo_rateado", "horas"):

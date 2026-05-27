@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
   PieChart, Pie, Cell,
 } from "recharts";
-import { getWorkers, getWorkerDetalhe } from "../api";
+import { getWorkers, getWorkerDetalhe, getNovaBaseFilters } from "../api";
 import { theme } from "../theme";
 
 type Row = {
@@ -45,7 +45,13 @@ export default function WorkersTab() {
   const [loading, setLoading] = useState(true);
   const [selPer, setSelPer] = useState<string[]>(["2026-01","2026-02","2026-03"]);
   const [selVerts, setSelVerts] = useState<string[]>([]);
+  const [selClientes, setSelClientes] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [clientesOpts, setClientesOpts] = useState<string[]>([]);
+
+  useEffect(() => {
+    getNovaBaseFilters().then((d: any) => setClientesOpts(d.clientes || [])).catch(() => {});
+  }, []);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null);
@@ -56,12 +62,13 @@ export default function WorkersTab() {
     const params: Record<string, string> = {};
     if (selPer.length) params.periodos = selPer.join(",");
     if (selVerts.length) params.verticais = selVerts.join(",");
+    if (selClientes.length) params.clientes = selClientes.join(",");
     getWorkers(params)
       .then(d => setRows(d.rows || []))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [selPer.join(","), selVerts.join(",")]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [selPer.join(","), selVerts.join(","), selClientes.join(",")]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -171,6 +178,12 @@ export default function WorkersTab() {
             <Select mode="multiple" allowClear style={{ width: "100%" }}
               value={selVerts} onChange={setSelVerts} placeholder="Todas"
               options={VERTICAIS.map(v => ({ label: v, value: v }))} />
+          </Col>
+          <Col flex="auto">
+            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Clientes</div>
+            <Select mode="multiple" allowClear showSearch optionFilterProp="label"
+              style={{ width: "100%" }} value={selClientes} onChange={setSelClientes}
+              placeholder="Todos" options={clientesOpts.map(c => ({ label: c, value: c }))} />
           </Col>
           <Col flex="auto">
             <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Buscar pessoa</div>
