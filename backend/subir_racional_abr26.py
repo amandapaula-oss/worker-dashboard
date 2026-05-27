@@ -94,7 +94,11 @@ for _, r in df2.iterrows():
     pep_base = pep.split(".")[0] if pep else None
     empresa_sap = clean(r.get("EMPRESA"))
     empresa = COMPANY_NAMES.get(empresa_sap, empresa_sap) if empresa_sap else None
-    receita = num(r.get("RECEITA PLANEJADA")) or 0
+    # Receita = Formula Liquido (realizada/liquida). Se nao existir, cai
+    # pra RECEITA PLANEJADA como ultimo recurso.
+    liquido = num(r.get("Formula Líquido"))
+    planejado = num(r.get("RECEITA PLANEJADA"))
+    receita = liquido if liquido is not None else (planejado or 0)
     rows_out.append({
         "upload_id": UID, "uploaded_at": AT, "uploaded_by": BY,
         "fonte": "racionais", "fonte_dados": "<> T&E Mar26 (P&L Abr26)",
@@ -108,7 +112,7 @@ for _, r in df2.iterrows():
         "horas": 0,
         "custo_rateado": 0,
         "margem": receita,
-        "valor_liquido": num(r.get("Formula Líquido")) or receita,
+        "valor_liquido": receita,
     })
 
 # Normaliza schema
