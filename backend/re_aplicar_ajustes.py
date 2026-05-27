@@ -89,10 +89,69 @@ def regra_no_hierarquia_codes():
         "Imagine": "DC007 Imagine",
         "Open-X": "DC005 Open-X",
         "Consulting (Play)": "DC029 FC Consult. New Rev",
+        "Vertical": "DC002 Dedicated Teams",
     }
     for old, new in MAP.items():
         q = urllib.parse.quote(old, safe="")
         patch(f"no_hierarquia=eq.{q}", {"no_hierarquia": new}, f"{old} -> {new}")
+
+
+def regra_orange_no_hierarquia():
+    """2.3 - Linhas Base Orange sem no_hierarquia: deriva via PEP lookup
+    (no_hierarquia dominante do mesmo PEP em outras fontes); default DC002."""
+    print("\n[2.3] Orange sem no_hierarquia (via PEP lookup + default DC002)")
+    if not APPLY:
+        # Conta candidatas
+        r = httpx.get(f"{URL}/rest/v1/nova_base?select=id&fonte=eq.base Orange&or=(no_hierarquia.is.null,no_hierarquia.eq.)&limit=1", headers={**H, "Prefer": "count=exact"})
+        cr = r.headers.get('content-range', '0/0')
+        print(f"  Orange sem no_hierarquia: {cr}")
+        return
+    import collections as _co
+    # Mapa PEP -> DC dominante (nao-Orange)
+    allr = []; off = 0
+    while True:
+        r = httpx.get(f"{URL}/rest/v1/nova_base?select=pep_base,no_hierarquia&fonte=neq.base Orange&offset={off}&limit=1000", headers=H, timeout=60)
+        d = r.json()
+        if not isinstance(d, list): break
+        allr += d
+        if len(d) < 1000: break
+        off += 1000
+    pep_map = _co.defaultdict(_co.Counter)
+    for x in allr:
+        p = str(x.get("pep_base") or "").strip()
+        n = str(x.get("no_hierarquia") or "").strip()
+        if p and n and not n.lower().startswith("vertical"):
+            pep_map[p][n] += 1
+    pep_dc = {p: c.most_common(1)[0][0] for p, c in pep_map.items()}
+
+    # Orange sem no_hierarquia
+    oranges = []; off = 0
+    while True:
+        r = httpx.get(f"{URL}/rest/v1/nova_base?select=id,pep_base,no_hierarquia&fonte=eq.base Orange&offset={off}&limit=1000", headers=H, timeout=60)
+        d = r.json()
+        if not isinstance(d, list): break
+        oranges += d
+        if len(d) < 1000: break
+        off += 1000
+    sem = [x for x in oranges if not (x.get("no_hierarquia") or "").strip()]
+    if not sem:
+        print("  nada a atualizar")
+        return
+    upd = _co.defaultdict(list)
+    for x in sem:
+        p = str(x.get("pep_base") or "").strip()
+        dc = pep_dc.get(p) or "DC002 Dedicated Teams"
+        upd[dc].append(x["id"])
+    done = 0
+    for dc, ids in upd.items():
+        for i in range(0, len(ids), 200):
+            chunk = ids[i:i+200]
+            idlist = ",".join(str(x) for x in chunk)
+            r = httpx.patch(f"{URL}/rest/v1/nova_base?id=in.({idlist})", headers=HP, json={"no_hierarquia": dc}, timeout=60)
+            if r.status_code >= 300:
+                print(f"  ERRO: {r.status_code} {r.text[:150]}"); return
+            done += len(chunk)
+    print(f"  Orange: {done} linhas atualizadas")
 
 
 def regra_rodrigo_burgers():
@@ -211,6 +270,7 @@ def main():
     regra_fernando_boldrin_klabin()
     regra_it_solution_poliedro()
     regra_no_hierarquia_codes()
+    regra_orange_no_hierarquia()
     regra_rodrigo_burgers()
     regra_tdm()
     regra_pj_w_vertical_dc002()
