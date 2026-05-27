@@ -2704,10 +2704,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
 
     # 1. Custo total por pessoa × período:
     #    - CLT: vem de custo_gerencial (planilha SAP — só de CLTs)
-    #    - PJ:  vem de custo_project (taxa_hora × horas_apontadas) — só pra quem
-    #           NÃO está em custo_gerencial nesse mês (evita CLTs com taxa fake)
-    #    - CLTs/PJs do Mapa Pessoas NÃO entram como custo (são apenas cadastro/de-para)
-    is_custo_ger = df["fonte"].astype(str).isin(["custo_gerencial", "CLTs"]) & df["_pk"].notna()
+    #    - PJ:  vem da PROPRIA fonte PJs (valor_liquido). Antes nao entrava no
+    #           rateio, agora entra: PJ custo se distribui pelas horas
+    #           apontadas em racional/Orange (igual CLT).
+    is_custo_ger = df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"]) & df["_pk"].notna()
     custo_ger_pessoa = (df[is_custo_ger]
                         .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
                         .rename("_custo_total").reset_index())
@@ -2740,9 +2740,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
 
     # is_custo_total_primary: linha é a fonte de custo daquela pessoa-período.
     # - custo_gerencial/CLTs sempre é primary (CLT)
-    # - custo_project é primary SÓ se a pessoa-período NÃO é CLT (PJ real)
+    # - PJs eh primary (PJ — valor_liquido eh o custo)
+    # - custo_project é primary SÓ se a pessoa-período NÃO é CLT nem tem PJ
     is_custo_total_primary = df["_pk"].notna() & (
-        (df["fonte"].astype(str).isin(["custo_gerencial", "CLTs"])) |
+        (df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"])) |
         ((df["fonte"].astype(str) == "custo_project") & ~df["_eh_clt"])
     )
 
