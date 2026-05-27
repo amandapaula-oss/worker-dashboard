@@ -2781,6 +2781,11 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df = df.merge(horas_por_pep, on=["_pk", "_periodo_str", "pep"], how="left")
     df["_horas_pep"] = df["_horas_pep"].fillna(0)
 
+    # Zera horas em linhas de custo_project que NAO sao a fonte de horas do
+    # rateio (i.e., a pessoa tem racional, entao cp eh apenas backup SAP
+    # ignorado). Evita "phantom horas" no breakdown da Workers tab.
+    df.loc[is_cp & ~is_horas_src, "horas"] = 0
+
     # 3b. Horas por PEP dos destinos do rateio (racional + Orange-eligible) —
     #     denominador pra split quando ha multiplas linhas no mesmo PEP.
     horas_dest_por_pep = (df[is_alloc_target & df["_pk"].notna()]
