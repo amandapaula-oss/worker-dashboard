@@ -62,6 +62,14 @@ def regra_tatiane_transunion():
           "Tatiane Camilo")
 
 
+def regra_transunion_bu_finance():
+    """1.3b - Qualquer cliente TransUnion (qualquer grafia) -> BU Finance"""
+    print("\n[1.3b] TransUnion (todas grafias) -> BU Finance")
+    patch("nome_cliente=ilike.*TRANSUNION*&or=(vertical.is.null,vertical.neq.BU Finance)",
+          {"vertical": "BU Finance"},
+          "TransUnion BU Finance")
+
+
 def regra_fernando_boldrin_klabin():
     """1.4 - Fernando Henrique Dourado Boldrin (PJ): CBMM -> KLABIN S.A."""
     print("\n[1.4] Fernando Boldrin (PJ CBMM) -> Klabin")
@@ -267,6 +275,7 @@ def main():
     regra_pep_almap()
     regra_leonardo_almap()
     regra_tatiane_transunion()
+    regra_transunion_bu_finance()
     regra_fernando_boldrin_klabin()
     regra_it_solution_poliedro()
     regra_no_hierarquia_codes()
