@@ -4258,12 +4258,32 @@ def get_worker_detalhe(
     periodos: str = "",
     user=Depends(get_current_user),
 ):
-    """Detalhe de uma pessoa: totais por periodo e por cliente."""
+    """Detalhe de uma pessoa: totais por periodo e por cliente.
+    Consulta nova_base_calculada direto (rapido, sem pipeline pesado).
+    """
     if not nome:
         raise HTTPException(400, "nome obrigatorio")
-    # Filtra ANTES de copiar (evita copiar 29K linhas inteiras pra extrair umas dezenas).
-    df_full = _get_nova_base()
-    df = df_full[df_full["nome_pessoa"].astype(str) == nome].copy()
+    # Query direta na calculada — sem .copy() de 29K linhas.
+    import urllib.parse
+    nome_q = urllib.parse.quote(nome, safe="")
+    headers = _supabase_headers()
+    params = f"select=periodo,nome_cliente,receita,custo,despesa,horas&nome_pessoa=eq.{nome_q}"
+    rows = []
+    off = 0
+    with httpx.Client(timeout=30) as c:
+        while True:
+            r = c.get(f"{SUPABASE_URL}/rest/v1/nova_base_calculada?{params}&offset={off}&limit=1000", headers=headers)
+            if r.status_code != 200:
+                raise HTTPException(500, f"Supabase err: {r.text[:200]}")
+            d = r.json()
+            rows += d
+            if len(d) < 1000:
+                break
+            off += 1000
+    if not rows:
+        return {"nome": nome, "totais": {"horas": 0, "receita": 0, "custo": 0, "margem": 0},
+                "por_periodo": [], "por_cliente": []}
+    df = pd.DataFrame(rows)
     if periodos:
         pers = [p.strip() for p in periodos.split(",") if p.strip()]
         if pers:
@@ -4272,13 +4292,11 @@ def get_worker_detalhe(
         return {"nome": nome, "totais": {"horas": 0, "receita": 0, "custo": 0, "margem": 0},
                 "por_periodo": [], "por_cliente": []}
 
-    for c in ("receita", "custo_rateado", "horas"):
+    for c in ("receita", "custo", "despesa", "horas"):
         if c not in df.columns:
             df[c] = 0.0
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-
-    custo_s, _, _ = _split_custo_despesa(df)
-    df["_custo"] = custo_s
+    df["_custo"] = df["custo"]  # calculada ja separou custo de despesa
     df["_cli"] = df["nome_cliente"].fillna("").astype(str).str.strip().replace("", "(sem cliente)")
 
     tot_receita = float(df["receita"].sum())
