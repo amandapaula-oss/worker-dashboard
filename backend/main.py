@@ -2764,10 +2764,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     #    - PJ:  vem da PROPRIA fonte PJs (valor_liquido). Antes nao entrava no
     #           rateio, agora entra: PJ custo se distribui pelas horas
     #           apontadas em racional/Orange (igual CLT).
-    # TDMs ficam fora do rateio padrao — sao redistribuidos via
-    # _aplicar_rateio_tdm (% receita BU).
-    is_tdm = df.get("macro_area", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.strip().str.upper() == "TDM"
-    is_custo_ger = df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"]) & df["_pk"].notna() & ~is_tdm
+    # TDMs participam do rateio padrao se tiverem racional/Orange (com horas).
+    # Quem nao tem, fica com custo na linha CLT/PJ original e e redistribuido
+    # via _aplicar_rateio_tdm (% receita BU).
+    is_custo_ger = df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"]) & df["_pk"].notna()
     custo_ger_pessoa = (df[is_custo_ger]
                         .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
                         .rename("_custo_total").reset_index())
