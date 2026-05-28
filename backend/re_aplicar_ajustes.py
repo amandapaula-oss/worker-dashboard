@@ -188,6 +188,8 @@ def regra_peps_validados_receita():
         ("BR07CLP00136", "BANCO OURINVEST S/A", None, "BU Finance"),  # 212772
         ("BR07CLP00081", "ULTRAPAR PARTICIPACOES S/A", None, "BU Hyper"),  # 211312_HORAS DESENVOL_SNOW
         ("BR07CLP00054", "EMPREENDIMENTOS IMOBILIARIOS PARAISO GOLD LTDA", None, "BU Hyper"),  # 10725 PARAISO GOLD RPA WATSON
+        ("BR07CLP00089", "Riachuelo", None, "BU Retail"),  # 11406-Riachuelo
+        ("BR02CLP00134", "BIRMINGHAM BANK", None, None),  # Squad BIRMINGHAM BANK
     ]
     for pep, cli, dc, vert in FIXES:
         body = {}
