@@ -2754,7 +2754,10 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     #    - PJ:  vem da PROPRIA fonte PJs (valor_liquido). Antes nao entrava no
     #           rateio, agora entra: PJ custo se distribui pelas horas
     #           apontadas em racional/Orange (igual CLT).
-    is_custo_ger = df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"]) & df["_pk"].notna()
+    # TDMs ficam fora do rateio padrao — sao redistribuidos via
+    # _aplicar_rateio_tdm (% receita BU).
+    is_tdm = df.get("macro_area", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.strip().str.upper() == "TDM"
+    is_custo_ger = df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"]) & df["_pk"].notna() & ~is_tdm
     custo_ger_pessoa = (df[is_custo_ger]
                         .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
                         .rename("_custo_total").reset_index())
@@ -2956,6 +2959,105 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _aplicar_rateio_tdm(df: pd.DataFrame) -> pd.DataFrame:
+    """TDMs (macro_area='TDM'): rateia custo pelos clientes da BU por % receita
+    racionais (mesmo mes). Cria linhas fonte='rateio_tdm' por cliente e zera
+    custo_rateado nas linhas TDM originais.
+    """
+    import numpy as np
+    if not {"macro_area", "vertical", "custo_rateado", "fonte", "periodo"}.issubset(df.columns):
+        return df
+
+    tdm_mask = (
+        df["macro_area"].fillna("").astype(str).str.strip().str.upper() == "TDM"
+    ) & df["fonte"].astype(str).isin(["CLTs", "PJs"])
+    if not tdm_mask.any():
+        return df
+
+    custo_col = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0.0)
+    tdm_idx = df.index[tdm_mask & (custo_col.abs() > 0)]
+    if len(tdm_idx) == 0:
+        return df
+
+    # Receita racionais por (BU, periodo, cliente)
+    rec_col = pd.to_numeric(df["receita"], errors="coerce").fillna(0.0)
+    cli_col = df["nome_cliente"].fillna("").astype(str).str.strip()
+    rac_mask = (
+        (df["fonte"].astype(str) == "racionais")
+        & (rec_col > 0)
+        & cli_col.ne("")
+        & ~cli_col.isin(["0", "nan"])
+    )
+    if not rac_mask.any():
+        return df
+    rac_df = pd.DataFrame({
+        "vertical": df.loc[rac_mask, "vertical"].fillna("").astype(str),
+        "periodo": df.loc[rac_mask, "periodo"].astype(str),
+        "nome_cliente": cli_col[rac_mask],
+        "_rec": rec_col[rac_mask],
+    })
+    rec_bu_cli = rac_df.groupby(["vertical", "periodo", "nome_cliente"], as_index=False)["_rec"].sum()
+    rec_bu = rec_bu_cli.groupby(["vertical", "periodo"], as_index=False)["_rec"].sum().rename(columns={"_rec": "_rec_bu"})
+    rec_bu_cli = rec_bu_cli.merge(rec_bu, on=["vertical", "periodo"])
+    rec_bu_cli["_share"] = rec_bu_cli["_rec"] / rec_bu_cli["_rec_bu"]
+
+    # Pra cada (BU, periodo) que tem TDM custo, lookup das fatias.
+    rec_lookup = {}
+    for (bu, per), grp in rec_bu_cli.groupby(["vertical", "periodo"]):
+        rec_lookup[(bu, per)] = list(zip(grp["nome_cliente"], grp["_share"]))
+
+    new_rows = []
+    distrib_idx = []
+    for i in tdm_idx:
+        row = df.loc[i]
+        bu = str(row.get("vertical") or "")
+        per = str(row.get("periodo") or "")
+        fatias = rec_lookup.get((bu, per))
+        if not fatias:
+            continue  # BU/periodo sem receita: deixa custo na linha original
+        custo_abs = float(abs(custo_col.loc[i]))
+        for cli, share in fatias:
+            share_cost = -custo_abs * float(share)
+            new_rows.append({
+                "fonte": "rateio_tdm",
+                "fonte_dados": "Rateio TDM",
+                "periodo": per,
+                "nome_pessoa": row.get("nome_pessoa"),
+                "cpf": row.get("cpf"),
+                "nome_cliente": cli,
+                "vertical": bu,
+                "empresa": row.get("empresa"),
+                "macro_area": "TDM",
+                "classificacao": "custo",
+                "tipo_contrato": row.get("tipo_contrato"),
+                "custo_rateado": share_cost,
+                "receita": 0.0,
+                "horas": 0.0,
+                "valor_liquido": share_cost,
+                "margem": share_cost,
+                "custo_fonte": 0.0,
+                "tag_rateio": f"Rateio TDM (% receita BU): {share*100:.1f}%",
+            })
+        distrib_idx.append(i)
+
+    if not distrib_idx:
+        return df
+
+    # Zera custo nas linhas TDM cujo custo foi distribuido
+    df.loc[distrib_idx, "custo_rateado"] = 0.0
+    df.loc[distrib_idx, "margem"] = 0.0
+    df.loc[distrib_idx, "tag_rateio"] = "TDM — custo distribuido pelos clientes da BU"
+    if "valor_liquido" in df.columns:
+        df.loc[distrib_idx, "valor_liquido"] = 0.0
+
+    new_df = pd.DataFrame(new_rows)
+    for c in df.columns:
+        if c not in new_df.columns:
+            new_df[c] = None
+    new_df = new_df[df.columns]
+    return pd.concat([df, new_df], ignore_index=True)
+
+
 def _get_nova_base() -> pd.DataFrame:
     if _cache["nova_base"] is not None:
         return _cache["nova_base"]
@@ -3002,6 +3104,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _aplicar_rateio_custos(df)
                 df = _aplicar_vertical_por_pep(df)
                 df = _reclassificar_hyper(df)
+                df = _aplicar_rateio_tdm(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
             except Exception as e:
@@ -3104,6 +3207,7 @@ def _get_nova_base() -> pd.DataFrame:
         df = _aplicar_rateio_custos(df)
         df = _aplicar_vertical_por_pep(df)
         df = _reclassificar_hyper(df)
+        df = _aplicar_rateio_tdm(df)
         _cache["nova_base"] = df
     return _cache["nova_base"]
 
