@@ -98,6 +98,11 @@ def regra_no_hierarquia_codes():
         "Open-X": "DC005 Open-X",
         "Consulting (Play)": "DC029 FC Consult. New Rev",
         "Vertical": "DC002 Dedicated Teams",
+        "Squads": "DC001 Squads",
+        "Dedicated Teams": "DC002 Dedicated Teams",
+        "Business Unit": "DC037 Business Unit",
+        "Hyperautomation": "DC008 Hyperautomation",
+        "Licensing Hyper": "DC009 Licensing Hyper",
     }
     for old, new in MAP.items():
         q = urllib.parse.quote(old, safe="")
@@ -160,6 +165,31 @@ def regra_orange_no_hierarquia():
                 print(f"  ERRO: {r.status_code} {r.text[:150]}"); return
             done += len(chunk)
     print(f"  Orange: {done} linhas atualizadas")
+
+
+def regra_peps_validados_receita():
+    """1.7-1.14 - PEPs corrigidos via Receita 26.05.xlsx (referencia SAP)"""
+    print("\n[1.7] PEPs validados via Receita 26.05.xlsx")
+    FIXES = [
+        ("BR07CLP00015", "RED HAT BRASIL LTDA", None),
+        ("BR02CLP00021", None, "DC037 Business Unit"),
+        ("BR07CLP00019", "FIDELITY NATIONAL SERVICOS E CONTAC", None),
+        ("BR07CLP00020", "FIDELITY NATIONAL SERVICOS E CONTAC", None),
+        ("BR02CLP00020", "JULIUS BAER BRASIL GESTAO DE PATRIMONIO", None),
+        ("BR07CLP00123", "UNIMED NACIONAL - COOPERATIVA CENTRAL", None),
+        ("BR02CLP000186", "ELFA MEDICAMENTOS S.A", None),
+        ("BR02CLP000116", "Adcos", None),
+    ]
+    for pep, cli, dc in FIXES:
+        body = {}
+        if cli: body["nome_cliente"] = cli
+        if dc: body["no_hierarquia"] = dc
+        if APPLY:
+            r = httpx.patch(f"{URL}/rest/v1/nova_base?pep_base=eq.{pep}", headers=HP, json=body, timeout=60)
+            n = len(r.json()) if r.status_code < 300 else 0
+            print(f"  {pep} -> {body}: {n}")
+        else:
+            print(f"  {pep} -> {body}")
 
 
 def regra_rodrigo_burgers():
