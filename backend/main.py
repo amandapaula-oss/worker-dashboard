@@ -3006,6 +3006,109 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _aplicar_rateio_100h(df: pd.DataFrame) -> pd.DataFrame:
+    """Pessoas com >100h em um cliente (via racional) num mes:
+    100% do custo no(s) cliente(s) com >100h. Se >100h em multiplos clientes,
+    split proporcional entre eles. Se nenhum cliente passou de 100h, mantem
+    rateio padrao (esta funcao nao mexe).
+
+    Roda APOS rateio_custos / rateio_tdm. Captura custo_rateado de todas as
+    linhas da pessoa/periodo, zera, e gera linhas fonte='rateio_100h'.
+    """
+    import numpy as np
+    if not {"nome_pessoa", "periodo", "nome_cliente", "fonte", "horas", "custo_rateado"}.issubset(df.columns):
+        return df
+
+    rac_mask = df["fonte"].astype(str) == "racionais"
+    if not rac_mask.any():
+        return df
+
+    nome = df["nome_pessoa"].fillna("").astype(str).str.strip().str.upper()
+    per = df["periodo"].astype(str)
+    cli = df["nome_cliente"].fillna("").astype(str).str.strip()
+    horas_n = pd.to_numeric(df["horas"], errors="coerce").fillna(0)
+
+    rac_df = pd.DataFrame({
+        "_nm": nome[rac_mask],
+        "_per": per[rac_mask],
+        "_cli": cli[rac_mask],
+        "_h": horas_n[rac_mask],
+    })
+    rac_df = rac_df[
+        rac_df["_nm"].ne("")
+        & rac_df["_cli"].ne("")
+        & ~rac_df["_cli"].isin(["0", "nan"])
+        & (rac_df["_h"] > 0)
+    ]
+    if rac_df.empty:
+        return df
+
+    h_por_cli = rac_df.groupby(["_nm", "_per", "_cli"], as_index=False)["_h"].sum()
+    h_alto = h_por_cli[h_por_cli["_h"] > 100]
+    if h_alto.empty:
+        return df
+
+    # shares por (nome, periodo): proporcional entre clientes >100h
+    shares_map = {}
+    for (nm_v, per_v), grp in h_alto.groupby(["_nm", "_per"]):
+        total = grp["_h"].sum()
+        if total <= 0:
+            continue
+        shares_map[(nm_v, per_v)] = [(c, float(h) / float(total)) for c, h in zip(grp["_cli"], grp["_h"])]
+
+    custo_n = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0.0)
+    new_rows = []
+    indices_to_zero = []
+
+    for (nm_v, per_v), shares in shares_map.items():
+        mask_pp = (nome == nm_v) & (per == per_v)
+        if not mask_pp.any():
+            continue
+        idx_pp = df.index[mask_pp]
+        total_custo = float(custo_n.loc[idx_pp].sum())
+        if total_custo == 0:
+            continue
+        ref_row = df.loc[idx_pp[0]]
+        for cli_v, share in shares:
+            share_cost = total_custo * share
+            new_rows.append({
+                "fonte": "rateio_100h",
+                "fonte_dados": "Rateio >100h",
+                "periodo": per_v,
+                "nome_pessoa": ref_row.get("nome_pessoa"),
+                "cpf": ref_row.get("cpf"),
+                "nome_cliente": cli_v,
+                "vertical": ref_row.get("vertical"),
+                "empresa": ref_row.get("empresa"),
+                "macro_area": ref_row.get("macro_area"),
+                "classificacao": "custo",
+                "tipo_contrato": ref_row.get("tipo_contrato"),
+                "custo_rateado": share_cost,
+                "receita": 0.0,
+                "horas": 0.0,
+                "valor_liquido": share_cost,
+                "margem": share_cost,
+                "custo_fonte": 0.0,
+                "tag_rateio": f"Rateio >100h: {share*100:.1f}% ({cli_v})",
+            })
+        indices_to_zero.extend(idx_pp.tolist())
+
+    if not new_rows:
+        return df
+
+    df.loc[indices_to_zero, "custo_rateado"] = 0.0
+    if "margem" in df.columns:
+        rec_n = pd.to_numeric(df.loc[indices_to_zero, "receita"], errors="coerce").fillna(0.0)
+        df.loc[indices_to_zero, "margem"] = rec_n.values
+
+    new_df = pd.DataFrame(new_rows)
+    for c in df.columns:
+        if c not in new_df.columns:
+            new_df[c] = None
+    new_df = new_df[df.columns]
+    return pd.concat([df, new_df], ignore_index=True)
+
+
 def _aplicar_rateio_tdm(df: pd.DataFrame) -> pd.DataFrame:
     """TDMs (macro_area='TDM'): rateia custo pelos clientes da BU por % receita
     racionais (mesmo mes). Cria linhas fonte='rateio_tdm' por cliente e zera
@@ -3151,6 +3254,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _aplicar_rateio_custos(df)
                 df = _aplicar_vertical_por_pep(df)
                 df = _reclassificar_hyper(df)
+                df = _aplicar_rateio_100h(df)
                 df = _aplicar_rateio_tdm(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
@@ -3254,6 +3358,7 @@ def _get_nova_base() -> pd.DataFrame:
         df = _aplicar_rateio_custos(df)
         df = _aplicar_vertical_por_pep(df)
         df = _reclassificar_hyper(df)
+        df = _aplicar_rateio_100h(df)
         df = _aplicar_rateio_tdm(df)
         _cache["nova_base"] = df
     return _cache["nova_base"]
