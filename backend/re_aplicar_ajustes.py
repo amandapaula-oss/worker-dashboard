@@ -192,6 +192,12 @@ def regra_peps_validados_receita():
             print(f"  {pep} -> {body}")
 
 
+def regra_cliente_zero_null():
+    """2.5 - nome_cliente='0' (string literal) -> NULL"""
+    print("\n[2.5] nome_cliente='0' -> NULL")
+    patch("nome_cliente=eq.0", {"nome_cliente": None}, "cliente='0'")
+
+
 def regra_rodrigo_burgers():
     """2.4 - RODRIGO FONSECA BURGERS -> DC029 FC Consult. New Rev"""
     print("\n[2.4] RODRIGO FONSECA BURGERS -> DC029")
@@ -310,6 +316,7 @@ def main():
     regra_it_solution_poliedro()
     regra_no_hierarquia_codes()
     regra_orange_no_hierarquia()
+    regra_cliente_zero_null()
     regra_rodrigo_burgers()
     regra_tdm()
     regra_pj_w_vertical_dc002()
