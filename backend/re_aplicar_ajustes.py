@@ -327,6 +327,7 @@ def main():
     regra_fernando_boldrin_klabin()
     regra_it_solution_poliedro()
     regra_no_hierarquia_codes()
+    regra_peps_validados_receita()
     regra_orange_no_hierarquia()
     regra_cliente_zero_null()
     regra_rodrigo_burgers()

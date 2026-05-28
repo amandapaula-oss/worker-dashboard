@@ -2276,6 +2276,9 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         s = s.apply(lambda x: unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode("ascii") if x else x)
         # Remove prefixo numerico (CPF/CNPJ na frente do nome): "56.934.070 NOME" -> "NOME"
         s = s.str.replace(r"^[\d./\-]+\s+", "", regex=True)
+        # Normaliza " DO SANTOS"/" DA SANTOS"/etc -> " DOS SANTOS"/" DAS SANTOS"
+        # (typo recorrente: Orange usa "do Santos", outras fontes "dos Santos")
+        s = s.str.replace(r"\bDO SANTOS\b", "DOS SANTOS", regex=True)
         return s
 
     nome_norm = _norm(df["nome_pessoa"])
@@ -2465,6 +2468,30 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         if len(cpfs_grupo) > 1:
             continue
         canonico = max(grupo, key=len)  # grafia mais completa
+        for n in grupo:
+            if n != canonico:
+                canonicos[n] = canonico
+
+    # Regra extra: pos-strip de conectores, unifica nomes onde a ultima
+    # palavra de um e prefixo da outra (>= 4 chars) e as demais palavras batem.
+    # Trata truncamento do tipo "DOS SANTO" vs "DOS SANTOS".
+    strip_first3_idx: dict = {}
+    for nome in nomes_unicos:
+        nucleo = " ".join(p for p in nome.split() if p not in _CONNS)
+        palavras = nucleo.split()
+        if len(palavras) >= 3:
+            chave = (" ".join(palavras[:-1]), palavras[-1][:4])
+            strip_first3_idx.setdefault(chave, []).append(nome)
+    for chave, grupo in strip_first3_idx.items():
+        if len(grupo) <= 1:
+            continue
+        cpfs_grupo = set()
+        for n in grupo:
+            cpfs_n = cpf_d[df["_pessoa_key"] == n]
+            cpfs_grupo |= set(cpfs_n[cpfs_n.str.len() >= 11].unique())
+        if len(cpfs_grupo) > 1:
+            continue
+        canonico = max(grupo, key=len)
         for n in grupo:
             if n != canonico:
                 canonicos[n] = canonico

@@ -69,13 +69,18 @@ def _load_orange():
 
 
 def _load_racionais_people():
-    """Retorna set de (pessoa_norm, periodo) que tem racional na nova_base."""
+    """Retorna set de (pessoa_norm, periodo, pep_base) que tem racional na nova_base.
+
+    Granularidade por-PEP: se pessoa apontou no racional no PEP X em Jan, NAO
+    importamos Orange dela pra PEP X em Jan — mas importamos Orange dela pra
+    outros PEPs no mesmo mes (ela pode ter trabalhado em varios projetos).
+    """
     h = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
     allr = []
     off = 0
     while True:
         r = httpx.get(
-            f"{SUPABASE_URL}/rest/v1/nova_base?select=nome_pessoa,periodo,horas&fonte=eq.racionais&offset={off}&limit=1000",
+            f"{SUPABASE_URL}/rest/v1/nova_base?select=nome_pessoa,periodo,pep_base,horas&fonte=eq.racionais&offset={off}&limit=1000",
             headers=h, timeout=60,
         )
         d = r.json()
@@ -86,13 +91,14 @@ def _load_racionais_people():
             break
         off += 1000
     print(f"racionais: {len(allr)} linhas carregadas")
-    pares = set()
+    trios = set()
     for x in allr:
         nm = _norm(x.get("nome_pessoa"))
         per = str(x.get("periodo") or "").strip()
-        if nm and per:
-            pares.add((nm, per))
-    return pares
+        pb = str(x.get("pep_base") or "").strip()
+        if nm and per and pb:
+            trios.add((nm, per, pb))
+    return trios
 
 
 def main():
@@ -107,14 +113,20 @@ def main():
     df = df[df["horas"] > 0].copy()
     print(f"Orange com horas>0: {len(df)}")
 
-    # carrega pares (pessoa, periodo) que ja tem racional
-    rac_pares = _load_racionais_people()
-    print(f"Racional: {len(rac_pares)} pares (pessoa, periodo) distintos")
+    # carrega trios (pessoa, periodo, pep_base) que ja tem racional
+    rac_trios = _load_racionais_people()
+    print(f"Racional: {len(rac_trios)} trios (pessoa, periodo, pep) distintos")
 
-    # filtra: so pessoas SEM racional NAQUELE periodo
-    mask_sem_rac = ~df.apply(lambda r: (r["_pessoa_key"], r["periodo"]) in rac_pares, axis=1)
+    # filtra: pula APENAS Orange row de (pessoa, periodo, PEP) que ja tem racional.
+    # Se a pessoa apontou racional em PEP X mas tem horas Orange em PEP Y no
+    # mesmo mes, mantemos as horas Y (PEPs distintos = projetos distintos).
+    pep_base_col = df["work_package"].astype(str).str.split(".").str[0].fillna("")
+    mask_sem_rac = ~pd.Series(
+        [(p, per, pb) in rac_trios for p, per, pb in zip(df["_pessoa_key"], df["periodo"], pep_base_col)],
+        index=df.index,
+    )
     df_novo = df[mask_sem_rac].copy()
-    print(f"Orange sem racional no mesmo periodo: {len(df_novo)}")
+    print(f"Orange sem racional no mesmo (pessoa, periodo, PEP): {len(df_novo)}")
     print("  por periodo:")
     print(df_novo.groupby("periodo").size().to_dict())
     print("  pessoas distintas:", df_novo["_pessoa_key"].nunique())
