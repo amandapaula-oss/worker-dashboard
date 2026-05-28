@@ -98,11 +98,9 @@ for _, r in df2.iterrows():
     pep_base = pep.split(".")[0] if pep else None
     empresa_sap = clean(r.get("EMPRESA"))
     empresa = COMPANY_NAMES.get(empresa_sap, empresa_sap) if empresa_sap else None
-    # Receita = Formula Liquido (realizada/liquida). Se nao existir, cai
-    # pra RECEITA PLANEJADA como ultimo recurso.
-    liquido = num(r.get("Formula Líquido"))
-    planejado = num(r.get("RECEITA PLANEJADA"))
-    receita = liquido if liquido is not None else (planejado or 0)
+    # Receita = SOMENTE Formula Liquido. Sem fallback pra RECEITA PLANEJADA
+    # (sao colunas mutuamente exclusivas; somar as duas inflaria a receita).
+    receita = num(r.get("Formula Líquido")) or 0
     rows_out.append({
         "upload_id": UID, "uploaded_at": AT, "uploaded_by": BY,
         "fonte": "racionais", "fonte_dados": "<> T&E Mar26 (P&L Abr26)",
