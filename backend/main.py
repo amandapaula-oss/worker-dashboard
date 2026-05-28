@@ -2264,6 +2264,8 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         s = s.fillna("").astype(str).str.upper().str.strip()
         s = s.str.replace(r"\s+", " ", regex=True)
         s = s.apply(lambda x: unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode("ascii") if x else x)
+        # Remove prefixo numerico (CPF/CNPJ na frente do nome): "56.934.070 NOME" -> "NOME"
+        s = s.str.replace(r"^[\d./\-]+\s+", "", regex=True)
         return s
 
     nome_norm = _norm(df["nome_pessoa"])
@@ -2353,6 +2355,14 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
 
         # Apostrofe
         "ALEXANDRE AZEVEDO D'AMOEDO E SILVA": "ALEXANDRE AZEVEDO DAMOEDO E SILVA",
+
+        # TDMs com variantes PJ (CNPJ/sufixo) -> nome canonico CLT
+        "RAFAEL MACEDO": "RAFAEL MACEDO ROZALINO",
+        "FERNANDO PEREIRA LISBOA TECNOLOGIA": "FERNANDO PEREIRA LISBOA",
+        "LEONARDO BARBETTA DE OLIVEIRA TECNO": "LEONARDO BARBETTA DE OLIVEIRA",
+        "JAMIL DIAS COSTA - ME": "JAMIL DIAS COSTA",
+        "LEANDRO DE BRITO SISTEMAS": "LEANDRO DE BRITO",
+        "FABIANO DA SILVA REMIAO MONTEIRO": "FABIANO DA SILVA REMIAO MONTEIRO",
 
         # Nome curto / abreviado vs completo
         "ANA CAROLINA TEORODO": "ANA CAROLINA TEODORO",
