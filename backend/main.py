@@ -118,12 +118,34 @@ TOKEN_EXPIRE_MINUTES = int(os.environ.get("TOKEN_EXPIRE_MINUTES", "480"))
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
+# BUs canônicas (espelho do _BU_DEF usado no dataset). bus=[] significa admin (acesso total).
 USERS = {
-    "amanda":   {"name": "Amanda", "hashed_password": "$2b$12$mfHiyBw/auw.B745JxG2eO5Qlw/urUAOOVwi5x2koGXqWhUDhZv/a"},
-    "paola":    {"name": "Paola",  "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC"},
-    "yuri":     {"name": "Yuri",   "hashed_password": "$2b$12$lafxeoNomlDKRwz5seUPUe72xx06URZiuxTx2vbhJ6pFVy1HQpuhG"},
-    "amisrael": {"name": "Israel", "hashed_password": "$2b$12$Uxf53rbxFSof7w.wszVac.HmMOLoK17EfmisNDHc9NaxVHoaCbgO."},
+    "amanda":   {"name": "Amanda", "hashed_password": "$2b$12$mfHiyBw/auw.B745JxG2eO5Qlw/urUAOOVwi5x2koGXqWhUDhZv/a", "bus": []},
+    "paola":    {"name": "Paola",  "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC", "bus": []},
+    "yuri":     {"name": "Yuri",   "hashed_password": "$2b$12$lafxeoNomlDKRwz5seUPUe72xx06URZiuxTx2vbhJ6pFVy1HQpuhG", "bus": []},
+    "amisrael": {"name": "Israel", "hashed_password": "$2b$12$Uxf53rbxFSof7w.wszVac.HmMOLoK17EfmisNDHc9NaxVHoaCbgO.", "bus": []},
 }
+
+BU_CARDS = ["BU Finance", "BU Health", "BU Multisector", "BU Retail", "BU Logistics"]
+
+def get_user_bus(user: str) -> list:
+    """BUs liberadas pro usuário. Lista vazia = admin (vê tudo)."""
+    return list(USERS.get(user, {}).get("bus", []))
+
+def enforce_bu_filter(user: str, verticais: str) -> str:
+    """Restringe o parâmetro `verticais` às BUs liberadas pro usuário.
+    - Admin (sem restrição): retorna `verticais` inalterado.
+    - Restrito + sem `verticais`: retorna as BUs do usuário (force-filter).
+    - Restrito + com `verticais`: intersecção. Se vazia → sentinel que não casa.
+    """
+    allowed = get_user_bus(user)
+    if not allowed:
+        return verticais
+    requested = [v.strip() for v in (verticais or "").split(",") if v.strip()]
+    if not requested:
+        return ",".join(allowed)
+    inter = [v for v in requested if v in allowed]
+    return ",".join(inter) if inter else "__NO_ACCESS__"
 
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
@@ -149,6 +171,20 @@ def login(request: Request, form: OAuth2PasswordRequestForm = Depends()):
     if not user or not verify_password(form.password, user["hashed_password"]):
         raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
     return {"access_token": create_token(form.username), "token_type": "bearer"}
+
+@app.get("/api/me")
+def get_me(user=Depends(get_current_user)):
+    info = USERS.get(user, {})
+    allowed = get_user_bus(user)
+    # BUs visíveis nos cards: se admin (allowed vazio) → todas; senão → só as permitidas.
+    visible_bus = BU_CARDS if not allowed else [b for b in BU_CARDS if b in allowed]
+    return {
+        "username": user,
+        "name": info.get("name", user),
+        "is_admin": not allowed,
+        "bus": allowed,
+        "visible_bus": visible_bus,
+    }
 
 # ── Cache em memória ───────────────────────────────────────────────────────────
 
@@ -2054,6 +2090,16 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             df.loc[nc_hy.isin(CLIENTES_HYPER) & ~v_cur.isin(_BU_DEF), "vertical"] = "Hyper"
     except Exception as e:
         print(f"[vertical_hyper] falhou: {e}")
+
+    # 6. Locks finais: clientes onde a BU eh decisao de negocio absoluta
+    #    (sobrescreve qualquer override de PEP/cadastro).
+    try:
+        if "nome_cliente" in df.columns:
+            nc_lock = df["nome_cliente"].fillna("").astype(str).apply(
+                lambda s: re.sub(r"\s+", " ", str(s)).strip().upper())
+            df.loc[nc_lock.str.contains("TRANSUNION", na=False), "vertical"] = "BU Finance"
+    except Exception as e:
+        print(f"[vertical_locks] falhou: {e}")
     return df
 
 
@@ -3318,6 +3364,10 @@ def get_nova_base_filters(user=Depends(get_current_user)):
     current_period = datetime.now().strftime("%Y-%m")
     df = _get_nova_base()
     df = df[df["periodo"].fillna("").astype(str) <= current_period]
+    # Se usuário restrito por BU, filtra o df antes de derivar as opções de filtro
+    allowed_bus = get_user_bus(user)
+    if allowed_bus and "vertical" in df.columns:
+        df = df[df["vertical"].astype(str).str.strip().isin(allowed_bus)]
     # Exclui períodos sem nenhum dado real
     for col in ["receita", "custo_rateado", "valor_liquido", "horas"]:
         if col not in df.columns:
@@ -3357,6 +3407,7 @@ def get_nova_base_resumo(
     user=Depends(get_current_user)
 ):
     from datetime import datetime
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
 
     if not periodos:
@@ -3483,6 +3534,7 @@ def get_budget_vs_realizado(
     Custo armazenado como negativo; LB / Receita positivos.
     """
     import numpy as np
+    verticais = enforce_bu_filter(user, verticais)
 
     # === Budget ===
     bud = _load_budget_supabase()
@@ -3558,6 +3610,7 @@ def get_nova_base_margem_clientes(
     user=Depends(get_current_user)
 ):
     from datetime import datetime
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
     if not periodos:
         df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
@@ -3639,6 +3692,7 @@ def get_nova_base_margem_cliente_detalhe(
     user=Depends(get_current_user)
 ):
     from datetime import datetime
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
     if not periodos:
         df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
@@ -3731,6 +3785,7 @@ def get_nova_base_margem_projeto_pessoas(
 ):
     """Margem por pessoa dentro de um PEP/projeto de um cliente."""
     from datetime import datetime
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
     if not periodos:
         df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
@@ -3825,6 +3880,7 @@ def get_nova_base_margem_pessoa_clientes(
 ):
     """Receita/custo de uma pessoa, quebrado por cliente (e opcionalmente por mês)."""
     from datetime import datetime
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
     if not periodos:
         df = df[df["periodo"].fillna("").astype(str) <= datetime.now().strftime("%Y-%m")]
@@ -3887,6 +3943,9 @@ def download_nova_base(user=Depends(get_current_user)):
     import io
     from fastapi.responses import StreamingResponse
     df = _get_nova_base().copy()
+    allowed_bus = get_user_bus(user)
+    if allowed_bus and "vertical" in df.columns:
+        df = df[df["vertical"].astype(str).str.strip().isin(allowed_bus)]
     cols = [c for c in [
         "fonte", "periodo", "empresa", "pep", "pep_base", "nome_pessoa",
         "nome_cliente", "tipo_contrato", "classificacao", "categoria_bu",
@@ -3923,6 +3982,7 @@ def get_nova_base_pivot(
     agrupadores_pl: str = "",
     user=Depends(get_current_user),
 ):
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
     df = df[df["fonte"].astype(str) != "de para"]
 
@@ -4048,6 +4108,7 @@ def get_nova_base_data(
     search: str = "",
     user=Depends(get_current_user)
 ):
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
 
     # Remove fonte "de para" da Base Detalhada — sao mapeamentos auxiliares, nao dados.
@@ -4214,6 +4275,7 @@ def get_workers(
     Filtro `clientes`: mostra so pessoas que tem alguma linha desses clientes
     (mantem o agregado completo da pessoa).
     """
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
     if periodos:
         pers = [p.strip() for p in periodos.split(",") if p.strip()]
@@ -4287,7 +4349,14 @@ def get_worker_detalhe(
     import urllib.parse
     nome_q = urllib.parse.quote(nome, safe="")
     headers = _supabase_headers()
-    params = f"select=periodo,nome_cliente,receita,custo,despesa,horas,fonte,fonte_familia,empresa&nome_pessoa=eq.{nome_q}"
+    select_cols = "periodo,nome_cliente,receita,custo,despesa,horas,fonte,fonte_familia,empresa"
+    allowed_bus = get_user_bus(user)
+    bu_clause = ""
+    if allowed_bus:
+        select_cols += ",vertical"
+        bus_q = ",".join(f'"{b}"' for b in allowed_bus)
+        bu_clause = f"&vertical=in.({urllib.parse.quote(bus_q, safe='(),\"')})"
+    params = f"select={select_cols}&nome_pessoa=eq.{nome_q}{bu_clause}"
     rows = []
     off = 0
     with httpx.Client(timeout=30) as c:
@@ -4384,17 +4453,19 @@ def get_nova_base_dre(
     macro_areas: str = "",
     apuracoes: str = "",
     no_hierarquias: str = "",
+    verticais: str = "",
     user=Depends(get_current_user)
 ):
     try:
-        return _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes, no_hierarquias)
+        verticais = enforce_bu_filter(user, verticais)
+        return _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes, no_hierarquias, verticais)
     except Exception as e:
         tb = traceback.format_exc()
         print(f"[nova-base/dre] ERRO: {e}\n{tb}")
         return JSONResponse(status_code=500, content={"detail": str(e), "traceback": tb},
                             headers={"Access-Control-Allow-Origin": "*"})
 
-def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", no_hierarquias=""):
+def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", no_hierarquias="", verticais=""):
     from datetime import datetime
     df = _get_nova_base().copy()
 
@@ -4422,6 +4493,7 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", 
     if fontes:         df = filt("fonte_familia", fontes)
     if apuracoes:      df = filt("apuracao", apuracoes)
     if no_hierarquias: df = filt("no_hierarquia", no_hierarquias)
+    if verticais:      df = filt("vertical", verticais)
     # macro_areas filtra só despesas (linhas com macro_area); receita/custo direto não têm macro_area
     _macro_area_filter = [v.strip() for v in macro_areas.split(",") if v.strip()] if macro_areas else []
 
@@ -4536,6 +4608,7 @@ def get_nova_base_margem_cliente(
     user=Depends(get_current_user)
 ):
     from datetime import datetime
+    verticais = enforce_bu_filter(user, verticais)
     df = _get_nova_base().copy()
 
     if not periodos:
@@ -4563,6 +4636,7 @@ def get_nova_base_margem_cliente(
     if macro_areas:    df = filt("macro_area", macro_areas)
     if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
     if classificacoes: df = filt("classificacao", classificacoes)
+
 
     df = df.copy()
     for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
