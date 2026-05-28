@@ -181,6 +181,13 @@ def regra_peps_validados_receita():
         ("BR02CLP000116", "Adcos", None, None),
         ("BR07CLP00147", "BANCO OURINVEST S/A", None, "BU Finance"),  # 3044 Squad Gerenciada
         ("BR07CLP00203", "BANCO MUFG BRASIL S.A.", None, "BU Hyper"),  # 215135
+        ("BR07CLP00099", "BANCO MUFG BRASIL S.A.", None, "BU Hyper"),  # 212190
+        ("BR07CLP00100", "BANCO MUFG BRASIL S.A.", None, "BU Hyper"),  # 11283
+        ("BR07CLP00204", "BANCO MUFG BRASIL S.A.", None, "BU Hyper"),  # 214919
+        ("BR07CLP00151", "ODONTOPREV S.A.", None, "BU Health"),  # 213785
+        ("BR07CLP00136", "BANCO OURINVEST S/A", None, "BU Finance"),  # 212772
+        ("BR07CLP00081", "ULTRAPAR PARTICIPACOES S/A", None, "BU Hyper"),  # 211312_HORAS DESENVOL_SNOW
+        ("BR07CLP00054", "EMPREENDIMENTOS IMOBILIARIOS PARAISO GOLD LTDA", None, "BU Hyper"),  # 10725 PARAISO GOLD RPA WATSON
     ]
     for pep, cli, dc, vert in FIXES:
         body = {}
