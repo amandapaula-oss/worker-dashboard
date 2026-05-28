@@ -180,6 +180,7 @@ def regra_peps_validados_receita():
         ("BR02CLP000186", "ELFA MEDICAMENTOS S.A", None, None),
         ("BR02CLP000116", "Adcos", None, None),
         ("BR07CLP00147", "BANCO OURINVEST S/A", None, "BU Finance"),  # 3044 Squad Gerenciada
+        ("BR07CLP00203", "BANCO MUFG BRASIL S.A.", None, "BU Hyper"),  # 215135
     ]
     for pep, cli, dc, vert in FIXES:
         body = {}
