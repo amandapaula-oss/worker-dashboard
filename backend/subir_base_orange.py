@@ -3,8 +3,7 @@
 Regras (definidas pela usuaria):
 - Para periodos 1-2 (Jan/Fev) usa Base Orange - Jan a Abr.xlsx
 - Para periodos 3-4 (Mar/Abr) usa Base Orange - Mar e Abr.xlsx
-- horas = total_horas_orange (coluna oficial). Fallback: aprovadas+liberadas
-  (Mar e Abr.xlsx tem total_horas_orange sempre 0 — horas so em aprovadas)
+- horas = aprovadas (coluna oficial de horas aprovadas)
 - Filtro por (pessoa, periodo, pep): pula Orange row se ja tem racional nesse PEP
 
 Rodar com --apply pra efetivar (sem flag = dry-run).
@@ -61,14 +60,7 @@ def _load_orange():
     m["_source_file"] = "Base Orange - Mar e Abr.xlsx"
     df = pd.concat([j, m], ignore_index=True)
     df["periodo"] = df["period"].apply(_periodo_str)
-    # total_horas_orange e a oficial; em Mar e Abr.xlsx ela vem sempre 0,
-    # entao fallback pra aprovadas+liberadas quando total=0.
-    h_total = pd.to_numeric(df["total_horas_orange"], errors="coerce").fillna(0)
-    h_fallback = (
-        pd.to_numeric(df["aprovadas"], errors="coerce").fillna(0)
-        + pd.to_numeric(df["liberadas_aprovacao"], errors="coerce").fillna(0)
-    )
-    df["horas"] = h_total.where(h_total > 0, h_fallback)
+    df["horas"] = pd.to_numeric(df["aprovadas"], errors="coerce").fillna(0)
     df["_pessoa_key"] = df["consultant_name"].apply(_norm)
     return df
 
