@@ -3,7 +3,8 @@
 Regras (definidas pela usuaria):
 - Para periodos 1-2 (Jan/Fev) usa Base Orange - Jan a Abr.xlsx
 - Para periodos 3-4 (Mar/Abr) usa Base Orange - Mar e Abr.xlsx
-- horas = aprovadas (coluna oficial de horas aprovadas)
+- horas = aprovadas (coluna oficial). Fallback total_horas_orange quando a
+  pessoa NAO tem nenhuma aprovada naquele periodo.
 - Filtro por (pessoa, periodo, pep): pula Orange row se ja tem racional nesse PEP
 
 Rodar com --apply pra efetivar (sem flag = dry-run).
@@ -60,7 +61,18 @@ def _load_orange():
     m["_source_file"] = "Base Orange - Mar e Abr.xlsx"
     df = pd.concat([j, m], ignore_index=True)
     df["periodo"] = df["period"].apply(_periodo_str)
-    df["horas"] = pd.to_numeric(df["aprovadas"], errors="coerce").fillna(0)
+    # Regra: usa aprovadas. Se a pessoa nao tem nenhuma aprovada no periodo,
+    # cai pra total_horas_orange (ela apontou mas nao tem aprovacao registrada).
+    df["_aprov"] = pd.to_numeric(df["aprovadas"], errors="coerce").fillna(0)
+    df["_total"] = pd.to_numeric(df["total_horas_orange"], errors="coerce").fillna(0)
+    aprov_pp = df.groupby(["consultant_name", "periodo"])["_aprov"].sum()
+    aprov_pp = aprov_pp[aprov_pp > 0].index
+    pp_tem_aprov = set(aprov_pp)
+    def _h(r):
+        if (r["consultant_name"], r["periodo"]) in pp_tem_aprov:
+            return r["_aprov"]
+        return r["_total"]
+    df["horas"] = df.apply(_h, axis=1)
     df["_pessoa_key"] = df["consultant_name"].apply(_norm)
     return df
 
