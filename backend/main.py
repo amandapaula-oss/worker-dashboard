@@ -1720,6 +1720,10 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
                     if len(data) < 1000:
                         break
                     off += 1000
+            _CONNS = {"DOS", "DAS", "DA", "DE", "DO", "E"}
+            # Atalhos (primeiro+segundo, primeiro+ultimo) - aplicado por cpf
+            # com protecao contra homonimos: so adiciona se chave aponta pra 1 cpf.
+            atalhos_cpfs: dict = {}  # atalho_str -> set(cpfs) que ja gerou esse atalho
             for row in all_rows:
                 cpf = _re.sub(r"[^\d]", "", str(row.get("cpf") or ""))
                 if len(cpf) < 11:
@@ -1733,6 +1737,12 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
                             trunc = nome_n[:L].rstrip()
                             if trunc not in map_nome:
                                 map_nome[trunc] = cpf
+                    # Atalhos por (primeiro + segundo) e (primeiro + ultimo)
+                    palavras = [w for w in nome_n.split() if w not in _CONNS and len(w) >= 2]
+                    if len(palavras) >= 2:
+                        atalhos = {f"{palavras[0]} {palavras[1]}", f"{palavras[0]} {palavras[-1]}"}
+                        for at in atalhos:
+                            atalhos_cpfs.setdefault(at, set()).add(cpf)
                 rs_n = _norm_pessoa_nome(row.get("razao_social") or "")
                 if rs_n:
                     map_nome[rs_n] = cpf
@@ -1756,6 +1766,16 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
                                 trunc = v_n[:L].rstrip()
                                 if trunc not in map_nome:
                                     map_nome[trunc] = cpf
+                        # Atalhos do alias tambem
+                        palavras = [w for w in v_n.split() if w not in _CONNS and len(w) >= 2]
+                        if len(palavras) >= 2:
+                            for at in {f"{palavras[0]} {palavras[1]}", f"{palavras[0]} {palavras[-1]}"}:
+                                atalhos_cpfs.setdefault(at, set()).add(cpf)
+
+            # Aplica atalhos so onde resolve pra 1 unico CPF (evita homonimos)
+            for at, cpfs in atalhos_cpfs.items():
+                if len(cpfs) == 1 and at not in map_nome:
+                    map_nome[at] = next(iter(cpfs))
         except Exception as e:
             print(f"[pessoas table] {e}")
 
