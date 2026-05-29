@@ -2882,10 +2882,16 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
 
     # Propagacao POR PERIODO (campos que variam mes a mes): nome_cliente, pep, pep_base, vertical.
     # Prioridade: racionais (autoridade de PEP+cliente) > CLTs/PJs (Mapa) > demais.
+    # IMPORTANTE: pra nome_cliente/vertical, so propaga em linhas SEM PEP proprio
+    # (CLT/PJ residuais sem PEP). Linhas com PEP proprio NAO recebem o cliente
+    # de outro PEP da mesma pessoa (1 pessoa pode trabalhar em N projetos no mes).
     campos_periodo = ["nome_cliente", "pep", "pep_base", "vertical"]
     if "periodo" in df.columns:
         per_str = df["periodo"].fillna("").astype(str)
         df["_pk"] = df["_pessoa_key"] + "|" + per_str
+        # Mascara: linhas que tem PEP proprio (nao vazio)
+        pep_proprio = df.get("pep", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.strip()
+        tem_pep_proprio = pep_proprio.ne("") & ~pep_proprio.isin(["nan", "None"])
         for campo in campos_periodo:
             if campo not in df.columns:
                 continue
@@ -2900,6 +2906,10 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
             valor_dict.pop("", None)
             valor_propagado = df["_pk"].map(valor_dict)
             mask_vazio = df[campo].isna() | (df[campo].astype(str).str.strip() == "")
+            # Pra nome_cliente/vertical: so propaga em linhas sem PEP proprio.
+            # pep/pep_base sempre propaga (pra CLTs/PJs cadastrais).
+            if campo in ("nome_cliente", "vertical"):
+                mask_vazio = mask_vazio & ~tem_pep_proprio
             df.loc[mask_vazio, campo] = valor_propagado[mask_vazio]
         df.drop(columns=["_pk"], inplace=True, errors="ignore")
 
