@@ -190,6 +190,8 @@ def regra_peps_validados_receita():
         ("BR07CLP00054", "EMPREENDIMENTOS IMOBILIARIOS PARAISO GOLD LTDA", None, "BU Hyper"),  # 10725 PARAISO GOLD RPA WATSON
         ("BR07CLP00089", "Riachuelo", None, "BU Retail"),  # 11406-Riachuelo
         ("BR02CLP00134", "BIRMINGHAM BANK", None, None),  # Squad BIRMINGHAM BANK
+        ("BR04CLP00044", "Grupo Dorben", None, None),  # CG - Grupo Dorben
+        ("BR04CLP00047", "Feira Nova", None, None),  # CG - Feira Nova
     ]
     for pep, cli, dc, vert in FIXES:
         body = {}
