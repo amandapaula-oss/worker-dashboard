@@ -2176,7 +2176,7 @@ def _reclassificar_hyper(df: pd.DataFrame) -> pd.DataFrame:
     v2 = df["vertical"].fillna("").astype(str).str.strip()
     mask = nc.isin(HYPER_CLIENTES) & v2.str.lower().eq("others")
     if mask.any():
-        df.loc[mask, "vertical"] = "Hyper"
+        df.loc[mask, "vertical"] = "BU Hyper"
     return df
 
 
@@ -2326,15 +2326,8 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         print(f"[vertical_consistencia_cliente] falhou: {e}")
 
-    # 4. Clientes que devem ficar SEM BU (decisao de negocio) — vertical em branco.
-    try:
-        if "nome_cliente" in df.columns:
-            nc_norm = df["nome_cliente"].fillna("").astype(str).apply(
-                lambda s: re.sub(r"\s+", " ", str(s)).strip().upper())
-            sem_bu = nc_norm.str.contains("DISTRITO", na=False)
-            df.loc[sem_bu, "vertical"] = ""
-    except Exception as e:
-        print(f"[vertical_sem_bu] falhou: {e}")
+    # 4. (Removido) Antes havia uma regra que forcava vertical='' pra clientes
+    # com 'DISTRITO' no nome. Decisao Amanda 2026-05-29: deixar a BU do racional.
 
     # 5. Override: lista de clientes que pertencem a "Hyper" (FCamara Hyper).
     # NAO sobrepoe BU oficial — so muda quando o cliente esta sem BU (Others,
@@ -2418,7 +2411,7 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             _BU_DEF = {"BU Finance","BU Health","BU Logistics",
                        "BU Multisector","BU Retail","BU Others"}
             v_cur = df["vertical"].fillna("").astype(str).str.strip()
-            df.loc[nc_hy.isin(CLIENTES_HYPER) & ~v_cur.isin(_BU_DEF), "vertical"] = "Hyper"
+            df.loc[nc_hy.isin(CLIENTES_HYPER) & ~v_cur.isin(_BU_DEF), "vertical"] = "BU Hyper"
     except Exception as e:
         print(f"[vertical_hyper] falhou: {e}")
 
@@ -3584,7 +3577,7 @@ def _get_nova_base() -> pd.DataFrame:
                     # Linhas da Hyper sem vertical → Hyper (estrutura/overhead da empresa)
                     if "empresa" in df.columns:
                         mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
-                        df.loc[mask_hy_sem_bu, "vertical"] = "Hyper"
+                        df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
                 df = _adicionar_fonte_familia(df)
                 df = _adicionar_apuracao(df)
                 df = _enriquecer_dados_pessoa(df)
@@ -3681,7 +3674,7 @@ def _get_nova_base() -> pd.DataFrame:
             df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
             if "empresa" in df.columns:
                 mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
-                df.loc[mask_hy_sem_bu, "vertical"] = "Hyper"
+                df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
         # Mapa de Pessoas (fonte=CLTs) NAO deve carregar custo — custo de CLT
         # vem de fonte=custo_gerencial (SAP). PJs mantem custo (eh a fonte do PJ).
         if "fonte" in df.columns:
