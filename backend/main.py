@@ -2966,7 +2966,9 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
             df.loc[mask, "billable_category"] = bill_corr
             if "classificacao" in df.columns:
                 nova_classif = "despesa" if bill_corr == "non-billable" else "custo"
-                df.loc[mask, "classificacao"] = nova_classif
+                # NAO sobrepoe classificacao em linhas TDM (custo via rateio TDM)
+                is_tdm = df.get("macro_area", pd.Series([""] * len(df), index=df.index)).fillna("").astype(str).str.strip().str.upper() == "TDM"
+                df.loc[mask & ~is_tdm, "classificacao"] = nova_classif
 
     # Override: time Sales Hyper teve "BU Hyper - Sales" / "Aliancas" renomeado para
     # "Sales Hyper" no Mar26 (reorganizacao de centro de lucro).
