@@ -1712,7 +1712,7 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
             off = 0
             with httpx.Client(timeout=30) as c:
                 while True:
-                    r = c.get(f"{SUPABASE_URL}/rest/v1/pessoas?select=cpf,nome,razao_social&offset={off}&limit=1000", headers=headers)
+                    r = c.get(f"{SUPABASE_URL}/rest/v1/pessoas?select=cpf,nome,razao_social,alias&offset={off}&limit=1000", headers=headers)
                     if r.status_code != 200:
                         break
                     data = r.json()
@@ -1742,6 +1742,20 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
                             trunc = rs_n[:L].rstrip()
                             if trunc not in map_nome:
                                 map_nome[trunc] = cpf
+                # Aliases manuais (typo de grafia: Correa/Correia, Vilas/Villas etc.)
+                # Coluna alias eh string separada por '|' (varias variantes possiveis).
+                alias_raw = row.get("alias") or ""
+                if alias_raw:
+                    for variant in str(alias_raw).split("|"):
+                        v_n = _norm_pessoa_nome(variant)
+                        if not v_n: continue
+                        if v_n not in map_nome:
+                            map_nome[v_n] = cpf
+                        for L in range(28, 41):
+                            if len(v_n) > L:
+                                trunc = v_n[:L].rstrip()
+                                if trunc not in map_nome:
+                                    map_nome[trunc] = cpf
         except Exception as e:
             print(f"[pessoas table] {e}")
 
