@@ -1665,12 +1665,17 @@ def _load_budget_supabase() -> pd.DataFrame:
 _pessoal_cache: dict = {"map_nome": None, "map_id": None}
 
 def _norm_pessoa_nome(s):
-    """Normalizacao completa: upper, sem acentos, colapsa espacos."""
+    """Normalizacao completa: upper, sem acentos, colapsa espacos.
+    Tambem: remove prefixo numerico (CPF/CNPJ no inicio) e normaliza
+    'DO SANTOS' -> 'DOS SANTOS' (typo recorrente do Orange)."""
     import unicodedata, re as _re
     if not isinstance(s, str) or not s:
         return ""
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
-    return _re.sub(r"\s+", " ", s).strip().upper()
+    s = _re.sub(r"\s+", " ", s).strip().upper()
+    s = _re.sub(r"^[\d./\-]+\s+", "", s)
+    s = _re.sub(r"\bDO SANTOS\b", "DOS SANTOS", s)
+    return s
 
 
 def _carregar_pessoal_depara() -> tuple[dict, dict]:
@@ -1722,11 +1727,17 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
                 nome_n = _norm_pessoa_nome(row.get("nome") or "")
                 if nome_n:
                     map_nome[nome_n] = cpf
+                    # Variantes truncadas do nome (CLT cortou em 30-40 chars)
+                    for L in range(28, 41):
+                        if len(nome_n) > L:
+                            trunc = nome_n[:L].rstrip()
+                            if trunc not in map_nome:
+                                map_nome[trunc] = cpf
                 rs_n = _norm_pessoa_nome(row.get("razao_social") or "")
                 if rs_n:
                     map_nome[rs_n] = cpf
-                    # Variantes truncadas (uploads originais cortaram em 32-40 chars)
-                    for L in (32, 33, 34, 35, 36, 37, 38, 39, 40):
+                    # Variantes truncadas da razao (PJ cortou em 32-40 chars)
+                    for L in range(28, 41):
                         if len(rs_n) > L:
                             trunc = rs_n[:L].rstrip()
                             if trunc not in map_nome:
