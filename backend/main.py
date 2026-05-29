@@ -3332,53 +3332,81 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
 
 def _aplicar_rateio_100h(df: pd.DataFrame) -> pd.DataFrame:
     """Pessoas com >100h em um cliente (via racional) num mes:
-    100% do custo no(s) cliente(s) com >100h. Se >100h em multiplos clientes,
-    split proporcional entre eles. Se nenhum cliente passou de 100h, mantem
-    rateio padrao (esta funcao nao mexe).
+    100% do custo distribuido pelos PEPs onde ela trabalhou (racional + Orange),
+    proporcional as horas em cada PEP. Cliente vem do proprio PEP.
 
     Roda APOS rateio_custos / rateio_tdm. Captura custo_rateado de todas as
-    linhas da pessoa/periodo, zera, e gera linhas fonte='rateio_100h'.
+    linhas da pessoa/periodo, zera, e gera linhas fonte='rateio_100h' por PEP.
     """
-    import numpy as np
-    if not {"nome_pessoa", "periodo", "nome_cliente", "fonte", "horas", "custo_rateado"}.issubset(df.columns):
-        return df
-
-    rac_mask = df["fonte"].astype(str) == "racionais"
-    if not rac_mask.any():
+    import numpy as np, collections
+    cols_req = {"nome_pessoa", "periodo", "nome_cliente", "fonte", "horas", "custo_rateado", "pep", "pep_base"}
+    if not cols_req.issubset(df.columns):
         return df
 
     nome = df["nome_pessoa"].fillna("").astype(str).str.strip().str.upper()
     per = df["periodo"].astype(str)
     cli = df["nome_cliente"].fillna("").astype(str).str.strip()
+    pep = df["pep"].fillna("").astype(str).str.strip()
+    pep_b = df["pep_base"].fillna("").astype(str).str.strip()
     horas_n = pd.to_numeric(df["horas"], errors="coerce").fillna(0)
+    fonte_s = df["fonte"].astype(str)
 
+    # 1. Verifica >100h por cliente via racional (gate da regra)
+    rac_mask = fonte_s == "racionais"
+    if not rac_mask.any():
+        return df
     rac_df = pd.DataFrame({
-        "_nm": nome[rac_mask],
-        "_per": per[rac_mask],
-        "_cli": cli[rac_mask],
-        "_h": horas_n[rac_mask],
+        "_nm": nome[rac_mask], "_per": per[rac_mask],
+        "_cli": cli[rac_mask], "_h": horas_n[rac_mask],
     })
-    rac_df = rac_df[
-        rac_df["_nm"].ne("")
-        & rac_df["_cli"].ne("")
-        & ~rac_df["_cli"].isin(["0", "nan"])
-        & (rac_df["_h"] > 0)
-    ]
+    rac_df = rac_df[rac_df["_nm"].ne("") & rac_df["_cli"].ne("")
+                    & ~rac_df["_cli"].isin(["0", "nan"]) & (rac_df["_h"] > 0)]
     if rac_df.empty:
         return df
-
     h_por_cli = rac_df.groupby(["_nm", "_per", "_cli"], as_index=False)["_h"].sum()
     h_alto = h_por_cli[h_por_cli["_h"] > 100]
     if h_alto.empty:
         return df
+    # Set de (nome, periodo, cliente) onde o cliente passou de 100h
+    alvos_pp_cli = set(zip(h_alto["_nm"], h_alto["_per"], h_alto["_cli"]))
+    # (nome, periodo) alvo
+    alvos_pp = set((n, p) for n, p, _ in alvos_pp_cli)
 
-    # shares por (nome, periodo): proporcional entre clientes >100h
-    shares_map = {}
-    for (nm_v, per_v), grp in h_alto.groupby(["_nm", "_per"]):
+    # 2. Horas por (nome, periodo, pep_base, cliente) via racional + Orange
+    #    so onde a linha tem cliente em alvos_pp_cli (cliente da pessoa que passou 100h)
+    dest_mask = (rac_mask | (fonte_s == "base Orange")) & cli.ne("") & ~cli.isin(["0", "nan"]) & pep_b.ne("")
+    if not dest_mask.any():
+        return df
+    dest_df = pd.DataFrame({
+        "_nm": nome[dest_mask], "_per": per[dest_mask], "_pep": pep[dest_mask],
+        "_pep_b": pep_b[dest_mask], "_cli": cli[dest_mask], "_h": horas_n[dest_mask],
+    })
+    # Filtra: so destinos onde (nome, periodo, cliente) eh alvo (>100h)
+    chave3 = list(zip(dest_df["_nm"], dest_df["_per"], dest_df["_cli"]))
+    dest_df = dest_df[[c in alvos_pp_cli for c in chave3]]
+    dest_df = dest_df[dest_df["_h"] > 0]
+    if dest_df.empty:
+        return df
+
+    # Soma horas por (nome, periodo, pep_base) — pra cada pessoa-mes, o total
+    # de horas em PEPs dos clientes >100h. Pega o pep representativo (primeiro)
+    # e o cliente do pep tambem.
+    pep_grp = dest_df.groupby(["_nm", "_per", "_pep_b"], as_index=False).agg(
+        _h=("_h", "sum"),
+        _pep=("_pep", "first"),
+        _cli=("_cli", "first"),
+    )
+
+    # Shares por (nome, periodo): proporcional as horas em cada (pep_base)
+    shares_map = collections.defaultdict(list)  # (nm, per) -> [(pep, pep_base, cli, share)]
+    for (nm_v, per_v), grp in pep_grp.groupby(["_nm", "_per"]):
         total = grp["_h"].sum()
         if total <= 0:
             continue
-        shares_map[(nm_v, per_v)] = [(c, float(h) / float(total)) for c, h in zip(grp["_cli"], grp["_h"])]
+        for _, r in grp.iterrows():
+            shares_map[(nm_v, per_v)].append(
+                (r["_pep"], r["_pep_b"], r["_cli"], float(r["_h"]) / float(total))
+            )
 
     custo_n = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0.0)
     new_rows = []
@@ -3386,14 +3414,12 @@ def _aplicar_rateio_100h(df: pd.DataFrame) -> pd.DataFrame:
 
     for (nm_v, per_v), shares in shares_map.items():
         mask_pp = (nome == nm_v) & (per == per_v)
-        if not mask_pp.any():
-            continue
+        if not mask_pp.any(): continue
         idx_pp = df.index[mask_pp]
         total_custo = float(custo_n.loc[idx_pp].sum())
-        if total_custo == 0:
-            continue
+        if total_custo == 0: continue
         ref_row = df.loc[idx_pp[0]]
-        for cli_v, share in shares:
+        for pep_v, pep_b_v, cli_v, share in shares:
             share_cost = total_custo * share
             new_rows.append({
                 "fonte": "rateio_100h",
@@ -3402,6 +3428,8 @@ def _aplicar_rateio_100h(df: pd.DataFrame) -> pd.DataFrame:
                 "nome_pessoa": ref_row.get("nome_pessoa"),
                 "cpf": ref_row.get("cpf"),
                 "nome_cliente": cli_v,
+                "pep": pep_v,
+                "pep_base": pep_b_v,
                 "vertical": ref_row.get("vertical"),
                 "empresa": ref_row.get("empresa"),
                 "macro_area": ref_row.get("macro_area"),
@@ -3416,7 +3444,7 @@ def _aplicar_rateio_100h(df: pd.DataFrame) -> pd.DataFrame:
                 "valor_liquido": share_cost,
                 "margem": share_cost,
                 "custo_fonte": 0.0,
-                "tag_rateio": f"Rateio >100h: {share*100:.1f}% ({cli_v})",
+                "tag_rateio": f"Rateio >100h: {share*100:.1f}% ({cli_v} / {pep_b_v})",
             })
         indices_to_zero.extend(idx_pp.tolist())
 
@@ -3574,7 +3602,7 @@ def _get_nova_base() -> pd.DataFrame:
                     df["empresa"] = df["empresa"].map(COMPANY_NAMES).fillna(df["empresa"])
                 if "vertical" in df.columns:
                     df["vertical"] = df["vertical"].replace({"BU Health - Sales": "BU Health"})
-                    # Linhas da Hyper sem vertical → Hyper (estrutura/overhead da empresa)
+                    # Linhas da Hyper sem vertical → BU Hyper (estrutura/overhead da empresa)
                     if "empresa" in df.columns:
                         mask_hy_sem_bu = (df["empresa"] == "BR07 Hyper") & (df["vertical"].isna() | (df["vertical"].astype(str).str.strip().isin(["", "nan", "None"])))
                         df.loc[mask_hy_sem_bu, "vertical"] = "BU Hyper"
