@@ -119,18 +119,81 @@ TOKEN_EXPIRE_MINUTES = int(os.environ.get("TOKEN_EXPIRE_MINUTES", "480"))
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # BUs canônicas (espelho do _BU_DEF usado no dataset). bus=[] significa admin (acesso total).
-USERS = {
-    "amanda":   {"name": "Amanda", "hashed_password": "$2b$12$mfHiyBw/auw.B745JxG2eO5Qlw/urUAOOVwi5x2koGXqWhUDhZv/a", "bus": []},
-    "paola":    {"name": "Paola",  "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC", "bus": []},
-    "yuri":     {"name": "Yuri",   "hashed_password": "$2b$12$lafxeoNomlDKRwz5seUPUe72xx06URZiuxTx2vbhJ6pFVy1HQpuhG", "bus": []},
-    "amisrael": {"name": "Israel", "hashed_password": "$2b$12$Uxf53rbxFSof7w.wszVac.HmMOLoK17EfmisNDHc9NaxVHoaCbgO.", "bus": []},
+BU_CARDS = ["BU Finance", "BU Health", "BU Multisector", "BU Retail", "BU Logistics"]
+
+# Fallback in-memory caso Supabase não esteja configurado / tabela não criada (dev local).
+# Em produção os usuários vêm de app_users no Supabase (ver migrations/001_app_users.sql).
+_USERS_FALLBACK = {
+    "amanda":   {"username": "amanda",   "name": "Amanda", "email": None, "hashed_password": "$2b$12$mfHiyBw/auw.B745JxG2eO5Qlw/urUAOOVwi5x2koGXqWhUDhZv/a", "bus": [], "is_super_admin": True,  "must_change_password": False},
+    "paola":    {"username": "paola",    "name": "Paola",  "email": None, "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC", "bus": [], "is_super_admin": False, "must_change_password": False},
+    "yuri":     {"username": "yuri",     "name": "Yuri",   "email": None, "hashed_password": "$2b$12$lafxeoNomlDKRwz5seUPUe72xx06URZiuxTx2vbhJ6pFVy1HQpuhG", "bus": [], "is_super_admin": False, "must_change_password": False},
+    "amisrael": {"username": "amisrael", "name": "Israel", "email": None, "hashed_password": "$2b$12$Uxf53rbxFSof7w.wszVac.HmMOLoK17EfmisNDHc9NaxVHoaCbgO.", "bus": [], "is_super_admin": False, "must_change_password": False},
 }
 
-BU_CARDS = ["BU Finance", "BU Health", "BU Multisector", "BU Retail", "BU Logistics"]
+_users_cache: dict = {"data": None, "expires_at": 0.0}
+_USERS_TABLE_OK: bool = True
+
+# Atividade (sobreviver restart != online; in-mem basta)
+_last_seen: dict[str, float] = {}
+_ONLINE_TTL_SECONDS = 300
+
+def _supa_users_url() -> str:
+    return f"{SUPABASE_URL}/rest/v1/app_users"
+
+def _supa_login_history_url() -> str:
+    return f"{SUPABASE_URL}/rest/v1/app_login_history"
+
+def _load_users_from_supabase() -> dict | None:
+    """Lê todos os usuários do Supabase. Retorna None se tabela não existir / erro."""
+    global _USERS_TABLE_OK
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    try:
+        with httpx.Client(timeout=10) as c:
+            r = c.get(f"{_supa_users_url()}?select=*", headers=_supabase_headers())
+            if r.status_code in (404, 400) and ("relation" in r.text.lower() or "does not exist" in r.text.lower()):
+                if _USERS_TABLE_OK:
+                    print("[users] tabela app_users nao existe; usando fallback in-memory. Rode backend/migrations/001_app_users.sql.")
+                _USERS_TABLE_OK = False
+                return None
+            if r.status_code != 200:
+                print(f"[users] supabase GET falhou: {r.status_code} {r.text[:200]}")
+                return None
+            _USERS_TABLE_OK = True
+            return {row["username"]: row for row in r.json()}
+    except Exception as e:
+        print(f"[users] erro lendo supabase: {e}")
+        return None
+
+def _get_users() -> dict:
+    """Cache 60s. Fallback para _USERS_FALLBACK se Supabase off / tabela ausente."""
+    import time
+    if _users_cache["data"] is not None and _users_cache["expires_at"] > time.time():
+        return _users_cache["data"]
+    data = _load_users_from_supabase()
+    if data is None:
+        _users_cache["data"] = _USERS_FALLBACK
+        _users_cache["expires_at"] = time.time() + 30
+        return _USERS_FALLBACK
+    _users_cache["data"] = data
+    _users_cache["expires_at"] = time.time() + 60
+    return data
+
+def _invalidate_users_cache() -> None:
+    _users_cache["data"] = None
+    _users_cache["expires_at"] = 0.0
+
+def _get_user(username: str) -> dict | None:
+    return _get_users().get(username)
+
+# Compat: alguns trechos antigos podem referenciar USERS direto. Mantém aviso.
+USERS = _USERS_FALLBACK
 
 def get_user_bus(user: str) -> list:
     """BUs liberadas pro usuário. Lista vazia = admin (vê tudo)."""
-    return list(USERS.get(user, {}).get("bus", []))
+    info = _get_user(user) or {}
+    bus = info.get("bus") or []
+    return list(bus)
 
 def enforce_bu_filter(user: str, verticais: str) -> str:
     """Restringe o parâmetro `verticais` às BUs liberadas pro usuário.
@@ -150,41 +213,264 @@ def enforce_bu_filter(user: str, verticais: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
 def create_token(username: str):
     expire = datetime.utcnow() + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
     return jwt.encode({"sub": username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+
+def _mark_seen(username: str) -> None:
+    import time
+    _last_seen[username] = time.time()
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
-        if username not in USERS:
+        if not _get_user(username):
             raise HTTPException(status_code=401)
+        _mark_seen(username)
         return username
     except JWTError:
         raise HTTPException(status_code=401)
 
+def require_super_admin(user=Depends(get_current_user)) -> str:
+    info = _get_user(user) or {}
+    if not info.get("is_super_admin"):
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador.")
+    return user
+
+def _record_login(username: str, ip: str | None, ua: str | None, success: bool) -> None:
+    """Insere uma linha em app_login_history. Falha silenciosa se Supabase off."""
+    if not SUPABASE_URL or not SUPABASE_KEY or not _USERS_TABLE_OK:
+        return
+    try:
+        with httpx.Client(timeout=5) as c:
+            c.post(_supa_login_history_url(), headers=_supabase_headers(),
+                   json={"username": username, "ip": ip, "user_agent": ua, "success": success})
+    except Exception as e:
+        print(f"[login_history] insert falhou: {e}")
+
+def _update_last_login(username: str) -> None:
+    if not SUPABASE_URL or not SUPABASE_KEY or not _USERS_TABLE_OK:
+        return
+    try:
+        import urllib.parse
+        url = f"{_supa_users_url()}?username=eq.{urllib.parse.quote(username)}"
+        with httpx.Client(timeout=5) as c:
+            c.patch(url, headers=_supabase_headers(), json={"last_login_at": datetime.utcnow().isoformat() + "Z"})
+    except Exception as e:
+        print(f"[last_login_at] patch falhou: {e}")
+
 @app.post("/auth/login")
 @limiter.limit("5/minute")
 def login(request: Request, form: OAuth2PasswordRequestForm = Depends()):
-    user = USERS.get(form.username)
+    user = _get_user(form.username)
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent")
     if not user or not verify_password(form.password, user["hashed_password"]):
+        _record_login(form.username, ip, ua, success=False)
         raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
-    return {"access_token": create_token(form.username), "token_type": "bearer"}
+    _record_login(form.username, ip, ua, success=True)
+    _update_last_login(form.username)
+    _mark_seen(form.username)
+    return {
+        "access_token": create_token(form.username),
+        "token_type": "bearer",
+        "must_change_password": bool(user.get("must_change_password", False)),
+    }
+
+@app.post("/api/me/change-password")
+def change_password(body: dict, user=Depends(get_current_user)):
+    """Troca a senha do próprio usuário. Limpa flag must_change_password."""
+    current = (body or {}).get("current_password") or ""
+    new = (body or {}).get("new_password") or ""
+    if len(new) < 6:
+        raise HTTPException(400, "Senha nova precisa ter ao menos 6 caracteres.")
+    info = _get_user(user)
+    if not info or not verify_password(current, info["hashed_password"]):
+        raise HTTPException(400, "Senha atual incorreta.")
+    new_hash = hash_password(new)
+    # Persiste
+    if SUPABASE_URL and SUPABASE_KEY and _USERS_TABLE_OK:
+        import urllib.parse
+        url = f"{_supa_users_url()}?username=eq.{urllib.parse.quote(user)}"
+        with httpx.Client(timeout=5) as c:
+            r = c.patch(url, headers=_supabase_headers(),
+                        json={"hashed_password": new_hash, "must_change_password": False})
+            if r.status_code not in (200, 204):
+                raise HTTPException(500, f"Falha ao atualizar senha: {r.text[:200]}")
+    else:
+        # Fallback (dev local sem Supabase)
+        _USERS_FALLBACK[user]["hashed_password"] = new_hash
+        _USERS_FALLBACK[user]["must_change_password"] = False
+    _invalidate_users_cache()
+    return {"ok": True}
 
 @app.get("/api/me")
 def get_me(user=Depends(get_current_user)):
-    info = USERS.get(user, {})
+    info = _get_user(user) or {}
     allowed = get_user_bus(user)
-    # BUs visíveis nos cards: se admin (allowed vazio) → todas; senão → só as permitidas.
     visible_bus = BU_CARDS if not allowed else [b for b in BU_CARDS if b in allowed]
     return {
         "username": user,
         "name": info.get("name", user),
+        "email": info.get("email"),
         "is_admin": not allowed,
+        "is_super_admin": bool(info.get("is_super_admin", False)),
+        "must_change_password": bool(info.get("must_change_password", False)),
         "bus": allowed,
         "visible_bus": visible_bus,
     }
+
+# ── Admin: gestão de usuários (super_admin only) ───────────────────────────────
+
+import secrets as _secrets
+
+def _gen_temp_password() -> str:
+    """Senha temporária legível: 10 chars alfanuméricos."""
+    alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(_secrets.choice(alphabet) for _ in range(10))
+
+def _redact_user(u: dict) -> dict:
+    """Remove hash da resposta JSON."""
+    out = {k: v for k, v in u.items() if k != "hashed_password"}
+    return out
+
+@app.get("/api/admin/users")
+def admin_list_users(_=Depends(require_super_admin)):
+    users = list(_get_users().values())
+    return {"rows": [_redact_user(u) for u in sorted(users, key=lambda r: r.get("username", ""))]}
+
+@app.post("/api/admin/users")
+def admin_create_user(body: dict, _=Depends(require_super_admin)):
+    """Cria usuário. Gera senha temporária e retorna no response (admin copia/repassa).
+    Body: {username, name, email?, bus?: list[str], is_super_admin?: bool}
+    """
+    username = (body or {}).get("username", "").strip().lower()
+    name     = (body or {}).get("name", "").strip()
+    email    = ((body or {}).get("email") or "").strip() or None
+    bus      = list((body or {}).get("bus") or [])
+    is_sa    = bool((body or {}).get("is_super_admin", False))
+    if not username or not name:
+        raise HTTPException(400, "username e name são obrigatórios.")
+    if _get_user(username):
+        raise HTTPException(409, "Usuário já existe.")
+    temp_pwd = _gen_temp_password()
+    row = {
+        "username": username, "name": name, "email": email,
+        "hashed_password": hash_password(temp_pwd),
+        "bus": bus, "is_super_admin": is_sa,
+        "must_change_password": True,
+    }
+    if SUPABASE_URL and SUPABASE_KEY and _USERS_TABLE_OK:
+        with httpx.Client(timeout=10) as c:
+            r = c.post(_supa_users_url(), headers=_supabase_headers(), json=row)
+            if r.status_code not in (200, 201, 204):
+                raise HTTPException(500, f"Falha ao inserir: {r.text[:200]}")
+    else:
+        _USERS_FALLBACK[username] = row
+    _invalidate_users_cache()
+    return {"user": _redact_user(row), "temp_password": temp_pwd}
+
+@app.patch("/api/admin/users/{username}")
+def admin_update_user(username: str, body: dict, admin_user=Depends(require_super_admin)):
+    """Atualiza name, email, bus, is_super_admin. Senha NÃO é alterada aqui."""
+    current = _get_user(username)
+    if not current:
+        raise HTTPException(404, "Usuário não encontrado.")
+    if username == admin_user and body.get("is_super_admin") is False:
+        raise HTTPException(400, "Você não pode remover seu próprio super_admin.")
+    updates: dict = {}
+    for k in ("name", "email"):
+        if k in (body or {}):
+            updates[k] = body[k]
+    if "bus" in (body or {}):
+        updates["bus"] = list(body["bus"] or [])
+    if "is_super_admin" in (body or {}):
+        updates["is_super_admin"] = bool(body["is_super_admin"])
+    if not updates:
+        return {"user": _redact_user(current)}
+    if SUPABASE_URL and SUPABASE_KEY and _USERS_TABLE_OK:
+        import urllib.parse
+        url = f"{_supa_users_url()}?username=eq.{urllib.parse.quote(username)}"
+        with httpx.Client(timeout=10) as c:
+            r = c.patch(url, headers=_supabase_headers(), json=updates)
+            if r.status_code not in (200, 204):
+                raise HTTPException(500, f"Falha ao atualizar: {r.text[:200]}")
+    else:
+        _USERS_FALLBACK[username].update(updates)
+    _invalidate_users_cache()
+    return {"user": _redact_user({**current, **updates})}
+
+@app.post("/api/admin/users/{username}/reset-password")
+def admin_reset_password(username: str, _=Depends(require_super_admin)):
+    """Gera nova senha temporária. Usuário será forçado a trocar no próximo login."""
+    if not _get_user(username):
+        raise HTTPException(404, "Usuário não encontrado.")
+    temp_pwd = _gen_temp_password()
+    updates = {"hashed_password": hash_password(temp_pwd), "must_change_password": True}
+    if SUPABASE_URL and SUPABASE_KEY and _USERS_TABLE_OK:
+        import urllib.parse
+        url = f"{_supa_users_url()}?username=eq.{urllib.parse.quote(username)}"
+        with httpx.Client(timeout=10) as c:
+            r = c.patch(url, headers=_supabase_headers(), json=updates)
+            if r.status_code not in (200, 204):
+                raise HTTPException(500, f"Falha ao resetar: {r.text[:200]}")
+    else:
+        _USERS_FALLBACK[username].update(updates)
+    _invalidate_users_cache()
+    return {"temp_password": temp_pwd}
+
+@app.delete("/api/admin/users/{username}")
+def admin_delete_user(username: str, admin_user=Depends(require_super_admin)):
+    if username == admin_user:
+        raise HTTPException(400, "Você não pode excluir a si mesmo.")
+    if not _get_user(username):
+        raise HTTPException(404, "Usuário não encontrado.")
+    if SUPABASE_URL and SUPABASE_KEY and _USERS_TABLE_OK:
+        import urllib.parse
+        url = f"{_supa_users_url()}?username=eq.{urllib.parse.quote(username)}"
+        with httpx.Client(timeout=10) as c:
+            r = c.delete(url, headers=_supabase_headers())
+            if r.status_code not in (200, 204):
+                raise HTTPException(500, f"Falha ao excluir: {r.text[:200]}")
+    else:
+        _USERS_FALLBACK.pop(username, None)
+    _invalidate_users_cache()
+    return {"ok": True}
+
+@app.get("/api/admin/login-history")
+def admin_login_history(limit: int = 100, _=Depends(require_super_admin)):
+    if not SUPABASE_URL or not SUPABASE_KEY or not _USERS_TABLE_OK:
+        return {"rows": []}
+    limit = max(1, min(int(limit or 100), 500))
+    with httpx.Client(timeout=10) as c:
+        r = c.get(f"{_supa_login_history_url()}?select=*&order=login_at.desc&limit={limit}",
+                  headers=_supabase_headers())
+        if r.status_code != 200:
+            raise HTTPException(500, f"Falha ao consultar histórico: {r.text[:200]}")
+        return {"rows": r.json()}
+
+@app.get("/api/admin/online")
+def admin_online(_=Depends(require_super_admin)):
+    """Usuários com atividade nos últimos 5 min (in-memory)."""
+    import time
+    now = time.time()
+    rows = []
+    users = _get_users()
+    for u, ts in _last_seen.items():
+        if now - ts > _ONLINE_TTL_SECONDS:
+            continue
+        info = users.get(u) or {}
+        rows.append({
+            "username": u,
+            "name": info.get("name", u),
+            "last_seen_seconds_ago": int(now - ts),
+        })
+    rows.sort(key=lambda r: r["last_seen_seconds_ago"])
+    return {"rows": rows}
 
 # ── Cache em memória ───────────────────────────────────────────────────────────
 
@@ -3126,6 +3412,9 @@ def _aplicar_rateio_100h(df: pd.DataFrame) -> pd.DataFrame:
                 "vertical": ref_row.get("vertical"),
                 "empresa": ref_row.get("empresa"),
                 "macro_area": ref_row.get("macro_area"),
+                "area": ref_row.get("area"),
+                "no_hierarquia": ref_row.get("no_hierarquia"),
+                "apuracao": ref_row.get("apuracao"),
                 "classificacao": "custo",
                 "tipo_contrato": ref_row.get("tipo_contrato"),
                 "custo_rateado": share_cost,
@@ -3223,6 +3512,9 @@ def _aplicar_rateio_tdm(df: pd.DataFrame) -> pd.DataFrame:
                 "vertical": bu,
                 "empresa": row.get("empresa"),
                 "macro_area": "TDM",
+                "area": row.get("area"),
+                "no_hierarquia": row.get("no_hierarquia"),
+                "apuracao": row.get("apuracao"),
                 "classificacao": "custo",
                 "tipo_contrato": row.get("tipo_contrato"),
                 "custo_rateado": share_cost,
