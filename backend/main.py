@@ -2447,6 +2447,8 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             nc_lock = df["nome_cliente"].fillna("").astype(str).apply(
                 lambda s: re.sub(r"\s+", " ", str(s)).strip().upper())
             df.loc[nc_lock.str.contains("TRANSUNION", na=False), "vertical"] = "BU Finance"
+            df.loc[nc_lock.str.contains("BANCO VOTORANTIM", na=False), "vertical"] = "BU Hyper"
+            df.loc[nc_lock.str.contains("RAIA DROGASIL", na=False), "vertical"] = "BU Retail"
     except Exception as e:
         print(f"[vertical_locks] falhou: {e}")
     return df
