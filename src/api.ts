@@ -39,7 +39,7 @@ async function apiFetch(path: string, options: RequestInit = {}, retries = 36): 
   return res.json();
 }
 
-export async function login(username: string, password: string) {
+export async function login(username: string, password: string): Promise<{ must_change_password: boolean }> {
   const form = new URLSearchParams({ username, password });
   const res = await fetch(`${BASE_URL}/auth/login`, {
     method: "POST",
@@ -49,15 +49,98 @@ export async function login(username: string, password: string) {
   if (!res.ok) throw new Error("Usuário ou senha incorretos");
   const data = await res.json();
   localStorage.setItem("token", data.access_token);
+  return { must_change_password: !!data.must_change_password };
 }
 
 export function logout() {
   localStorage.removeItem("token");
+  localStorage.removeItem("me");
   window.location.href = "/login";
 }
 
 export function isAuthenticated() {
   return !!localStorage.getItem("token");
+}
+
+export interface MeResponse {
+  username: string;
+  name: string;
+  email: string | null;
+  is_admin: boolean;
+  is_super_admin: boolean;
+  must_change_password: boolean;
+  bus: string[];            // BUs liberadas (vazio = admin)
+  visible_bus: string[];    // BUs que devem aparecer como card
+  visible_cards: string[];  // Cards da home liberados pro usuario
+  all_cards: string[];      // Lista completa de cards (pro form do admin)
+}
+
+export async function getMe(): Promise<MeResponse> {
+  return apiFetch("/api/me");
+}
+
+export async function changePassword(current_password: string, new_password: string) {
+  return apiFetch("/api/me/change-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password, new_password }),
+  });
+}
+
+// ── Admin: gestao de usuarios (super_admin only) ─────────────────────────────
+
+export interface AdminUserRow {
+  username: string;
+  name: string;
+  email: string | null;
+  bus: string[];
+  is_super_admin: boolean;
+  must_change_password: boolean;
+  visible_cards: string[] | null;
+  created_at?: string;
+  last_login_at?: string | null;
+}
+
+export async function adminListUsers(): Promise<{ rows: AdminUserRow[] }> {
+  return apiFetch("/api/admin/users");
+}
+
+export async function adminCreateUser(body: {
+  username: string; name: string; email?: string;
+  bus?: string[]; is_super_admin?: boolean;
+  visible_cards?: string[] | null;
+}): Promise<{ user: AdminUserRow; temp_password: string }> {
+  return apiFetch("/api/admin/users", { method: "POST", body: JSON.stringify(body) });
+}
+
+export async function adminUpdateUser(username: string, body: Partial<AdminUserRow>) {
+  return apiFetch(`/api/admin/users/${encodeURIComponent(username)}`, {
+    method: "PATCH", body: JSON.stringify(body),
+  });
+}
+
+export async function adminResetPassword(username: string): Promise<{ temp_password: string }> {
+  return apiFetch(`/api/admin/users/${encodeURIComponent(username)}/reset-password`, { method: "POST" });
+}
+
+export async function adminDeleteUser(username: string) {
+  return apiFetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: "DELETE" });
+}
+
+export interface LoginHistoryRow {
+  id: number; username: string; login_at: string;
+  ip: string | null; user_agent: string | null; success: boolean;
+}
+
+export async function adminLoginHistory(limit = 200): Promise<{ rows: LoginHistoryRow[] }> {
+  return apiFetch(`/api/admin/login-history?limit=${limit}`);
+}
+
+export interface OnlineRow {
+  username: string; name: string; last_seen_seconds_ago: number;
+}
+
+export async function adminOnline(): Promise<{ rows: OnlineRow[] }> {
+  return apiFetch("/api/admin/online");
 }
 
 function buildQuery(params: Record<string, string>) {

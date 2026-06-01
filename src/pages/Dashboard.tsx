@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Switch, theme as antdTheme, Upload, Modal } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined, UploadOutlined, TableOutlined, InboxOutlined } from "@ant-design/icons";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined, UploadOutlined, TableOutlined, InboxOutlined, ClusterOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
@@ -10,6 +10,7 @@ import MonthlySection from "../components/MonthlySection";
 import SapTab from "./SapTab";
 import { theme, darkTheme, lightTheme } from "../theme";
 import { NovaBaseFiltersProvider } from "../contexts/NovaBaseFilters";
+import { MeProvider, useMe } from "../contexts/Me";
 import { DreTab, StreamsTab, MatricialTab } from "./CockpitTabs";
 import MargemTab from "./MargemTab";
 import CheckLucasTab from "./CheckLucasTab";
@@ -22,8 +23,9 @@ import NovaBaseMargemTab from "./NovaBaseMargemTab";
 import NovaBasePivotTab from "./NovaBasePivotTab";
 import BudgetVsRealizadoTab from "./BudgetVsRealizadoTab";
 import WorkersTab from "./WorkersTab";
+import AdminTab from "./AdminTab";
 import { uploadNovaBase, clearNovaBaseCache } from "../api";
-import { ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 function NovaBaseUploadButton() {
   const [uploading, setUploading] = React.useState(false);
@@ -202,12 +204,61 @@ function WorkerTab({ dark }: { dark: boolean }) {
   );
 }
 
-type Section = "worker" | "cockpit" | "metas" | "nova_base" | "nova_base_pivot" | "budget" | "obsoleto" | null;
+type Section = "worker" | "cockpit" | "metas" | "nova_base" | "nova_base_pivot" | "budget" | "bus" | "admin" | "obsoleto" | null;
+
+const BU_LABEL: Record<string, string> = {
+  "BU Finance":     "Finance",
+  "BU Health":      "Health",
+  "BU Multisector": "Multisector",
+  "BU Retail":      "Retail",
+  "BU Logistics":   "Logistics (Grupo Mult)",
+};
+
+function BUTabs({ bu }: { bu: string }) {
+  return (
+    <NovaBaseFiltersProvider lockedVertical={bu}>
+      <Tabs
+        defaultActiveKey="resumoEmp"
+        type="card"
+        size="large"
+        items={[
+          { key: "resumoEmp", label: <span><FileTextOutlined /> Resumo por Empresa</span>, children: <NovaBaseResumoTab agruparPor="empresa" /> },
+          { key: "margemCli", label: <span><FundOutlined /> Margem por Cliente</span>,   children: <NovaBaseMargemTab /> },
+          { key: "empresa",   label: <span><BankOutlined /> DRE</span>,                   children: <NovaDreTab /> },
+          { key: "fonte",     label: <span><HeatMapOutlined /> PJ/CLT</span>,             children: <NovaBaseResumoTab agruparPor="tipo_pessoa" /> },
+          { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
+          { key: "apuracao",  label: <span><AimOutlined /> Apuração</span>,               children: <NovaBaseResumoTab agruparPor="apuracao" /> },
+          { key: "workers",   label: <span><TeamOutlined /> Workers</span>,                children: <WorkersTab /> },
+          { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
+        ]}
+      />
+    </NovaBaseFiltersProvider>
+  );
+}
 
 export default function Dashboard() {
+  return (
+    <MeProvider>
+      <DashboardInner />
+    </MeProvider>
+  );
+}
+
+function DashboardInner() {
   const [section, setSection] = useState<Section>(null);
+  const [selectedBu, setSelectedBu] = useState<string | null>(null);
+  const me = useMe();
   const [apenasAtribuidos, setApenasAtribuidos] = useState(false);
   const [dark, setDark] = useState<boolean>(() => localStorage.getItem("darkMode") === "true");
+
+  // Guarda: se a senha é temporária, força fluxo de troca via login.
+  useEffect(() => {
+    if (me?.must_change_password) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("me");
+      window.location.href = "/login";
+    }
+  }, [me?.must_change_password]);
 
   useEffect(() => {
     localStorage.setItem("darkMode", String(dark));
@@ -243,6 +294,7 @@ export default function Dashboard() {
               <Button icon={<ArrowLeftOutlined />} type="text" style={{ color: t.link }}
                 onClick={() => {
                   if (section === "worker" || section === "cockpit" || section === "metas") setSection("obsoleto");
+                  else if (section === "bus" && selectedBu) setSelectedBu(null);
                   else setSection(null);
                 }} />
             )}
@@ -270,49 +322,65 @@ export default function Dashboard() {
         </Header>
 
         <Content style={{ padding: "1.5rem 2rem" }}>
-          {(section === null || section === "obsoleto") && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 280px)", gap: 24, justifyContent: "center", alignContent: "center", minHeight: "60vh" }}>
-              {(section === null
-                ? [
-                    { key: "nova_base", icon: <DatabaseOutlined />,  title: "Financeiro - Nova Base", desc: "Base unificada 2026 com todas as fontes",     sub: "Nova Base · 2026" },
-                    { key: "budget", icon: <AimOutlined />,         title: "Budget vs Realizado",     desc: "Comparativo orçado vs realizado 2026",        sub: "Budget · 2026" },
-                    { key: "nova_base_pivot", icon: <TableOutlined />, title: "Visão Personalizada",   desc: "Tabela dinâmica sobre a Nova Base 2026",      sub: "Pivot · Drag-and-drop" },
-                    { key: "obsoleto",  icon: <InboxOutlined />,     title: "Obsoleto",               desc: "Telas legadas (Worker, Financeiro SAP, Metas Q4/Q3)", sub: "Arquivo" },
-                  ] as const
-                : [
-                    { key: "worker",  icon: <UserOutlined />, title: "Worker",            desc: "Receitas e custos por colaborador",          sub: "Base Worker" },
-                    { key: "cockpit", icon: <BankOutlined />, title: "Financeiro",        desc: "DRE, P&L por Stream e Matricial",            sub: "SAP S4 · Nexus" },
-                    { key: "metas",   icon: <AimOutlined />,  title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3", sub: "Margem · Clientes · Check" },
-                  ] as const
-              ).map(({ key, icon, title, desc, sub }) => (
-                <div
-                  key={key}
-                  onClick={() => setSection(key)}
-                  className="home-card"
-                  style={{
-                    width: 280,
-                    height: 280,
-                    cursor: "pointer",
-                    background: t.cardBg,
-                    borderRadius: 14,
-                    border: `1.5px solid ${t.border}`,
-                    padding: "2rem 1.5rem",
-                    textAlign: "center",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    boxShadow: dark ? "0 2px 12px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.05)",
-                    transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s",
-                  }}
-                >
-                  <div style={{ fontSize: 40, marginBottom: 14, lineHeight: 1, color: theme.accent }}>{icon}</div>
-                  <div style={{ color: t.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 6 }}>{title}</div>
-                  <div style={{ color: t.secondary, fontSize: "0.82rem", lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
-                  <div style={{ display: "inline-block", background: t.tagBg, color: t.secondary, fontSize: "0.72rem", fontWeight: 600, padding: "2px 10px", borderRadius: 20, letterSpacing: 0.3, alignSelf: "center" }}>{sub}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          {(section === null || section === "obsoleto") && (() => {
+            // Catálogo único dos cards da home, indexado pela key do Section.
+            const CARD_CATALOG: Record<string, { icon: React.ReactNode; title: string; desc: string; sub: string }> = {
+              nova_base:        { icon: <DatabaseOutlined />,  title: "Financeiro - Nova Base", desc: "Base unificada 2026 com todas as fontes",                  sub: "Nova Base · 2026" },
+              bus:              { icon: <ClusterOutlined />,   title: "Visão BUs",               desc: "Recorte do financeiro por BU (Finance, Health, etc.)",   sub: me && !me.is_admin ? `BU · ${me.bus.join(", ")}` : "BUs · 2026" },
+              budget:           { icon: <AimOutlined />,       title: "Budget vs Realizado",     desc: "Comparativo orçado vs realizado 2026",                   sub: "Budget · 2026" },
+              nova_base_pivot:  { icon: <TableOutlined />,     title: "Visão Personalizada",     desc: "Tabela dinâmica sobre a Nova Base 2026",                 sub: "Pivot · Drag-and-drop" },
+              obsoleto:         { icon: <InboxOutlined />,     title: "Obsoleto",                desc: "Telas legadas (Worker, Financeiro SAP, Metas Q4/Q3)",    sub: "Arquivo" },
+              admin:            { icon: <SafetyCertificateOutlined />, title: "Administração",   desc: "Usuários, histórico de login e online agora",             sub: "Painel · só você" },
+            };
+            // Cards da home: backend já calculou em me.visible_cards (default por role aplicado).
+            // 'admin' não está em visible_cards (não pode ser desabilitado): adiciono se super_admin.
+            const homeKeys: string[] = section === null
+              ? [
+                  ...(me?.visible_cards ?? []),
+                  ...(me?.is_super_admin ? ["admin"] : []),
+                ]
+              : ["worker", "cockpit", "metas"]; // section === "obsoleto"
+            // Adiciona ao catálogo o que é específico de "obsoleto"
+            const obsoletoExtras: Record<string, typeof CARD_CATALOG[string]> = {
+              worker:  { icon: <UserOutlined />, title: "Worker",            desc: "Receitas e custos por colaborador",          sub: "Base Worker" },
+              cockpit: { icon: <BankOutlined />, title: "Financeiro",        desc: "DRE, P&L por Stream e Matricial",            sub: "SAP S4 · Nexus" },
+              metas:   { icon: <AimOutlined />,  title: "Apuração de Metas", desc: "Acompanhamento e apuração de metas Q4 e Q3", sub: "Margem · Clientes · Check" },
+            };
+            const cards = homeKeys
+              .map(key => ({ key, ...(CARD_CATALOG[key] ?? obsoletoExtras[key]) }))
+              .filter(c => c.title); // ignora keys desconhecidas
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 280px)", gap: 24, justifyContent: "center", alignContent: "center", minHeight: "60vh" }}>
+                {cards.map(({ key, icon, title, desc, sub }) => (
+                  <div
+                    key={key}
+                    onClick={() => setSection(key as Section)}
+                    className="home-card"
+                    style={{
+                      width: 280,
+                      height: 280,
+                      cursor: "pointer",
+                      background: t.cardBg,
+                      borderRadius: 14,
+                      border: `1.5px solid ${t.border}`,
+                      padding: "2rem 1.5rem",
+                      textAlign: "center",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      boxShadow: dark ? "0 2px 12px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.05)",
+                      transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s",
+                    }}
+                  >
+                    <div style={{ fontSize: 40, marginBottom: 14, lineHeight: 1, color: theme.accent }}>{icon}</div>
+                    <div style={{ color: t.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 6 }}>{title}</div>
+                    <div style={{ color: t.secondary, fontSize: "0.82rem", lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
+                    <div style={{ display: "inline-block", background: t.tagBg, color: t.secondary, fontSize: "0.72rem", fontWeight: 600, padding: "2px 10px", borderRadius: 20, letterSpacing: 0.3, alignSelf: "center" }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {section === "worker" && (
             <Tabs
@@ -323,6 +391,58 @@ export default function Dashboard() {
                 { key: "worker", label: <span><UserOutlined /> Worker</span>, children: <WorkerTab dark={dark} /> },
               ]}
             />
+          )}
+
+          {section === "bus" && !selectedBu && (
+            <div>
+              <Title level={4} style={{ color: t.text, marginBottom: 6 }}>Visão por BU</Title>
+              <Text type="secondary" style={{ fontSize: "0.85rem", display: "block", marginBottom: 24 }}>
+                Selecione uma BU para abrir o recorte financeiro completo dela.
+              </Text>
+              {!me && <Text type="secondary">Carregando BUs...</Text>}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, 240px)", gap: 20, justifyContent: "center" }}>
+                {(me?.visible_bus ?? []).map((bu) => (
+                  <div
+                    key={bu}
+                    className="home-card"
+                    onClick={() => setSelectedBu(bu)}
+                    style={{
+                      width: 240, height: 200, cursor: "pointer",
+                      background: t.cardBg, borderRadius: 14,
+                      border: `1.5px solid ${t.border}`,
+                      padding: "1.5rem 1rem", textAlign: "center",
+                      display: "flex", flexDirection: "column", justifyContent: "center",
+                      boxShadow: dark ? "0 2px 12px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.05)",
+                      transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s",
+                    }}
+                  >
+                    <div style={{ fontSize: 36, marginBottom: 10, color: theme.accent }}><ApartmentOutlined /></div>
+                    <div style={{ color: t.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 4 }}>{BU_LABEL[bu] ?? bu}</div>
+                    <div style={{ color: t.secondary, fontSize: "0.78rem" }}>{bu}</div>
+                  </div>
+                ))}
+                {me && me.visible_bus.length === 0 && (
+                  <div style={{ color: t.secondary, gridColumn: "1 / -1", textAlign: "center" }}>
+                    Você não tem acesso a nenhuma BU. Fale com o administrador.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {section === "bus" && selectedBu && (
+            <>
+              <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                <Title level={4} style={{ margin: 0, color: t.text }}>
+                  <ApartmentOutlined style={{ color: theme.accent, marginRight: 8 }} />
+                  {BU_LABEL[selectedBu] ?? selectedBu}
+                </Title>
+                <span style={{ fontSize: "0.78rem", color: t.secondary, background: t.tagBg, padding: "2px 10px", borderRadius: 20, border: `1px solid ${t.border}` }}>
+                  Filtro de BU travado em <b>{selectedBu}</b>
+                </span>
+              </div>
+              <BUTabs bu={selectedBu} />
+            </>
           )}
 
           {section === "metas" && (
@@ -400,6 +520,21 @@ export default function Dashboard() {
             <NovaBaseFiltersProvider>
               <NovaBasePivotTab />
             </NovaBaseFiltersProvider>
+          )}
+
+          {section === "admin" && me?.is_super_admin && (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <Title level={4} style={{ margin: 0, color: t.text }}>
+                  <SafetyCertificateOutlined style={{ color: theme.accent, marginRight: 8 }} />
+                  Administração
+                </Title>
+                <Text type="secondary" style={{ fontSize: "0.85rem" }}>
+                  Cadastro de usuários, histórico de logins e quem está online.
+                </Text>
+              </div>
+              <AdminTab />
+            </>
           )}
 
           {section === "cockpit" && (

@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { getWorkers, getWorkerDetalhe, getNovaBaseFilters } from "../api";
 import { theme } from "../theme";
+import { useNovaBaseFilters } from "../contexts/NovaBaseFilters";
 
 type Row = {
   nome_pessoa: string;
@@ -41,10 +42,13 @@ const VERTICAIS = ["BU Finance","BU Health","BU Logistics","BU Multisector","BU 
 const PIE_COLORS = ["#FF5C35","#1E7C99","#7B61FF","#52c41a","#fa8c16","#13c2c2","#eb2f96","#a0d911","#fadb14","#722ed1"];
 
 export default function WorkersTab() {
+  // lockedVertical vem do contexto Visão BU — quando presente, força o filtro.
+  let ctxLocked: string | null = null;
+  try { ctxLocked = useNovaBaseFilters().lockedVertical; } catch { ctxLocked = null; }
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [selPer, setSelPer] = useState<string[]>(["2026-01","2026-02","2026-03"]);
-  const [selVerts, setSelVerts] = useState<string[]>([]);
+  const [selVerts, setSelVerts] = useState<string[]>(ctxLocked ? [ctxLocked] : []);
   const [selClientes, setSelClientes] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [clientesOpts, setClientesOpts] = useState<string[]>([]);
@@ -174,9 +178,10 @@ export default function WorkersTab() {
               options={MESES.map(m => ({ label: m, value: m }))} />
           </Col>
           <Col flex="auto">
-            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>BUs</div>
+            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>BUs{ctxLocked ? " (travada)" : ""}</div>
             <Select mode="multiple" allowClear style={{ width: "100%" }}
-              value={selVerts} onChange={setSelVerts} placeholder="Todas"
+              value={selVerts} onChange={ctxLocked ? undefined : setSelVerts} placeholder="Todas"
+              disabled={!!ctxLocked}
               options={VERTICAIS.map(v => ({ label: v, value: v }))} />
           </Col>
           <Col flex="auto">

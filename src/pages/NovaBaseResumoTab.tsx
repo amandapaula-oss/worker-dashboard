@@ -77,7 +77,9 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     selFontes, setSelFontes,
     selApuracoes, setSelApuracoes,
     selNoHier, setSelNoHier,
+    selVerticais,
     resetFilters, hasAnyFilter: ctxHasFilter,
+    lockedVertical,
   } = useNovaBaseFilters();
   const [rawData, setRawData]           = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -96,6 +98,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     if (selPeriodos.length) filters.periodos = selPeriodos.join(",");
     if (selEmpresas.length) filters.empresas = selEmpresas.join(",");
     if (selFontes.length)   filters.fontes   = selFontes.join(",");
+    if (selVerticais.length) filters.verticais = selVerticais.join(",");
     // Filtro do grupo clicado. Labels sinteticos (criados no backend pra agrupamento)
     // mapeiam pro sentinel "__blank__" porque a coluna real esta vazia.
     const paramKey = AGRUPAR_PARAM_KEY[agruparPor] || "empresas";
@@ -148,11 +151,12 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     if (selFontes.length)     params.fontes         = selFontes.join(",");
     if (selApuracoes.length)  params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)     params.no_hierarquias = selNoHier.join(",");
+    if (selVerticais.length)  params.verticais      = selVerticais.join(",");
     getNovaBaseResumo(params)
       .then(r => { setRawData(r); initialLoad.current = false; setError(null); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [selPeriodos, selEmpresas, selFontes, selApuracoes, selNoHier, agruparPor]);
+  }, [selPeriodos, selEmpresas, selFontes, selApuracoes, selNoHier, selVerticais, agruparPor]);
 
   useEffect(() => { if (filtersReady) load(); }, [filtersReady, load]);
 
@@ -476,7 +480,9 @@ export function NovaDreTab() {
     selFontes, setSelFontes,
     selApuracoes, setSelApuracoes,
     selNoHier, setSelNoHier,
+    selVerticais,
     resetFilters, hasAnyFilter: ctxHasFilter2,
+    lockedVertical,
   } = useNovaBaseFilters();
   const [data, setData]               = useState<any>(null);
   const [loading, setLoading]         = useState(true);
@@ -488,13 +494,15 @@ export function NovaDreTab() {
   // Carga inicial: filtros primeiro, depois DRE (evita carga dupla do Excel no cold start)
   const loadInitial = useCallback(() => {
     setLoading(true); setError(null);
+    const initialParams: Record<string, string> = {};
+    if (lockedVertical) initialParams.verticais = lockedVertical;
     getNovaBaseFilters()
-      .then(f => { setFilters(f); return getNovaBaseDre({}); })
+      .then(f => { setFilters(f); return getNovaBaseDre(initialParams); })
       .then(d => { setData(d); setFiltersReady(true); initialLoad.current = false; })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [lockedVertical]);
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 
@@ -508,12 +516,13 @@ export function NovaDreTab() {
     if (selFontes.length)    params.fontes         = selFontes.join(",");
     if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
+    if (selVerticais.length) params.verticais      = selVerticais.join(",");
     getNovaBaseDre(params)
       .then(d => { setData(d); setError(null); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersReady, selPeriodos, selEmpresas, selFontes, selApuracoes, selNoHier]);
+  }, [filtersReady, selPeriodos, selEmpresas, selFontes, selApuracoes, selNoHier, selVerticais]);
 
   const opt = (arr: string[]) => [
     ...arr.map((v: string) => ({ label: v, value: v })),

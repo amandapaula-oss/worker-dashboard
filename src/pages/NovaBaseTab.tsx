@@ -75,6 +75,7 @@ export default function NovaBaseTab() {
     selNoHier, setSelNoHier,
     selClientes, setSelClientes,
     resetFilters, hasAnyFilter,
+    lockedVertical,
   } = useNovaBaseFilters();
   const [rows, setRows]                     = useState<any[]>([]);
   const [total, setTotal]                   = useState(0);
@@ -282,10 +283,11 @@ export default function NovaBaseTab() {
             maxTagCount="responsive" placeholder="Todas" allowClear />
         </div>
         <div style={{ flex: 1, minWidth: 130 }}>
-          <div style={labelStyle}>BU</div>
+          <div style={labelStyle}>BU{lockedVertical ? " (travada)" : ""}</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selVerticais}
             onChange={setSelVerticais} options={opt(filters.verticais ?? [])}
-            maxTagCount="responsive" placeholder="Todas" allowClear />
+            maxTagCount="responsive" placeholder="Todas" allowClear
+            disabled={!!lockedVertical} />
         </div>
         <div style={{ flex: 1, minWidth: 130 }}>
           <div style={labelStyle}>Apuração</div>

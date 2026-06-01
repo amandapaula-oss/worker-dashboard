@@ -15,21 +15,35 @@ interface NovaBaseFiltersState {
   selClientes: string[];      setSelClientes: (v: string[]) => void;
   resetFilters: () => void;
   hasAnyFilter: boolean;
+  lockedVertical: string | null;
 }
 
 const Ctx = createContext<NovaBaseFiltersState | null>(null);
 
-export function NovaBaseFiltersProvider({ children }: { children: ReactNode }) {
+interface ProviderProps {
+  children: ReactNode;
+  lockedVertical?: string;
+}
+
+export function NovaBaseFiltersProvider({ children, lockedVertical }: ProviderProps) {
   const [selPeriodos, setSelPeriodos]   = useState<string[]>(DEFAULT_PERIODOS);
   const [selEmpresas, setSelEmpresas]   = useState<string[]>([]);
   const [selFontes, setSelFontes]       = useState<string[]>([]);
   const [selMacroAreas, setSelMacroAreas] = useState<string[]>([]);
   const [selTipos, setSelTipos]         = useState<string[]>([]);
   const [selClassif, setSelClassif]     = useState<string[]>([]);
-  const [selVerticais, setSelVerticais] = useState<string[]>([]);
+  const [selVerticaisRaw, setSelVerticaisRaw] = useState<string[]>(
+    lockedVertical ? [lockedVertical] : []
+  );
   const [selApuracoes, setSelApuracoes] = useState<string[]>([]);
   const [selNoHier, setSelNoHier]       = useState<string[]>([]);
   const [selClientes, setSelClientes]   = useState<string[]>([]);
+
+  // Se há BU travada, o setter ignora e força a BU fixa.
+  const selVerticais = lockedVertical ? [lockedVertical] : selVerticaisRaw;
+  const setSelVerticais = lockedVertical
+    ? (() => { /* travado */ })
+    : setSelVerticaisRaw;
 
   const resetFilters = useCallback(() => {
     setSelPeriodos(DEFAULT_PERIODOS);
@@ -38,18 +52,18 @@ export function NovaBaseFiltersProvider({ children }: { children: ReactNode }) {
     setSelMacroAreas([]);
     setSelTipos([]);
     setSelClassif([]);
-    setSelVerticais([]);
+    if (!lockedVertical) setSelVerticaisRaw([]);
     setSelApuracoes([]);
     setSelNoHier([]);
     setSelClientes([]);
-  }, []);
+  }, [lockedVertical]);
 
-  // hasAnyFilter: qualquer filtro diferente do default
   const isPeriodosDefault = selPeriodos.length === DEFAULT_PERIODOS.length &&
     selPeriodos.every(p => DEFAULT_PERIODOS.includes(p));
   const hasAnyFilter = !isPeriodosDefault || selEmpresas.length > 0 || selFontes.length > 0
     || selMacroAreas.length > 0 || selTipos.length > 0 || selClassif.length > 0
-    || selVerticais.length > 0 || selApuracoes.length > 0 || selNoHier.length > 0
+    || (!lockedVertical && selVerticaisRaw.length > 0)
+    || selApuracoes.length > 0 || selNoHier.length > 0
     || selClientes.length > 0;
 
   return (
@@ -65,6 +79,7 @@ export function NovaBaseFiltersProvider({ children }: { children: ReactNode }) {
       selNoHier, setSelNoHier,
       selClientes, setSelClientes,
       resetFilters, hasAnyFilter,
+      lockedVertical: lockedVertical ?? null,
     }}>
       {children}
     </Ctx.Provider>

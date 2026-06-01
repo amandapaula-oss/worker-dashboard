@@ -122,12 +122,22 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 BU_CARDS = ["BU Finance", "BU Health", "BU Multisector", "BU Retail", "BU Logistics"]
 
 # Fallback in-memory caso Supabase não esteja configurado / tabela não criada (dev local).
+# Cards disponíveis na home. Espelha o tipo Section no frontend (exceto 'admin' que é fixo p/ super_admin).
+ALL_CARDS = ["nova_base", "bus", "budget", "nova_base_pivot", "obsoleto"]
+
+def _default_cards_for(info: dict) -> list:
+    """Default quando visible_cards é NULL/vazio: admin (bus vazio) vê tudo; restrito vê só 'bus'."""
+    bus = info.get("bus") or []
+    if not bus:
+        return list(ALL_CARDS)
+    return ["bus"]
+
 # Em produção os usuários vêm de app_users no Supabase (ver migrations/001_app_users.sql).
 _USERS_FALLBACK = {
-    "amanda":   {"username": "amanda",   "name": "Amanda", "email": None, "hashed_password": "$2b$12$mfHiyBw/auw.B745JxG2eO5Qlw/urUAOOVwi5x2koGXqWhUDhZv/a", "bus": [], "is_super_admin": True,  "must_change_password": False},
-    "paola":    {"username": "paola",    "name": "Paola",  "email": None, "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC", "bus": [], "is_super_admin": False, "must_change_password": False},
-    "yuri":     {"username": "yuri",     "name": "Yuri",   "email": None, "hashed_password": "$2b$12$lafxeoNomlDKRwz5seUPUe72xx06URZiuxTx2vbhJ6pFVy1HQpuhG", "bus": [], "is_super_admin": False, "must_change_password": False},
-    "amisrael": {"username": "amisrael", "name": "Israel", "email": None, "hashed_password": "$2b$12$Uxf53rbxFSof7w.wszVac.HmMOLoK17EfmisNDHc9NaxVHoaCbgO.", "bus": [], "is_super_admin": False, "must_change_password": False},
+    "amanda":   {"username": "amanda",   "name": "Amanda", "email": None, "hashed_password": "$2b$12$mfHiyBw/auw.B745JxG2eO5Qlw/urUAOOVwi5x2koGXqWhUDhZv/a", "bus": [], "is_super_admin": True,  "must_change_password": False, "visible_cards": None},
+    "paola":    {"username": "paola",    "name": "Paola",  "email": None, "hashed_password": "$2b$12$RWwqeh1tC5HC9flxYsR3s.a8RyTyCuDcsksRvtnI9K4DbwbKIR5KC", "bus": [], "is_super_admin": False, "must_change_password": False, "visible_cards": None},
+    "yuri":     {"username": "yuri",     "name": "Yuri",   "email": None, "hashed_password": "$2b$12$lafxeoNomlDKRwz5seUPUe72xx06URZiuxTx2vbhJ6pFVy1HQpuhG", "bus": [], "is_super_admin": False, "must_change_password": False, "visible_cards": None},
+    "amisrael": {"username": "amisrael", "name": "Israel", "email": None, "hashed_password": "$2b$12$Uxf53rbxFSof7w.wszVac.HmMOLoK17EfmisNDHc9NaxVHoaCbgO.", "bus": [], "is_super_admin": False, "must_change_password": False, "visible_cards": None},
 }
 
 _users_cache: dict = {"data": None, "expires_at": 0.0}
@@ -313,6 +323,12 @@ def get_me(user=Depends(get_current_user)):
     info = _get_user(user) or {}
     allowed = get_user_bus(user)
     visible_bus = BU_CARDS if not allowed else [b for b in BU_CARDS if b in allowed]
+    # visible_cards: usa valor explícito do user se setado; senão, default por role.
+    raw_cards = info.get("visible_cards")
+    if raw_cards:
+        visible_cards = [c for c in raw_cards if c in ALL_CARDS]
+    else:
+        visible_cards = _default_cards_for(info)
     return {
         "username": user,
         "name": info.get("name", user),
@@ -322,6 +338,8 @@ def get_me(user=Depends(get_current_user)):
         "must_change_password": bool(info.get("must_change_password", False)),
         "bus": allowed,
         "visible_bus": visible_bus,
+        "visible_cards": visible_cards,
+        "all_cards": ALL_CARDS,
     }
 
 # ── Admin: gestão de usuários (super_admin only) ───────────────────────────────
@@ -353,6 +371,8 @@ def admin_create_user(body: dict, _=Depends(require_super_admin)):
     email    = ((body or {}).get("email") or "").strip() or None
     bus      = list((body or {}).get("bus") or [])
     is_sa    = bool((body or {}).get("is_super_admin", False))
+    vc_raw   = (body or {}).get("visible_cards")
+    visible_cards = [c for c in (vc_raw or []) if c in ALL_CARDS] if vc_raw is not None else None
     if not username or not name:
         raise HTTPException(400, "username e name são obrigatórios.")
     if _get_user(username):
@@ -363,6 +383,7 @@ def admin_create_user(body: dict, _=Depends(require_super_admin)):
         "hashed_password": hash_password(temp_pwd),
         "bus": bus, "is_super_admin": is_sa,
         "must_change_password": True,
+        "visible_cards": visible_cards,
     }
     if SUPABASE_URL and SUPABASE_KEY and _USERS_TABLE_OK:
         with httpx.Client(timeout=10) as c:
@@ -390,6 +411,10 @@ def admin_update_user(username: str, body: dict, admin_user=Depends(require_supe
         updates["bus"] = list(body["bus"] or [])
     if "is_super_admin" in (body or {}):
         updates["is_super_admin"] = bool(body["is_super_admin"])
+    if "visible_cards" in (body or {}):
+        vc_raw = body["visible_cards"]
+        # null/omitido limpa (volta a default); lista filtra cards válidos.
+        updates["visible_cards"] = ([c for c in vc_raw if c in ALL_CARDS] if vc_raw is not None else None)
     if not updates:
         return {"user": _redact_user(current)}
     if SUPABASE_URL and SUPABASE_KEY and _USERS_TABLE_OK:
