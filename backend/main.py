@@ -4758,6 +4758,7 @@ def get_nova_base_data(
     no_hierarquias: str = "",
     nome_cliente: str = "",
     clientes: str = "",
+    pep: str = "",
     tipo_pessoa: str = "",
     metric: str = "",
     search: str = "",
@@ -4809,6 +4810,14 @@ def get_nova_base_data(
 
     if nome_cliente:
         df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
+    if pep:
+        if "pep_base" not in df.columns:
+            df["pep_base"] = df.get("pep", pd.Series("", index=df.index)).astype(str).str.split(".").str[0]
+        pep_clean = df["pep_base"].fillna("").astype(str).str.strip()
+        if pep.strip().lower() == "(sem pep)":
+            df = df[pep_clean.eq("") | pep_clean.str.lower().isin(["nan", "none", "0", "<na>"])]
+        else:
+            df = df[pep_clean.str.upper() == pep.upper().strip()]
     if tipo_pessoa:
         # Classifica e filtra por tipo (CLT/PJ/Outros) — mesma lógica do resumo
         import unicodedata
