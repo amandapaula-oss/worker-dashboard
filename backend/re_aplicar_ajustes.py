@@ -70,6 +70,47 @@ def regra_transunion_bu_finance():
           "TransUnion BU Finance")
 
 
+def regra_odontoprev_centros():
+    """1.3e - Odontoprev: centro de lucro por empresa
+       BR07 Hyper -> DC008 Hyperautomation
+       BR08 Dojo  -> DC012
+       BR05 SGA   -> DC032
+       BR04 Nacao Digital -> DC030
+    """
+    print("\n[1.3e] Odontoprev: centro de lucro por empresa")
+    MAP = [
+        ("empresa=ilike.*Hyper*",   "DC008 Hyperautomation", "Hyper -> DC008"),
+        ("empresa=ilike.*Dojo*",    "DC012",                 "Dojo -> DC012"),
+        ("empresa=ilike.*SGA*",     "DC032",                 "SGA -> DC032"),
+        ("empresa=ilike.*Digital*", "DC030",                 "Nacao Digital -> DC030"),
+    ]
+    for emp_filt, dc, desc in MAP:
+        patch(f"nome_cliente=ilike.*ODONTOPREV*&{emp_filt}&or=(no_hierarquia.is.null,no_hierarquia.neq.{urllib.parse.quote(dc, safe='')})",
+              {"no_hierarquia": dc},
+              f"Odontoprev {desc}")
+
+
+def regra_riachuelo_dc008():
+    """1.3d - Riachuelo (todas grafias) -> DC008 Hyperautomation"""
+    print("\n[1.3d] Riachuelo -> DC008 Hyperautomation")
+    # Cobre variantes "Riachuelo", "RIACHUELO", "LOJAS RIACHUELO SA", "11406-RIACHUELO"
+    patch("nome_cliente=ilike.*RIACHUELO*&or=(no_hierarquia.is.null,no_hierarquia.neq.DC008 Hyperautomation)",
+          {"no_hierarquia": "DC008 Hyperautomation"},
+          "Riachuelo DC008")
+
+
+def regra_spad_adcos():
+    """1.3c - SPAD COMERCIO DE COSMETICOS LTDA -> Adcos / BU Health"""
+    print("\n[1.3c] SPAD Cosmeticos -> Adcos + BU Health")
+    patch("nome_cliente=ilike.*SPAD*COSMETIC*&nome_cliente=neq.Adcos",
+          {"nome_cliente": "Adcos", "vertical": "BU Health"},
+          "SPAD -> Adcos")
+    # Garante que TODAS as linhas Adcos fiquem em BU Health
+    patch("nome_cliente=ilike.Adcos&or=(vertical.is.null,vertical.neq.BU Health)",
+          {"vertical": "BU Health"},
+          "Adcos BU Health")
+
+
 def regra_fernando_boldrin_klabin():
     """1.4 - Fernando Henrique Dourado Boldrin (PJ): CBMM -> KLABIN S.A."""
     print("\n[1.4] Fernando Boldrin (PJ CBMM) -> Klabin")
@@ -103,6 +144,17 @@ def regra_no_hierarquia_codes():
         "Business Unit": "DC037 Business Unit",
         "Hyperautomation": "DC008 Hyperautomation",
         "Licensing Hyper": "DC009 Licensing Hyper",
+        # Codigos sem nome -> nome completo
+        "DC001": "DC001 Squads",
+        "DC002": "DC002 Dedicated Teams",
+        "DC004": "DC004 E-commerce",
+        "DC005": "DC005 Open-X",
+        "DC007": "DC007 Imagine",
+        "DC008": "DC008 Hyperautomation",
+        "DC009": "DC009 Licensing Hyper",
+        "DC029": "DC029 FC Consult. New Rev",
+        "DC037": "DC037 Business Unit",
+        "DC040": "DC040 FC Consult. B. Sales",
     }
     for old, new in MAP.items():
         q = urllib.parse.quote(old, safe="")
@@ -326,6 +378,9 @@ def main():
     regra_leonardo_almap()
     regra_tatiane_transunion()
     regra_transunion_bu_finance()
+    regra_spad_adcos()
+    regra_odontoprev_centros()
+    regra_riachuelo_dc008()
     regra_fernando_boldrin_klabin()
     regra_it_solution_poliedro()
     regra_no_hierarquia_codes()

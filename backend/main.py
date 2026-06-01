@@ -2098,9 +2098,9 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
 
 # Mapa Profit Center -> Apuracao (NG / Ecossistema)
 # Baseado em DC001-DC042 (cadastro Profit Centers). DC001 (Squads), DC002 (Dedicated
-# Teams), DC005 (Open-X), DC037 (Business Unit) sao NG. Demais sao Ecossistema.
-_APURACAO_NG_CODES = {"DC001", "DC002", "DC005", "DC037"}
-_APURACAO_NG_NAMES = {"Squads", "Dedicated Teams", "Open-X", "Business Unit"}
+# Teams), DC005 (Open-X) sao NG. Demais sao Ecossistema. Tambem aceita o nome.
+_APURACAO_NG_CODES = {"DC001", "DC002", "DC005"}
+_APURACAO_NG_NAMES = {"Squads", "Dedicated Teams", "Open-X"}
 _APURACAO_ECOSSISTEMA_CODES = {f"DC{i:03d}" for i in range(3, 43)} - _APURACAO_NG_CODES
 _APURACAO_ECOSSISTEMA_NAMES = {
     "Software Factory", "E-commerce", "Licensing Microsoft", "Imagine",
@@ -2109,9 +2109,23 @@ _APURACAO_ECOSSISTEMA_NAMES = {
     "Project Lead", "SEO", "Creative", "Performance", "Social & Content", "CRM",
     "Rev Ops", "Marketplace", "Open Innovation", "CVB", "CVC", "Intrapreneurship",
     "Creat. Problem Solv.", "FC Consult. New Rev", "Dig. & App Innov.", "Infrastructure",
-    "Data & AI (SGA)", "Security", "Partners", "Modern work", "FinOps",
+    "Data & AI (SGA)", "Security", "Partners", "Modern work", "FinOps", "Business Unit",
     "Back Office", "Data Prof.Serv.Dojo", "FC Consult. B. Sales", "FC Consult. Strategy",
     "AI Factory",
+}
+
+
+_NO_HIERARQUIA_NOME_POR_CODE = {
+    "DC001": "DC001 Squads",
+    "DC002": "DC002 Dedicated Teams",
+    "DC004": "DC004 E-commerce",
+    "DC005": "DC005 Open-X",
+    "DC007": "DC007 Imagine",
+    "DC008": "DC008 Hyperautomation",
+    "DC009": "DC009 Licensing Hyper",
+    "DC029": "DC029 FC Consult. New Rev",
+    "DC037": "DC037 Business Unit",
+    "DC040": "DC040 FC Consult. B. Sales",
 }
 
 
@@ -2122,6 +2136,10 @@ def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
     if "no_hierarquia" not in df.columns:
         df["apuracao"] = ""
         return df
+    # Normaliza codigos sem nome ("DC002" -> "DC002 Dedicated Teams").
+    # Se a coluna ja tem o nome ("DC002 Dedicated Teams"), nao mexe.
+    _nh_raw = df["no_hierarquia"].fillna("").astype(str).str.strip()
+    df["no_hierarquia"] = _nh_raw.map(_NO_HIERARQUIA_NOME_POR_CODE).fillna(_nh_raw)
     nh = df["no_hierarquia"].fillna("").astype(str).str.strip()
     # Extrai DC code do inicio quando presente (cobre "DC001" e "DC001 Squads")
     dc_extr = nh.str.extract(r"^(DC\d{3})", expand=False).fillna("")
@@ -2449,6 +2467,23 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             df.loc[nc_lock.str.contains("TRANSUNION", na=False), "vertical"] = "BU Finance"
             df.loc[nc_lock.str.contains("BANCO VOTORANTIM", na=False), "vertical"] = "BU Hyper"
             df.loc[nc_lock.str.contains("RAIA DROGASIL", na=False), "vertical"] = "BU Retail"
+            df.loc[nc_lock.eq("ADCOS") | nc_lock.str.contains("SPAD COMERCIO DE COSMETIC", na=False),
+                   "vertical"] = "BU Health"
+            # Unimed Nacional: BU Health (corrige bug no parametros.xlsx que tinha
+            # UNIMED NACIONAL -> Retail).
+            df.loc[nc_lock.str.contains("UNIMED NACIONAL", na=False), "vertical"] = "BU Health"
+            # Riachuelo: centro de lucro DC008 Hyperautomation (vertical mantida BU Retail).
+            if "no_hierarquia" in df.columns:
+                df.loc[nc_lock.str.contains("RIACHUELO", na=False),
+                       "no_hierarquia"] = "DC008 Hyperautomation"
+                # Odontoprev: centro de lucro por empresa de origem.
+                if "empresa" in df.columns:
+                    emp_lock = df["empresa"].fillna("").astype(str).str.upper()
+                    odo = nc_lock.str.contains("ODONTOPREV", na=False)
+                    df.loc[odo & emp_lock.str.contains("HYPER", na=False), "no_hierarquia"] = "DC008 Hyperautomation"
+                    df.loc[odo & emp_lock.str.contains("DOJO", na=False),  "no_hierarquia"] = "DC012"
+                    df.loc[odo & emp_lock.str.contains("SGA", na=False),   "no_hierarquia"] = "DC032"
+                    df.loc[odo & emp_lock.str.contains("DIGITAL", na=False), "no_hierarquia"] = "DC030"
     except Exception as e:
         print(f"[vertical_locks] falhou: {e}")
     return df
@@ -2531,6 +2566,9 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "TRANSUNION BRASIL SISTEMAS EM INFOR": "TransUnion",
         "TRANSUNION BRASIL SISTEMAS EM INFORMATIC": "TransUnion",
         "BANCO BV": "BANCO VOTORANTIM S.A.",
+        "ADCOS": "Adcos",
+        "SPAD COMERCIO DE COSMETICOS LTDA": "Adcos",
+        "SPAD COMERCIO DE COSMETICOS": "Adcos",
         "ODONTOPREV": "ODONTOPREV S.A.",
         "ODONTOPREV S.A.": "ODONTOPREV S.A.",
         "ODONTOPREV - TESTES ALWAYS ON": "ODONTOPREV S.A.",
@@ -4410,9 +4448,12 @@ def get_nova_base_margem_cliente_detalhe(
         m = s[s.astype(str).str.strip().ne("")].mode()
         return m.iloc[0] if len(m) else ""
 
+    if "no_hierarquia" not in df.columns:
+        df["no_hierarquia"] = ""
     agg = df.groupby(group_keys, as_index=False).agg(
         empresa       = ("empresa",       _moda),
         vertical      = ("vertical",      _moda),
+        no_hierarquia = ("no_hierarquia", _moda),
         receita       = ("receita",       "sum"),
         custo_rateado = ("custo_rateado", "sum"),
         horas         = ("horas",         "sum"),
@@ -4703,6 +4744,16 @@ def get_nova_base_pivot(
     if not metric_list:
         metric_list = ["receita"]
 
+    # Separa custo direto (exclui despesa) — alinhado com Resumo/Margem.
+    # Despesa = classif='despesa' OU (sem classif='custo' E (com macro_area OU socio))
+    _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    _fs = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    _socio = _fs.isin(["Custo Socios", "Custo Sócios"])
+    _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
+    if "custo_rateado" in df.columns:
+        df["custo_rateado"] = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0).where(~_is_desp, 0)
+
     for m in metric_list:
         col_name = f"_v_{m}"
         if m == "count":
@@ -4759,6 +4810,7 @@ def get_nova_base_data(
     nome_cliente: str = "",
     clientes: str = "",
     pep: str = "",
+    nome_pessoa: str = "",
     tipo_pessoa: str = "",
     metric: str = "",
     search: str = "",
@@ -4810,6 +4862,12 @@ def get_nova_base_data(
 
     if nome_cliente:
         df = df[df["nome_cliente"].fillna("").astype(str).str.upper().str.strip() == nome_cliente.upper().strip()]
+    if nome_pessoa:
+        np_clean = df["nome_pessoa"].fillna("").astype(str).str.strip()
+        if nome_pessoa.strip().lower() == "(sem pessoa)":
+            df = df[np_clean.eq("")]
+        else:
+            df = df[np_clean.str.upper() == nome_pessoa.upper().strip()]
     if pep:
         if "pep_base" not in df.columns:
             df["pep_base"] = df.get("pep", pd.Series("", index=df.index)).astype(str).str.split(".").str[0]

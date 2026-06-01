@@ -68,7 +68,7 @@ export default function NovaBaseMargemTab() {
   const [drillTitulo, setDrillTitulo]   = useState("");
   const [drillMetric, setDrillMetric]   = useState("");
 
-  const openDrill = (cliente: string, prefix: string, metric: string, metricLabel: string, pep?: string) => {
+  const openDrill = (cliente: string, prefix: string, metric: string, metricLabel: string, pep?: string, pessoa?: string) => {
     const filters: Record<string, string> = { nome_cliente: cliente };
     if (selPeriodos.length) filters.periodos = selPeriodos.join(",");
     if (selEmpresas.length) filters.empresas = selEmpresas.join(",");
@@ -77,10 +77,12 @@ export default function NovaBaseMargemTab() {
     if (prefix !== "total") filters.periodos = prefix;
     if (metric) filters.metric = metric;
     if (pep) filters.pep = pep;
+    if (pessoa) filters.nome_pessoa = pessoa;
     setDrillFilters(filters);
     const periodoTxt = prefix === "total" ? "Total" : periodoLabel(prefix);
     const pepTxt = pep ? ` · ${pep}` : "";
-    setDrillTitulo(`${toTitleCase(cliente)}${pepTxt} · ${periodoTxt}`);
+    const pessoaTxt = pessoa ? ` · ${toTitleCase(pessoa)}` : "";
+    setDrillTitulo(`${toTitleCase(cliente)}${pepTxt}${pessoaTxt} · ${periodoTxt}`);
     setDrillMetric(metricLabel);
     setDrillOpen(true);
   };
@@ -363,6 +365,8 @@ export default function NovaBaseMargemTab() {
       ) },
     { title: "Empresa", dataIndex: "empresa", width: 140 },
     { title: "Vertical", dataIndex: "vertical", width: 140 },
+    { title: "Centro de Lucro", dataIndex: "no_hierarquia", width: 170, ellipsis: true,
+      sorter: (a: any, b: any) => String(a.no_hierarquia || "").localeCompare(String(b.no_hierarquia || "")) },
     { title: "Receita", dataIndex: "receita", align: "right" as const, width: 140,
       sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
       render: (v: number, row: any) => (
@@ -404,9 +408,23 @@ export default function NovaBaseMargemTab() {
     { title: "Fonte", dataIndex: "fonte", width: 120 },
     { title: "Receita", dataIndex: "receita", align: "right" as const, width: 140,
       sorter: (a: any, b: any) => (a.receita || 0) - (b.receita || 0), defaultSortOrder: "descend" as const,
-      render: (v: number) => <span style={{ fontWeight: 600 }}>{brl(v || 0)}</span> },
+      render: (v: number, row: any) => (
+        <span style={{ cursor: "pointer", borderBottom: "1px dashed transparent", fontWeight: 600 }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderBottom = "1px dashed #6b7fa3"}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderBottom = "1px dashed transparent"}
+          onClick={() => openDrill(selectedCliente || "", row.periodo || "total", "receita", "Receita", selectedPep || undefined, row.nome_pessoa)}>
+          {brl(v || 0)}
+        </span>
+      ) },
     { title: "Custo Rateado", dataIndex: "custo_rateado", align: "right" as const, width: 140,
-      render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : theme.text }}>{brl(v || 0)}</span> },
+      render: (v: number, row: any) => (
+        <span style={{ cursor: "pointer", borderBottom: "1px dashed transparent", color: (v || 0) < 0 ? "#c0392b" : theme.text }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderBottom = "1px dashed #6b7fa3"}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderBottom = "1px dashed transparent"}
+          onClick={() => openDrill(selectedCliente || "", row.periodo || "total", "custo_rateado", "Custo Rateado", selectedPep || undefined, row.nome_pessoa)}>
+          {brl(v || 0)}
+        </span>
+      ) },
     { title: "Margem", dataIndex: "margem", align: "right" as const, width: 140,
       render: (v: number) => <span style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", fontWeight: 700 }}>{brl(v || 0)}</span> },
     { title: "Margem %", dataIndex: "margem_pct", align: "right" as const, width: 90,
