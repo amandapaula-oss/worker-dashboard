@@ -4491,7 +4491,9 @@ def get_nova_base_margem_projeto_pessoas(
     df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
     df["margem"] = df["receita"] + df["custo_rateado"]
     df["nome_pessoa"] = df["nome_pessoa"].fillna("").astype(str).str.strip()
-    df = df[df["nome_pessoa"].ne("")]
+    # Linhas sem pessoa (Sales Boost, Budget, etc.) viram placeholder pra
+    # nao sumirem no drill-down.
+    df.loc[df["nome_pessoa"].eq(""), "nome_pessoa"] = "(sem pessoa)"
     for c in ("empresa", "fonte"):
         if c in df.columns:
             df[c] = df[c].fillna("")
