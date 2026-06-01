@@ -2098,9 +2098,9 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
 
 # Mapa Profit Center -> Apuracao (NG / Ecossistema)
 # Baseado em DC001-DC042 (cadastro Profit Centers). DC001 (Squads), DC002 (Dedicated
-# Teams), DC005 (Open-X) sao NG. Demais sao Ecossistema. Tambem aceita o nome.
-_APURACAO_NG_CODES = {"DC001", "DC002", "DC005"}
-_APURACAO_NG_NAMES = {"Squads", "Dedicated Teams", "Open-X"}
+# Teams), DC005 (Open-X), DC037 (Business Unit) sao NG. Demais sao Ecossistema.
+_APURACAO_NG_CODES = {"DC001", "DC002", "DC005", "DC037"}
+_APURACAO_NG_NAMES = {"Squads", "Dedicated Teams", "Open-X", "Business Unit"}
 _APURACAO_ECOSSISTEMA_CODES = {f"DC{i:03d}" for i in range(3, 43)} - _APURACAO_NG_CODES
 _APURACAO_ECOSSISTEMA_NAMES = {
     "Software Factory", "E-commerce", "Licensing Microsoft", "Imagine",
@@ -2109,7 +2109,7 @@ _APURACAO_ECOSSISTEMA_NAMES = {
     "Project Lead", "SEO", "Creative", "Performance", "Social & Content", "CRM",
     "Rev Ops", "Marketplace", "Open Innovation", "CVB", "CVC", "Intrapreneurship",
     "Creat. Problem Solv.", "FC Consult. New Rev", "Dig. & App Innov.", "Infrastructure",
-    "Data & AI (SGA)", "Security", "Partners", "Modern work", "FinOps", "Business Unit",
+    "Data & AI (SGA)", "Security", "Partners", "Modern work", "FinOps",
     "Back Office", "Data Prof.Serv.Dojo", "FC Consult. B. Sales", "FC Consult. Strategy",
     "AI Factory",
 }
