@@ -4236,18 +4236,32 @@ def get_nova_base_resumo(
     )
     agg = agg.rename(columns={group_col: "grupo"})
 
-    # Rateia despesa corporativa pelas BUs (% receita por periodo)
+    # Computa linhas de rateio backoffice (preenchidas depois do filtro de grupos vazios).
+    rateio_rows = []
     if despesa_corp_periodo is not None and not despesa_corp_periodo.empty:
         for per, despesa_corp in despesa_corp_periodo.items():
             if abs(despesa_corp) < 0.01:
                 continue
             mask_per = agg["periodo"] == per
-            rec_per = agg.loc[mask_per, "receita"]
-            rec_total = rec_per[rec_per > 0].sum()
+            rec_per = agg.loc[mask_per, ["grupo", "receita"]]
+            # Considera somente BUs reais (nao outras categorias) com receita positiva
+            _bu_mask = rec_per["grupo"].astype(str).str.startswith("BU ") & (rec_per["receita"] > 0)
+            rec_bu = rec_per.loc[_bu_mask, "receita"]
+            rec_total = rec_bu.sum()
             if rec_total <= 0:
                 continue
-            shares = rec_per.where(rec_per > 0, 0) / rec_total
-            agg.loc[mask_per, "despesa"] = agg.loc[mask_per, "despesa"] + despesa_corp * shares
+            for _, row in rec_per.loc[_bu_mask].iterrows():
+                share = float(row["receita"]) / float(rec_total)
+                rateio_rows.append({
+                    "grupo": f"Rateio Backoffice {row['grupo']}",
+                    "periodo": per,
+                    "receita": 0.0,
+                    "custo_rateado": 0.0,
+                    "despesa": float(despesa_corp) * share,
+                    "horas": 0.0,
+                    "valor_liquido": 0.0,
+                    "custo_fonte": 0.0,
+                })
 
     # Remove grupos sem nenhum dado real (ex: empresas que só têm Custo Socios,
     # como Distrito, Mult, Avanti — receita=0, custo=0, horas=0 em todos os periodos)
@@ -4260,6 +4274,11 @@ def get_nova_base_resumo(
         periodo_totals = agg.groupby("periodo")[["receita","custo_rateado","horas"]].sum().abs().sum(axis=1)
         periodos_com_dados = periodo_totals[periodo_totals > 0].index
         agg = agg[agg["periodo"].isin(periodos_com_dados)]
+
+    # Anexa linhas "Rateio Backoffice BU X" APOS o filtro de grupos vazios
+    # (essas linhas tem so despesa, receita/custo=0, e seriam filtradas).
+    if rateio_rows:
+        agg = pd.concat([agg, pd.DataFrame(rateio_rows)], ignore_index=True)
 
     return _sanitize(agg.to_dict(orient="records"))
 
