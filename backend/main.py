@@ -2561,12 +2561,31 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "STRADA PAY": "STRADA PAY INSTITUICAO DE PAGAMENTO LTDA",
         "STRADA PAY INSTITUICAO DE PAGAMENTO": "STRADA PAY INSTITUICAO DE PAGAMENTO LTDA",
         "STRADA PAY INSTITUICAO DE PAGAMENTO LTDA": "STRADA PAY INSTITUICAO DE PAGAMENTO LTDA",
+        "BULLLA": "Bullla",
+        "BULLLA INSTITUICAO DE PAGAMENTO S.A.": "Bullla",
+        "BULLLA INSTITUICAO DE PAGAMENTO S A": "Bullla",
+        # nome_cliente preenchido com nome da BU (apontamento Orange generico) -> limpa
+        "BU FINANCE": "",
+        "BU HEALTH": "",
+        "BU LOGISTICS": "",
+        "BU RETAIL": "",
+        "BU MULTISECTOR": "",
+        "BU HYPER": "",
+        "BU OTHERS": "",
         "DANONE": "DANONE",
         "DANONE LTDA": "DANONE",
         "TRANSUNION": "TransUnion",
         "TRANSUNION BRASIL SISTEMAS EM INFOR": "TransUnion",
         "TRANSUNION BRASIL SISTEMAS EM INFORMATIC": "TransUnion",
         "BANCO BV": "BANCO VOTORANTIM S.A.",
+        # Case-only variantes (mesma chave UPPER) — canonicaliza pra mixed case
+        "ASGROUP": "ASGroup",
+        "ENERGISA": "Energisa",
+        "ESTAPAR": "Estapar",
+        "AMBIPAR": "Ambipar",
+        "AFYA": "Afya",
+        "ERO CARAIBA": "Ero Caraiba",
+        "GRUPO ELFA": "Grupo Elfa",
         "ADCOS": "Adcos",
         "SPAD COMERCIO DE COSMETICOS LTDA": "Adcos",
         "SPAD COMERCIO DE COSMETICOS": "Adcos",
@@ -4170,9 +4189,24 @@ def get_nova_base_resumo(
         df.loc[df[group_col] == "", group_col] = "Projetos"
     if group_col == "apuracao":
         df.loc[df[group_col] == "", group_col] = "Sem Apuração"
+    # Quando agrupando por vertical, despesa corporativa (vertical de VP/Leadership/
+    # Play ou vazia) e rateada pelas BUs proporcional a receita da BU no periodo.
+    despesa_corp_periodo = None
     if group_col == "vertical":
         _NOT_BU = {"Executive Leadership", "Operations VP", "Sales VP", "Tech VP", "Delivery Play"}
-        df = df[~df[group_col].isin(_NOT_BU)]
+        _is_corp = df[group_col].isin(_NOT_BU) | df[group_col].eq("")
+        # Calcula despesa corporativa por periodo ANTES de filtrar
+        _has_ma_c = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+        _fs_c = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+        _socio_c = _fs_c.isin(["Custo Socios", "Custo Sócios"])
+        _cl_c = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+        _is_desp_c = (_cl_c == "despesa") | ((_cl_c != "custo") & (_has_ma_c | _socio_c))
+        _corp_desp_mask = _is_corp & _is_desp_c
+        _cust_c = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0)
+        despesa_corp_periodo = (df.loc[_corp_desp_mask]
+                                  .assign(_d=_cust_c[_corp_desp_mask])
+                                  .groupby("periodo")["_d"].sum())
+        df = df[~_is_corp]
     df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
 
     # Separa custo (billable, sem macro_area) de despesa (com macro_area). A coluna
@@ -4201,6 +4235,19 @@ def get_nova_base_resumo(
         custo_fonte   = ("custo_fonte",   "sum"),
     )
     agg = agg.rename(columns={group_col: "grupo"})
+
+    # Rateia despesa corporativa pelas BUs (% receita por periodo)
+    if despesa_corp_periodo is not None and not despesa_corp_periodo.empty:
+        for per, despesa_corp in despesa_corp_periodo.items():
+            if abs(despesa_corp) < 0.01:
+                continue
+            mask_per = agg["periodo"] == per
+            rec_per = agg.loc[mask_per, "receita"]
+            rec_total = rec_per[rec_per > 0].sum()
+            if rec_total <= 0:
+                continue
+            shares = rec_per.where(rec_per > 0, 0) / rec_total
+            agg.loc[mask_per, "despesa"] = agg.loc[mask_per, "despesa"] + despesa_corp * shares
 
     # Remove grupos sem nenhum dado real (ex: empresas que só têm Custo Socios,
     # como Distrito, Mult, Avanti — receita=0, custo=0, horas=0 em todos os periodos)
