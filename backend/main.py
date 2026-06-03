@@ -4576,13 +4576,17 @@ def get_nova_base_margem_projeto_pessoas(
         m = s[s.astype(str).str.strip().ne("")].mode()
         return m.iloc[0] if len(m) else ""
 
-    # 1 linha por pessoa (receita do racional + custo da fonte PJs/custo_gerencial somados)
-    group_cols = ["nome_pessoa", "periodo"] if breakdown else ["nome_pessoa"]
+    # 1 linha por (pessoa, empresa, fonte) — evita merge de Play+Hyper Sales Boost
+    # em "(sem pessoa)" e da visibilidade quando CLT/PJ + Orange da mesma pessoa
+    # vem de fontes diferentes.
+    base_keys = ["nome_pessoa", "empresa", "fonte"]
+    group_cols = base_keys + (["periodo"] if breakdown else [])
     if breakdown and "periodo" in df.columns:
         df["periodo"] = df["periodo"].fillna("").astype(str)
+    for c in base_keys:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str)
     agg = df.groupby(group_cols, as_index=False).agg(
-        empresa       = ("empresa",       _moda),
-        fonte         = ("fonte",         _moda),
         receita       = ("receita",       "sum"),
         custo_rateado = ("custo_rateado", "sum"),
         horas         = ("horas",         "sum"),
