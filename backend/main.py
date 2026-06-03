@@ -2186,6 +2186,8 @@ HYPER_CLIENTES = {
     "RODOBENS ADMINISTRADORA DE CONSORCIOS LT", "RUMO S.A.", "TELEFONICA BRASIL S.A.",
     "TOKIO MARINE SEGURADORA S.A.", "VIGOR ALIMENTOS S.A", "VLI MULTIMODAL S.A.",
     "ZENVIA MOBILE",
+    "TD SYNNEX BRASIL LTDA", "IBM BRASIL-INDUSTRIA MAQUINAS E SER",
+    "IBM BRASIL", "IBM BRASIL-INDUSTRIA MAQUINAS E SERVICOS LTDA",
 }
 
 
@@ -2217,9 +2219,12 @@ def _reclassificar_hyper(df: pd.DataFrame) -> pd.DataFrame:
     # 2) Aplica HYPER nos que sobraram em Others (clientes da carteira sem
     #    nenhuma BU explicita em lugar nenhum)
     v2 = df["vertical"].fillna("").astype(str).str.strip()
-    mask = nc.isin(HYPER_CLIENTES) & v2.str.lower().eq("others")
+    mask = nc.isin(HYPER_CLIENTES) & v2.str.lower().isin(["others", "bu others"])
     if mask.any():
         df.loc[mask, "vertical"] = "BU Hyper"
+    # Qualquer "Others" residual -> "BU Others" (consolida com a forma BU X)
+    v3 = df["vertical"].fillna("").astype(str).str.strip()
+    df.loc[v3.eq("Others"), "vertical"] = "BU Others"
     return df
 
 
@@ -2233,7 +2238,7 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
     VERT_MAP = {
         "Finance": "BU Finance", "Retail": "BU Retail", "Health": "BU Health",
         "Multisector": "BU Multisector", "Logistics": "BU Logistics",
-        "Grupo Mult": "BU Logistics",
+        "Grupo Mult": "BU Logistics", "Others": "BU Others",
     }
 
     def _norm(s):
