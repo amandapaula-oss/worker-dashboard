@@ -548,14 +548,15 @@ export default function NovaBaseMargemTab() {
         </div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
           {[
-            { label: "Receita", value: brl(tRec), color: theme.text },
-            { label: "Custo", value: brl(tCus), color: tCus < 0 ? "#c0392b" : theme.text },
-            { label: "Margem", value: brl(tMar), color: tMar < 0 ? "#c0392b" : "#0a7a3e" },
+            { label: "Receita", value: brl(tRec), color: theme.text, metric: "receita", metricLabel: "Receita" },
+            { label: "Custo", value: brl(tCus), color: tCus < 0 ? "#c0392b" : theme.text, metric: "custo_rateado", metricLabel: "Custo Rateado" },
+            { label: "Margem", value: brl(tMar), color: tMar < 0 ? "#c0392b" : "#0a7a3e", metric: "", metricLabel: "Margem" },
             { label: "Margem %", value: tRec ? `${(tMar/tRec*100).toFixed(1)}%` : "—",
-              color: tRec ? (tMar/tRec >= 0.3 ? "#0a7a3e" : tMar/tRec >= 0.1 ? "#856404" : "#c0392b") : "#aaa" },
+              color: tRec ? (tMar/tRec >= 0.3 ? "#0a7a3e" : tMar/tRec >= 0.1 ? "#856404" : "#c0392b") : "#aaa", metric: "", metricLabel: "Margem %" },
           ].map(k => (
-            <Card key={k.label} style={{ flex: 1, minWidth: 150, borderRadius: 10, border: "1px solid #dde3f0" }}
-              styles={{ body: { padding: "0.8rem 1rem", textAlign: "center" } }}>
+            <Card key={k.label} style={{ flex: 1, minWidth: 150, borderRadius: 10, border: "1px solid #dde3f0", cursor: k.metric ? "pointer" : "default" }}
+              styles={{ body: { padding: "0.8rem 1rem", textAlign: "center" } }}
+              onClick={() => { if (k.metric && selectedCliente) openDrill(selectedCliente, "total", k.metric, k.metricLabel, selectedPep || undefined); }}>
               <Statistic title={<span style={{ color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>{k.label}</span>}
                 value={k.value} valueStyle={{ color: k.color, fontSize: "1.1rem", fontWeight: 700 }} />
             </Card>
@@ -611,14 +612,15 @@ export default function NovaBaseMargemTab() {
         </div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
           {[
-            { label: "Receita", value: brl(totDetRec), color: theme.text },
-            { label: "Custo", value: brl(totDetCus), color: totDetCus < 0 ? "#c0392b" : theme.text },
-            { label: "Margem", value: brl(totDetMar), color: totDetMar < 0 ? "#c0392b" : "#0a7a3e" },
+            { label: "Receita", value: brl(totDetRec), color: theme.text, metric: "receita", metricLabel: "Receita" },
+            { label: "Custo", value: brl(totDetCus), color: totDetCus < 0 ? "#c0392b" : theme.text, metric: "custo_rateado", metricLabel: "Custo Rateado" },
+            { label: "Margem", value: brl(totDetMar), color: totDetMar < 0 ? "#c0392b" : "#0a7a3e", metric: "", metricLabel: "Margem" },
             { label: "Margem %", value: totDetRec ? `${(totDetMar/totDetRec*100).toFixed(1)}%` : "—",
-              color: totDetRec ? (totDetMar/totDetRec >= 0.3 ? "#0a7a3e" : totDetMar/totDetRec >= 0.1 ? "#856404" : "#c0392b") : "#aaa" },
+              color: totDetRec ? (totDetMar/totDetRec >= 0.3 ? "#0a7a3e" : totDetMar/totDetRec >= 0.1 ? "#856404" : "#c0392b") : "#aaa", metric: "", metricLabel: "Margem %" },
           ].map(k => (
-            <Card key={k.label} style={{ flex: 1, minWidth: 150, borderRadius: 10, border: "1px solid #dde3f0" }}
-              styles={{ body: { padding: "0.8rem 1rem", textAlign: "center" } }}>
+            <Card key={k.label} style={{ flex: 1, minWidth: 150, borderRadius: 10, border: "1px solid #dde3f0", cursor: k.metric ? "pointer" : "default" }}
+              styles={{ body: { padding: "0.8rem 1rem", textAlign: "center" } }}
+              onClick={() => { if (k.metric && selectedCliente) openDrill(selectedCliente, "total", k.metric, k.metricLabel); }}>
               <Statistic title={<span style={{ color: "#6b7fa3", fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase" }}>{k.label}</span>}
                 value={k.value} valueStyle={{ color: k.color, fontSize: "1.1rem", fontWeight: 700 }} />
             </Card>
