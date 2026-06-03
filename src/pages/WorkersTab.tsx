@@ -43,8 +43,9 @@ const PIE_COLORS = ["#FF5C35","#1E7C99","#7B61FF","#52c41a","#fa8c16","#13c2c2",
 
 export default function WorkersTab() {
   // lockedVertical vem do contexto Visão BU — quando presente, força o filtro.
-  let ctxLocked: string | null = null;
-  try { ctxLocked = useNovaBaseFilters().lockedVertical; } catch { ctxLocked = null; }
+  // WorkersTab é sempre renderizado dentro de NovaBaseFiltersProvider.
+  const novaBaseCtx = useNovaBaseFilters();
+  const ctxLocked = novaBaseCtx.lockedVertical;
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [selPer, setSelPer] = useState<string[]>(["2026-01","2026-02","2026-03"]);
