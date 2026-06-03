@@ -520,6 +520,13 @@ export default function NovaBaseMargemTab() {
             )}
           />
         )}
+        <DetalheCelulaModal
+          open={drillOpen}
+          onClose={() => setDrillOpen(false)}
+          filters={drillFilters}
+          titulo={drillTitulo}
+          metricLabel={drillMetric}
+        />
       </div>
     );
   }
@@ -587,6 +594,13 @@ export default function NovaBaseMargemTab() {
             )}
           />
         )}
+        <DetalheCelulaModal
+          open={drillOpen}
+          onClose={() => setDrillOpen(false)}
+          filters={drillFilters}
+          titulo={drillTitulo}
+          metricLabel={drillMetric}
+        />
       </div>
     );
   }
@@ -658,6 +672,13 @@ export default function NovaBaseMargemTab() {
             }}
           />
         )}
+        <DetalheCelulaModal
+          open={drillOpen}
+          onClose={() => setDrillOpen(false)}
+          filters={drillFilters}
+          titulo={drillTitulo}
+          metricLabel={drillMetric}
+        />
       </div>
     );
   }
