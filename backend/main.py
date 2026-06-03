@@ -4189,24 +4189,9 @@ def get_nova_base_resumo(
         df.loc[df[group_col] == "", group_col] = "Projetos"
     if group_col == "apuracao":
         df.loc[df[group_col] == "", group_col] = "Sem Apuração"
-    # Quando agrupando por vertical, despesa corporativa (vertical de VP/Leadership/
-    # Play ou vazia) e rateada pelas BUs proporcional a receita da BU no periodo.
-    despesa_corp_periodo = None
     if group_col == "vertical":
         _NOT_BU = {"Executive Leadership", "Operations VP", "Sales VP", "Tech VP", "Delivery Play"}
-        _is_corp = df[group_col].isin(_NOT_BU) | df[group_col].eq("")
-        # Calcula despesa corporativa por periodo ANTES de filtrar
-        _has_ma_c = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
-        _fs_c = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
-        _socio_c = _fs_c.isin(["Custo Socios", "Custo Sócios"])
-        _cl_c = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
-        _is_desp_c = (_cl_c == "despesa") | ((_cl_c != "custo") & (_has_ma_c | _socio_c))
-        _corp_desp_mask = _is_corp & _is_desp_c
-        _cust_c = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0)
-        despesa_corp_periodo = (df.loc[_corp_desp_mask]
-                                  .assign(_d=_cust_c[_corp_desp_mask])
-                                  .groupby("periodo")["_d"].sum())
-        df = df[~_is_corp]
+        df = df[~df[group_col].isin(_NOT_BU)]
     df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
 
     # Separa custo (billable, sem macro_area) de despesa (com macro_area). A coluna
@@ -4236,33 +4221,6 @@ def get_nova_base_resumo(
     )
     agg = agg.rename(columns={group_col: "grupo"})
 
-    # Computa linhas de rateio backoffice (preenchidas depois do filtro de grupos vazios).
-    rateio_rows = []
-    if despesa_corp_periodo is not None and not despesa_corp_periodo.empty:
-        for per, despesa_corp in despesa_corp_periodo.items():
-            if abs(despesa_corp) < 0.01:
-                continue
-            mask_per = agg["periodo"] == per
-            rec_per = agg.loc[mask_per, ["grupo", "receita"]]
-            # Considera somente BUs reais (nao outras categorias) com receita positiva
-            _bu_mask = rec_per["grupo"].astype(str).str.startswith("BU ") & (rec_per["receita"] > 0)
-            rec_bu = rec_per.loc[_bu_mask, "receita"]
-            rec_total = rec_bu.sum()
-            if rec_total <= 0:
-                continue
-            for _, row in rec_per.loc[_bu_mask].iterrows():
-                share = float(row["receita"]) / float(rec_total)
-                rateio_rows.append({
-                    "grupo": f"Rateio Backoffice {row['grupo']}",
-                    "periodo": per,
-                    "receita": 0.0,
-                    "custo_rateado": 0.0,
-                    "despesa": float(despesa_corp) * share,
-                    "horas": 0.0,
-                    "valor_liquido": 0.0,
-                    "custo_fonte": 0.0,
-                })
-
     # Remove grupos sem nenhum dado real (ex: empresas que só têm Custo Socios,
     # como Distrito, Mult, Avanti — receita=0, custo=0, horas=0 em todos os periodos)
     grupo_totals = agg.groupby("grupo")[["receita","custo_rateado","horas"]].sum().abs().sum(axis=1)
@@ -4274,11 +4232,6 @@ def get_nova_base_resumo(
         periodo_totals = agg.groupby("periodo")[["receita","custo_rateado","horas"]].sum().abs().sum(axis=1)
         periodos_com_dados = periodo_totals[periodo_totals > 0].index
         agg = agg[agg["periodo"].isin(periodos_com_dados)]
-
-    # Anexa linhas "Rateio Backoffice BU X" APOS o filtro de grupos vazios
-    # (essas linhas tem so despesa, receita/custo=0, e seriam filtradas).
-    if rateio_rows:
-        agg = pd.concat([agg, pd.DataFrame(rateio_rows)], ignore_index=True)
 
     return _sanitize(agg.to_dict(orient="records"))
 
