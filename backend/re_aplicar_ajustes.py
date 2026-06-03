@@ -280,7 +280,7 @@ def regra_tdm():
         "Rafael Macedo Rozalino", "56.934.070 RAFAEL MACEDO ROZALINO", "Rafael Macedo",
         "Marcelo Pereira Lima",
         "FERNANDO PEREIRA LISBOA TECNOLOGIA", "Fernando Pereira Lisboa",
-        "Roberto Antonio Ribeiro Caracciolo Junior",
+        "Roberto Antonio Ribeiro Caracciolo Junior", "CARACCIOLO E NUNEZ LTDA",
         "LEONARDO BARBETTA DE OLIVEIRA TECNO", "Leonardo  Barbetta de Oliveira", "Leonardo Barbetta de Oliveira",
         "JAMIL DIAS COSTA - ME", "Jamil Dias Costa",
         "LEANDRO DE BRITO SISTEMAS", "Leandro de Brito",

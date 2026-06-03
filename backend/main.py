@@ -3340,6 +3340,12 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[mask_rac_aloca & is_orange_eligible, "tag_rateio"] = (
         "Rateio (Orange): " + horas_linha[mask_rac_aloca & is_orange_eligible].round(1).astype(str) + "h"
     )
+    # Rateio Orange: forca classificacao=custo, macro_area vazio (linha eh custo
+    # direto de projeto via apontamento, nao despesa Backoffice/SGA da pessoa).
+    if "classificacao" in df.columns:
+        df.loc[mask_rac_aloca & is_orange_eligible, "classificacao"] = "custo"
+    if "macro_area" in df.columns:
+        df.loc[mask_rac_aloca & is_orange_eligible, "macro_area"] = ""
     df.loc[is_alloc_target & ~mask_rac_aloca, "tag_rateio"] = "Receita/aponta sem custo atrelado"
 
     # Marca pessoa-periodo cujo custo foi efetivamente rateado.
