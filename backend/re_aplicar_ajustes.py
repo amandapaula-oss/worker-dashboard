@@ -223,7 +223,7 @@ def regra_peps_validados_receita():
     """1.7-1.14 - PEPs corrigidos via Receita 26.05.xlsx (referencia SAP)"""
     print("\n[1.7] PEPs validados via Receita 26.05.xlsx")
     FIXES = [
-        ("BR07CLP00015", "RED HAT BRASIL LTDA", None, None),
+        ("BR07CLP00015", "BANCO OURINVEST S/A", None, "BU Finance"),
         ("BR02CLP00021", None, "DC002 Dedicated Teams", None),  # Unimed SP, NG
         ("BR07CLP00019", "FIDELITY NATIONAL SERVICOS E CONTAC", None, None),
         ("BR07CLP00020", "FIDELITY NATIONAL SERVICOS E CONTAC", None, None),
