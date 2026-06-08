@@ -1947,8 +1947,16 @@ def _load_nova_base_supabase() -> pd.DataFrame:
     # Linhas Budget vivem na mesma tabela mas NAO passam pelo pipeline
     # de rateio/enriquecimento. Sao consumidas apenas pelo endpoint
     # /api/budget-vs-realizado via _load_budget_supabase().
+    # Excecao: mantem as linhas Budget que tem apuracao_manual setado
+    # (override manual de apuracao — Amanda usa pra marcar Ecossistema
+    # quando nao ha racional racionais ainda).
     if "fonte" in df.columns:
-        df = df[df["fonte"].astype(str) != "Budget"].copy()
+        is_budget = df["fonte"].astype(str) == "Budget"
+        if "apuracao_manual" in df.columns:
+            has_override = df["apuracao_manual"].notna()
+            df = df[~is_budget | has_override].copy()
+        else:
+            df = df[~is_budget].copy()
     return df
 
 
@@ -2132,6 +2140,12 @@ _NO_HIERARQUIA_NOME_POR_CODE = {
 def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
     """Coluna virtual `apuracao` (NG / Ecossistema) baseada em no_hierarquia.
     Aceita formatos: "DC001", "DC001 Squads", "Squads".
+
+    Override manual: se a coluna `apuracao_manual` estiver presente e não-NULL,
+    seu valor sobrescreve a regra automática:
+      - apuracao_manual = ''           -> apuracao = '' (forçar sem apuração)
+      - apuracao_manual = 'Ecossistema'-> apuracao = 'Ecossistema'
+      - apuracao_manual = 'NG'         -> apuracao = 'NG'
     """
     if "no_hierarquia" not in df.columns:
         df["apuracao"] = ""
@@ -2148,6 +2162,15 @@ def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
     ap[dc_extr.isin(_APURACAO_NG_CODES) | nh.isin(_APURACAO_NG_NAMES)] = "NG"
     # Ecossistema: idem
     ap[dc_extr.isin(_APURACAO_ECOSSISTEMA_CODES) | nh.isin(_APURACAO_ECOSSISTEMA_NAMES)] = "Ecossistema"
+
+    # Override manual: aplica por cima da regra automática
+    if "apuracao_manual" in df.columns:
+        am = df["apuracao_manual"]
+        # Considera NULL/NaN como "sem override". String vazia '' é override válido
+        # (significa "forçar sem apuração").
+        mask_override = am.notna()
+        ap[mask_override] = am[mask_override].astype(str)
+
     df["apuracao"] = ap
     return df
 
