@@ -2224,8 +2224,10 @@ def _reclassificar_hyper(df: pd.DataFrame) -> pd.DataFrame:
     """
     if "nome_cliente" not in df.columns or "vertical" not in df.columns:
         return df
+    # BU Hyper tambem eh BU explicita — preservar linhas fonte=Hyper que ja
+    # vieram em BU Hyper (MUFG, ODONTOPREV Hyper, etc.)
     BU_DEF = {"BU Finance", "BU Health", "BU Logistics",
-              "BU Multisector", "BU Retail", "BU Others"}
+              "BU Multisector", "BU Retail", "BU Others", "BU Hyper"}
     nc = df["nome_cliente"].fillna("").astype(str).str.upper().str.strip()
     v  = df["vertical"].fillna("").astype(str).str.strip()
 
@@ -2262,7 +2264,15 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
         "Finance": "BU Finance", "Retail": "BU Retail", "Health": "BU Health",
         "Multisector": "BU Multisector", "Logistics": "BU Logistics",
         "Grupo Mult": "BU Logistics", "Others": "BU Others",
+        "Hyper": "BU Hyper", "BU Hyper": "BU Hyper",
     }
+    # Linhas fonte=Hyper devem MANTER BU Hyper independente do cliente —
+    # quando vem da carteira Hyper FP&A, eh receita Hyper mesmo que o cliente
+    # tambem tenha racional em outra BU (caso ODONTOPREV S.A., MUFG, etc.).
+    _src_col = df.get("fonte", pd.Series("", index=df.index)).fillna("").astype(str)
+    _mask_hyper_src = _src_col.eq("Hyper")
+    if _mask_hyper_src.any() and "vertical" in df.columns:
+        df.loc[_mask_hyper_src, "vertical"] = "BU Hyper"
 
     def _norm(s):
         if not isinstance(s, str):
@@ -2345,9 +2355,10 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             resol = {nc: _resolve(nc) for nc in distintos}
             override = df["nome_cliente"].fillna("").map(resol)
             # NAO sobrepoe BU explicita da linha de origem (planilha) — so
-            # preenche onde a vertical esta vazia/Others.
+            # preenche onde a vertical esta vazia/Others. BU Hyper tambem eh
+            # BU explicita (linhas fonte=Hyper / Tokio Marine / BV / etc).
             _BU_DEF = {"BU Finance", "BU Health", "BU Logistics",
-                       "BU Multisector", "BU Retail", "BU Others"}
+                       "BU Multisector", "BU Retail", "BU Others", "BU Hyper"}
             v_cur = df["vertical"].fillna("").astype(str).str.strip()
             mask_apply = override.notna() & ~v_cur.isin(_BU_DEF)
             df.loc[mask_apply, "vertical"] = override[mask_apply]
@@ -2390,9 +2401,10 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
                 dom_map = dom.to_dict()
                 cli_bu = cli.map(dom_map)
                 # Preserva BU explicita da linha de origem (planilha): so aplica
-                # a BU dominante onde a linha esta vazia/Others.
+                # a BU dominante onde a linha esta vazia/Others. BU Hyper tambem
+                # eh BU explicita (linhas fonte=Hyper nao viram outras BUs).
                 aplica = (cli_bu.notna() & cli.ne("") & ~cli.isin(["0", "nan"])
-                          & ~vv.isin(BUS_OK))
+                          & ~vv.isin(BUS_OK) & ~vv.eq("BU Hyper"))
                 df.loc[aplica, "vertical"] = cli_bu[aplica]
     except Exception as e:
         print(f"[vertical_consistencia_cliente] falhou: {e}")
