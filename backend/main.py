@@ -1947,16 +1947,8 @@ def _load_nova_base_supabase() -> pd.DataFrame:
     # Linhas Budget vivem na mesma tabela mas NAO passam pelo pipeline
     # de rateio/enriquecimento. Sao consumidas apenas pelo endpoint
     # /api/budget-vs-realizado via _load_budget_supabase().
-    # Excecao: mantem as linhas Budget que tem apuracao_manual setado
-    # (override manual de apuracao — Amanda usa pra marcar Ecossistema
-    # quando nao ha racional racionais ainda).
     if "fonte" in df.columns:
-        is_budget = df["fonte"].astype(str) == "Budget"
-        if "apuracao_manual" in df.columns:
-            has_override = df["apuracao_manual"].notna()
-            df = df[~is_budget | has_override].copy()
-        else:
-            df = df[~is_budget].copy()
+        df = df[df["fonte"].astype(str) != "Budget"].copy()
     return df
 
 
