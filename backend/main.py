@@ -2154,6 +2154,12 @@ def _adicionar_apuracao(df: pd.DataFrame) -> pd.DataFrame:
     ap[dc_extr.isin(_APURACAO_NG_CODES) | nh.isin(_APURACAO_NG_NAMES)] = "NG"
     # Ecossistema: idem
     ap[dc_extr.isin(_APURACAO_ECOSSISTEMA_CODES) | nh.isin(_APURACAO_ECOSSISTEMA_NAMES)] = "Ecossistema"
+    # Fonte P&L Gerencial Ecossistema NAO tem no_hierarquia — vem direto da
+    # planilha P&L como Ecossistema. Marca explicitamente quando ainda vazia.
+    if "fonte" in df.columns:
+        fonte = df["fonte"].fillna("").astype(str)
+        mask_pl_eco = (fonte == "P&L Gerencial Ecossistema") & (ap == "")
+        ap[mask_pl_eco] = "Ecossistema"
 
     # Override manual: aplica por cima da regra automática
     if "apuracao_manual" in df.columns:
@@ -2204,6 +2210,21 @@ HYPER_CLIENTES = {
     "TD SYNNEX BRASIL LTDA", "IBM BRASIL-INDUSTRIA MAQUINAS E SER",
     "IBM BRASIL", "IBM BRASIL-INDUSTRIA MAQUINAS E SERVICOS LTDA",
 }
+
+
+def _multisector_sem_apuracao_para_others(df: pd.DataFrame) -> pd.DataFrame:
+    """Move pra BU Others toda linha que ficou em BU Multisector mas nao tem
+    apuracao (nem Ecossistema nem NG). Sao linhas que a Amanda nao considera
+    Multisector — viraram "outros" e devem ser separadas.
+    """
+    if "vertical" not in df.columns or "apuracao" not in df.columns:
+        return df
+    v  = df["vertical"].fillna("").astype(str).str.strip()
+    ap = df["apuracao"].fillna("").astype(str).str.strip()
+    mask = v.eq("BU Multisector") & ap.eq("")
+    if mask.any():
+        df.loc[mask, "vertical"] = "BU Others"
+    return df
 
 
 def _reclassificar_hyper(df: pd.DataFrame) -> pd.DataFrame:
@@ -3906,6 +3927,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _aplicar_rateio_custos(df)
                 df = _aplicar_vertical_por_pep(df)
                 df = _reclassificar_hyper(df)
+                df = _multisector_sem_apuracao_para_others(df)
                 df = _aplicar_rateio_100h(df)
                 df = _aplicar_rateio_tdm(df)
                 _cache["nova_base"] = df
@@ -4010,6 +4032,7 @@ def _get_nova_base() -> pd.DataFrame:
         df = _aplicar_rateio_custos(df)
         df = _aplicar_vertical_por_pep(df)
         df = _reclassificar_hyper(df)
+        df = _multisector_sem_apuracao_para_others(df)
         df = _aplicar_rateio_100h(df)
         df = _aplicar_rateio_tdm(df)
         _cache["nova_base"] = df
