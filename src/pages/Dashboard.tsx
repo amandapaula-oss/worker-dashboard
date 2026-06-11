@@ -226,7 +226,6 @@ function BUTabs({ bu }: { bu: string }) {
           { key: "margemCli", label: <span><FundOutlined /> Margem por Cliente</span>,   children: <NovaBaseMargemTab /> },
           { key: "empresa",   label: <span><BankOutlined /> DRE</span>,                   children: <NovaDreTab /> },
           { key: "fonte",     label: <span><HeatMapOutlined /> PJ/CLT</span>,             children: <NovaBaseResumoTab agruparPor="tipo_pessoa" /> },
-          { key: "macroArea", label: <span><SlidersOutlined /> P&L por Macro Área</span>, children: <NovaBaseResumoTab agruparPor="macro_area" /> },
           { key: "apuracao",  label: <span><AimOutlined /> Apuração</span>,               children: <NovaBaseResumoTab agruparPor="apuracao" /> },
           { key: "workers",   label: <span><TeamOutlined /> Workers</span>,                children: <WorkersTab /> },
           { key: "base",      label: <span><DatabaseOutlined /> Base Detalhada</span>,    children: <NovaBaseTab /> },
