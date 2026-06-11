@@ -2258,13 +2258,16 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
         "Grupo Mult": "BU Logistics", "Others": "BU Others",
         "Hyper": "BU Hyper", "BU Hyper": "BU Hyper",
     }
-    # Linhas fonte=Hyper devem MANTER BU Hyper independente do cliente —
-    # quando vem da carteira Hyper FP&A, eh receita Hyper mesmo que o cliente
-    # tambem tenha racional em outra BU (caso ODONTOPREV S.A., MUFG, etc.).
+    # Linhas fonte=Hyper sao da carteira Hyper FP&A. Default eh ir pra
+    # BU Hyper, MAS clientes com mapeamento explicito em parametros.xlsx
+    # (ex: ESTAPAR -> Multisector) tem prioridade — isso eh aplicado abaixo
+    # na etapa 1 (mapping por cliente). Aqui apenas marcamos as linhas Hyper
+    # que ainda estao SEM vertical pra serem definidas como BU Hyper se nao
+    # houver mapping.
+    # NOTA: a regra antiga forcava BU Hyper logo aqui, mas isso ignorava o
+    # mapping por cliente. A nova ordem eh: mapping cliente primeiro, depois
+    # fallback fonte=Hyper pra quem sobrou sem BU.
     _src_col = df.get("fonte", pd.Series("", index=df.index)).fillna("").astype(str)
-    _mask_hyper_src = _src_col.eq("Hyper")
-    if _mask_hyper_src.any() and "vertical" in df.columns:
-        df.loc[_mask_hyper_src, "vertical"] = "BU Hyper"
 
     def _norm(s):
         if not isinstance(s, str):
@@ -2352,7 +2355,14 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
             _BU_DEF = {"BU Finance", "BU Health", "BU Logistics",
                        "BU Multisector", "BU Retail", "BU Others", "BU Hyper"}
             v_cur = df["vertical"].fillna("").astype(str).str.strip()
-            mask_apply = override.notna() & ~v_cur.isin(_BU_DEF)
+            # Linhas fonte=Hyper sao da carteira Hyper FP&A — NAO devem ser
+            # mapeadas pelo cli_map. Casos especificos (ex: ESTAPAR Hyper ->
+            # Multisector) sao tratados via UPDATE direto na nova_base (ja
+            # tem vertical setada antes do pipeline) e a regra `~v_cur.isin
+            # (_BU_DEF)` preserva. Pra linhas Hyper sem vertical, o fallback
+            # 3b abaixo coloca em BU Hyper.
+            _src_skip_map = df.get("fonte", pd.Series("", index=df.index)).fillna("").astype(str).eq("Hyper")
+            mask_apply = override.notna() & ~v_cur.isin(_BU_DEF) & ~_src_skip_map
             df.loc[mask_apply, "vertical"] = override[mask_apply]
     except Exception as e:
         print(f"[vertical_por_cliente] falhou: {e}")
@@ -2400,6 +2410,18 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
                 df.loc[aplica, "vertical"] = cli_bu[aplica]
     except Exception as e:
         print(f"[vertical_consistencia_cliente] falhou: {e}")
+
+    # 3b. Fallback fonte=Hyper: linhas Hyper que sobraram SEM BU explicita
+    # (ou em BU Others) vao pra BU Hyper. Quem ja tem BU oficial via mapping
+    # (ESTAPAR -> Multisector, p.ex.) eh preservado.
+    if "vertical" in df.columns and "fonte" in df.columns:
+        v_now = df["vertical"].fillna("").astype(str).str.strip()
+        _src_col2 = df["fonte"].fillna("").astype(str)
+        _mask_hyper_fb = _src_col2.eq("Hyper") & (
+            v_now.eq("") | v_now.str.lower().isin(["others", "bu others"])
+        )
+        if _mask_hyper_fb.any():
+            df.loc[_mask_hyper_fb, "vertical"] = "BU Hyper"
 
     # 4. (Removido) Antes havia uma regra que forcava vertical='' pra clientes
     # com 'DISTRITO' no nome. Decisao Amanda 2026-05-29: deixar a BU do racional.
