@@ -4603,12 +4603,9 @@ def get_nova_base_margem_clientes(
     agg["margem_pct"] = agg.apply(
         lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
     )
-    # Normalmente lista clientes com receita; mas se há filtro de fonte
-    # (ex.: só PJs, que não têm receita), mantém também os de custo.
-    if fontes:
-        agg = agg[(agg["receita"].abs() > 0.01) | (agg["custo_rateado"].abs() > 0.01)]
-    else:
-        agg = agg[agg["receita"].abs() > 0.01]
+    # Mantem clientes com receita OU custo — garante consistencia com
+    # o endpoint Resumo por Empresa (mesmo total de custo por BU).
+    agg = agg[(agg["receita"].abs() > 0.01) | (agg["custo_rateado"].abs() > 0.01)]
     agg = agg[agg["nome_cliente"].astype(str).str.strip().ne("0")]
     agg = agg.sort_values("receita", ascending=False)
     return _sanitize(agg.to_dict(orient="records"))
