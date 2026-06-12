@@ -217,6 +217,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   const totPct     = totReceita !== 0 ? totMargem / totReceita : 0;
   const totVL      = pivotData.reduce((s, r) => s + (r.total_valor_liquido || 0), 0);
   const totHoras   = pivotData.reduce((s, r) => s + (r.total_horas   || 0), 0);
+  // MC = Margem de Contribuição = Margem Bruta + despesas (despesa é negativa)
+  const totDespesaKpi = pivotData.reduce((s, r) => s + (r.total_despesa || 0), 0);
+  const totMC      = totMargem + totDespesaKpi;
+  const totMCPct   = totReceita !== 0 ? totMC / totReceita : 0;
 
   const tableData = useMemo(() => {
     const totDespesa = pivotData.reduce((s, r) => s + (r.total_despesa || 0), 0);
@@ -445,6 +449,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
           { label: "Custo Total",     value: brl(totCusto),   color: totCusto   < 0 ? "#c0392b" : theme.text },
           { label: "Margem Bruta", value: brl(totMargem), color: totMargem < 0 ? "#c0392b" : "#0a7a3e" },
           { label: "Margem %",        value: `${(totPct * 100).toFixed(1)}%`, color: totPct < 0.1 ? "#c0392b" : totPct < 0.3 ? "#856404" : "#0a7a3e" },
+          { label: "MC", value: brl(totMC), color: totMC < 0 ? "#c0392b" : "#0a7a3e" },
+          { label: "MC %", value: `${(totMCPct * 100).toFixed(1)}%`, color: totMCPct < 0.1 ? "#c0392b" : totMCPct < 0.3 ? "#856404" : "#0a7a3e" },
         ].map(k => (
           <Card key={k.label}
             style={{ flex: 1, minWidth: 160, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}

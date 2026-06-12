@@ -2213,18 +2213,22 @@ HYPER_CLIENTES = {
 
 
 def _sem_apuracao_para_others(df: pd.DataFrame) -> pd.DataFrame:
-    """Move pra BU Others toda linha em QUALQUER BU explicita (Retail, Health,
+    """Move pra BU Others toda linha de RECEITA em BU explicita (Retail, Health,
     Finance, Multisector, Logistics, Hyper) que NAO tenha flag de apuracao
-    (nem Ecossistema nem NG). Sao linhas que nao se encaixam em nenhuma
-    categoria de receita -> devem ficar isoladas em BU Others.
+    (nem Ecossistema nem NG). Receita sem categoria nao pertence a BU.
+
+    Linhas sem receita (despesas, custos sem flag) FICAM na BU — despesa nao
+    tem apuracao por natureza e precisa permanecer na BU pro calculo de MC
+    (margem de contribuicao = margem bruta - despesas).
     """
     if "vertical" not in df.columns or "apuracao" not in df.columns:
         return df
     BU_EXPLICITAS = {"BU Retail", "BU Health", "BU Finance",
                      "BU Multisector", "BU Logistics", "BU Hyper"}
-    v  = df["vertical"].fillna("").astype(str).str.strip()
-    ap = df["apuracao"].fillna("").astype(str).str.strip()
-    mask = v.isin(BU_EXPLICITAS) & ap.eq("")
+    v   = df["vertical"].fillna("").astype(str).str.strip()
+    ap  = df["apuracao"].fillna("").astype(str).str.strip()
+    rec = pd.to_numeric(df.get("receita"), errors="coerce").fillna(0) if "receita" in df.columns else pd.Series(0.0, index=df.index)
+    mask = v.isin(BU_EXPLICITAS) & ap.eq("") & rec.ne(0)
     if mask.any():
         df.loc[mask, "vertical"] = "BU Others"
     return df
