@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Layout, Breadcrumb, Button, Checkbox, Space, Typography, Divider, ConfigProvider, Tabs, Switch, theme as antdTheme, Upload, Modal } from "antd";
 import TableSkeleton from "../components/TableSkeleton";
-import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined, UploadOutlined, TableOutlined, InboxOutlined, ClusterOutlined } from "@ant-design/icons";
+import { HomeOutlined, LogoutOutlined, ArrowLeftOutlined, AimOutlined, FileTextOutlined, FundOutlined, AuditOutlined, TeamOutlined, DatabaseOutlined, HeatMapOutlined, BankOutlined, SlidersOutlined, UserOutlined, MoonOutlined, SunOutlined, ApartmentOutlined, UploadOutlined, TableOutlined, InboxOutlined, ClusterOutlined, MedicineBoxOutlined, ShoppingCartOutlined, TruckOutlined, GlobalOutlined, RocketOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import { getCompetencias, getKPIs, getMetricas, getMensal, logout } from "../api";
 import { KPIs, Metrica, Mensal, PathItem, LEVELS, LEVEL_LABELS } from "../types";
 import KPICard from "../components/KPICard";
@@ -214,6 +214,16 @@ const BU_LABEL: Record<string, string> = {
   "BU Logistics":   "Logistics (Grupo Mult)",
 };
 
+const BU_ICON: Record<string, React.ReactNode> = {
+  "BU Finance":     <BankOutlined />,
+  "BU Health":      <MedicineBoxOutlined />,
+  "BU Multisector": <GlobalOutlined />,
+  "BU Retail":      <ShoppingCartOutlined />,
+  "BU Logistics":   <TruckOutlined />,
+  "BU Hyper":       <RocketOutlined />,
+  "BU Others":      <FolderOpenOutlined />,
+};
+
 function BUTabs({ bu }: { bu: string }) {
   return (
     <NovaBaseFiltersProvider lockedVertical={bu}>
@@ -415,7 +425,7 @@ function DashboardInner() {
                       transition: "box-shadow 0.2s, transform 0.15s, border-color 0.2s",
                     }}
                   >
-                    <div style={{ fontSize: 36, marginBottom: 10, color: theme.accent }}><ApartmentOutlined /></div>
+                    <div style={{ fontSize: 36, marginBottom: 10, color: theme.accent }}>{BU_ICON[bu] ?? <ApartmentOutlined />}</div>
                     <div style={{ color: t.text, fontWeight: 700, fontSize: "1.05rem", marginBottom: 4 }}>{BU_LABEL[bu] ?? bu}</div>
                     <div style={{ color: t.secondary, fontSize: "0.78rem" }}>{bu}</div>
                   </div>
@@ -433,7 +443,7 @@ function DashboardInner() {
             <>
               <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
                 <Title level={4} style={{ margin: 0, color: t.text }}>
-                  <ApartmentOutlined style={{ color: theme.accent, marginRight: 8 }} />
+                  <span style={{ color: theme.accent, marginRight: 8 }}>{BU_ICON[selectedBu] ?? <ApartmentOutlined />}</span>
                   {BU_LABEL[selectedBu] ?? selectedBu}
                 </Title>
                 <span style={{ fontSize: "0.78rem", color: t.secondary, background: t.tagBg, padding: "2px 10px", borderRadius: 20, border: `1px solid ${t.border}` }}>
