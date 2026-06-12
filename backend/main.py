@@ -4592,14 +4592,23 @@ def get_nova_base_margem_clientes(
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     df = df[df["nome_cliente"].fillna("").astype(str).str.strip().ne("")]
-    # Margem Bruta = Receita + Custo direto (despesa NAO entra).
+    # Margem Bruta (formula de apuracao de meta):
+    #   Margem = Receita NG + Custo NG (classificacao=custo) + Receita Eco * 33,3%
+    # Ecossistema entra com margem fixa de 33,3% da receita — o custo real
+    # de Eco NAO entra na conta.
     _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
     _fs = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
     _socio = _fs.isin(["Custo Socios", "Custo Sócios"])
     _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
     _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
     df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
-    df["margem"] = df["receita"] + df["custo_rateado"]
+    _ap = df["apuracao"].fillna("").astype(str).str.strip() if "apuracao" in df.columns else pd.Series("", index=df.index)
+    _mask_ng  = _ap.eq("NG")
+    _mask_eco = _ap.eq("Ecossistema")
+    df["_rec_ng"]   = df["receita"].where(_mask_ng, 0)
+    df["_rec_eco"]  = df["receita"].where(_mask_eco, 0)
+    df["_custo_ng"] = df["custo_rateado"].where(_mask_ng & (_cl == "custo"), 0)
+    df["margem"] = df["_rec_ng"] + df["_custo_ng"] + 0.333 * df["_rec_eco"]
     def _moda_cli(s):
         nz = s[s.fillna("").astype(str).str.strip().ne("")]
         m = nz.mode()
@@ -4613,6 +4622,9 @@ def get_nova_base_margem_clientes(
         custo_rateado  = ("custo_rateado", "sum"),
         horas          = ("horas",         "sum"),
         margem         = ("margem",        "sum"),
+        receita_ng     = ("_rec_ng",       "sum"),
+        receita_eco    = ("_rec_eco",      "sum"),
+        custo_ng       = ("_custo_ng",     "sum"),
         vertical       = ("vertical",      _moda_cli),
         no_hierarquia  = ("no_hierarquia", _moda_cli),
     )

@@ -50,10 +50,10 @@ const labelStyle: React.CSSProperties = {
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const ALL_METRICS = ["receita", "custo", "despesa", "custo_despesa", "custo_fonte", "margem", "margem_pct", "valor_liquido", "lb_meta", "horas"] as const;
+const ALL_METRICS = ["receita", "custo", "despesa", "custo_despesa", "custo_fonte", "margem", "margem_pct", "valor_liquido", "horas"] as const;
 type Metric = typeof ALL_METRICS[number];
 const METRIC_LABELS: Record<Metric, string> = {
-  receita: "Receita", custo: "Custo", despesa: "Despesa", custo_despesa: "Custo + Despesa", custo_fonte: "Custo na Fonte", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", lb_meta: "LB Meta", horas: "Horas",
+  receita: "Receita", custo: "Custo", despesa: "Despesa", custo_despesa: "Custo + Despesa", custo_fonte: "Custo na Fonte", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", horas: "Horas",
 };
 
 function MargemTag({ value }: { value: number | null | undefined }) {
@@ -182,17 +182,18 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     }
     return Array.from(map.values()).map(r => {
       periodos.forEach(p => {
-        r[`${p}_margem`] = (r[`${p}_receita`] || 0) + (r[`${p}_custo`] || 0);
+        // Margem Bruta (formula de apuracao de meta):
+        //   Margem = Receita NG + Custo NG + 33,3% da Receita Eco
+        // Eco entra com margem fixa de 33,3% — custo real de Eco nao conta.
+        r[`${p}_margem`] = (r[`${p}_receita_ng`] || 0) + (r[`${p}_custo_ng`] || 0) + 0.333 * (r[`${p}_receita_eco`] || 0);
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? r[`${p}_margem`] / rec : null;
         r[`${p}_custo_despesa`] = (r[`${p}_custo`] || 0) + (r[`${p}_despesa`] || 0);
-        // LB Meta = Receita NG + Custo NG + 33,3% da Receita Eco (formula de apuracao de meta)
-        r[`${p}_lb_meta`] = (r[`${p}_receita_ng`] || 0) + (r[`${p}_custo_ng`] || 0) + 0.333 * (r[`${p}_receita_eco`] || 0);
       });
       const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
       const tot_cus = periodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
       const tot_des = periodos.reduce((s, p) => s + (r[`${p}_despesa`] || 0), 0);
-      const tot_mar = tot_rec + tot_cus;
+      const tot_mar = periodos.reduce((s, p) => s + (r[`${p}_margem`]  || 0), 0);
       return {
         ...r,
         total_receita:       tot_rec,
@@ -204,7 +205,6 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         total_valor_liquido: periodos.reduce((s, p) => s + (r[`${p}_valor_liquido`] || 0), 0),
         total_horas:         periodos.reduce((s, p) => s + (r[`${p}_horas`]         || 0), 0),
         total_custo_fonte:   periodos.reduce((s, p) => s + (r[`${p}_custo_fonte`]   || 0), 0),
-        total_lb_meta:       periodos.reduce((s, p) => s + (r[`${p}_lb_meta`]       || 0), 0),
         total_receita_ng:    periodos.reduce((s, p) => s + (r[`${p}_receita_ng`]    || 0), 0),
         total_receita_eco:   periodos.reduce((s, p) => s + (r[`${p}_receita_eco`]   || 0), 0),
         total_custo_ng:      periodos.reduce((s, p) => s + (r[`${p}_custo_ng`]      || 0), 0),
@@ -214,12 +214,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
 
   const totReceita = pivotData.reduce((s, r) => s + (r.total_receita || 0), 0);
   const totCusto   = pivotData.reduce((s, r) => s + (r.total_custo   || 0), 0);
-  const totMargem  = totReceita + totCusto;
+  const totMargem  = pivotData.reduce((s, r) => s + (r.total_margem  || 0), 0);
   const totPct     = totReceita !== 0 ? totMargem / totReceita : 0;
   const totVL      = pivotData.reduce((s, r) => s + (r.total_valor_liquido || 0), 0);
   const totHoras   = pivotData.reduce((s, r) => s + (r.total_horas   || 0), 0);
-  const totLbMeta  = pivotData.reduce((s, r) => s + (r.total_lb_meta || 0), 0);
-  const totLbMetaPct = totReceita !== 0 ? totLbMeta / totReceita : 0;
 
   const tableData = useMemo(() => {
     const totDespesa = pivotData.reduce((s, r) => s + (r.total_despesa || 0), 0);
@@ -231,7 +229,6 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       total_custo_fonte: pivotData.reduce((s, r) => s + (r.total_custo_fonte || 0), 0),
       total_margem: totMargem, total_margem_pct: totPct,
       total_valor_liquido: totVL, total_horas: totHoras,
-      total_lb_meta:     pivotData.reduce((s, r) => s + (r.total_lb_meta     || 0), 0),
       total_receita_ng:  pivotData.reduce((s, r) => s + (r.total_receita_ng  || 0), 0),
       total_receita_eco: pivotData.reduce((s, r) => s + (r.total_receita_eco || 0), 0),
       total_custo_ng:    pivotData.reduce((s, r) => s + (r.total_custo_ng    || 0), 0),
@@ -243,12 +240,11 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       totRow[`${p}_despesa`]       = pivotData.reduce((s, r) => s + (r[`${p}_despesa`]       || 0), 0);
       totRow[`${p}_custo_despesa`] = (totRow[`${p}_custo`] || 0) + (totRow[`${p}_despesa`] || 0);
       totRow[`${p}_custo_fonte`]   = pivotData.reduce((s, r) => s + (r[`${p}_custo_fonte`] || 0), 0);
-      totRow[`${p}_margem`]        = (totRow[`${p}_receita`] || 0) + (totRow[`${p}_custo`] || 0);
+      totRow[`${p}_margem`]        = pivotData.reduce((s, r) => s + (r[`${p}_margem`]        || 0), 0);
       const rec = totRow[`${p}_receita`] || 0;
       totRow[`${p}_margem_pct`]    = rec !== 0 ? totRow[`${p}_margem`] / rec : null;
       totRow[`${p}_valor_liquido`] = pivotData.reduce((s, r) => s + (r[`${p}_valor_liquido`] || 0), 0);
       totRow[`${p}_horas`]         = pivotData.reduce((s, r) => s + (r[`${p}_horas`]         || 0), 0);
-      totRow[`${p}_lb_meta`]       = pivotData.reduce((s, r) => s + (r[`${p}_lb_meta`]       || 0), 0);
       totRow[`${p}_receita_ng`]    = pivotData.reduce((s, r) => s + (r[`${p}_receita_ng`]    || 0), 0);
       totRow[`${p}_receita_eco`]   = pivotData.reduce((s, r) => s + (r[`${p}_receita_eco`]   || 0), 0);
       totRow[`${p}_custo_ng`]      = pivotData.reduce((s, r) => s + (r[`${p}_custo_ng`]      || 0), 0);
@@ -257,15 +253,15 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   }, [pivotData, periodos, totReceita, totCusto, totVL, totHoras]);
 
   const columnsDef = useMemo(() => {
-    type MetricKey = "receita" | "custo" | "despesa" | "custo_despesa" | "custo_fonte" | "margem" | "margem_pct" | "valor_liquido" | "lb_meta" | "horas";
+    type MetricKey = "receita" | "custo" | "despesa" | "custo_despesa" | "custo_fonte" | "margem" | "margem_pct" | "valor_liquido" | "horas";
     // Mapeia métrica do frontend → métrica que o backend entende como filtro
     const metricApiKey: Record<string, string> = {
       receita: "receita", custo: "custo_rateado", despesa: "despesa", custo_despesa: "", custo_fonte: "", margem: "",
-      valor_liquido: "valor_liquido", lb_meta: "", horas: "horas", margem_pct: "",
+      valor_liquido: "valor_liquido", horas: "horas", margem_pct: "",
     };
     const metricLabelMap: Record<string, string> = {
       receita: "Receita", custo: "Custo Rateado", despesa: "Despesa", custo_despesa: "Custo + Despesa", custo_fonte: "Custo na Fonte", margem: "Margem",
-      valor_liquido: "Lucro Bruto", lb_meta: "LB Meta", horas: "Horas", margem_pct: "Margem %",
+      valor_liquido: "Lucro Bruto", horas: "Horas", margem_pct: "Margem %",
     };
     const clickable = (prefix: string, metric: MetricKey, content: React.ReactNode, row: any, v: any) => (
       <span
@@ -309,7 +305,6 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       { metric: "margem",        title: "Margem",     width: 130 },
       { metric: "margem_pct",    title: "%",          width: 75, renderFn: "pct" },
       { metric: "valor_liquido", title: "Lucro Bruto", width: 130 },
-      { metric: "lb_meta",       title: "LB Meta",    width: 130 },
       { metric: "horas",         title: "Horas",      width: 90  },
     ];
 
@@ -330,26 +325,19 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
           const col = colDef(prefix, m.metric as any, bold);
           if (m.metric === "margem") {
             return { ...col, title: m.title, width: m.width,
-              render: (v: number, row: any) => clickable(prefix, m.metric as MetricKey, (
-                <span style={{ fontWeight: bold ? 700 : 600, color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(v || 0)}</span>
-              ), row, v),
-            };
-          }
-          if (m.metric === "lb_meta") {
-            return { ...col, title: m.title, width: m.width,
               render: (v: number, row: any) => {
                 const rng = row[`${prefix}_receita_ng`]  || 0;
                 const cng = row[`${prefix}_custo_ng`]    || 0;
                 const eco = row[`${prefix}_receita_eco`] || 0;
                 return (
-                  <Popover trigger="click" placement="left" title="LB Meta — composição"
+                  <Popover trigger="click" placement="left" title="Margem Bruta — composição"
                     content={
                       <div style={{ minWidth: 250, fontSize: "0.85rem" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Receita NG</span><strong>{brl(rng)}</strong></div>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Custo NG</span><strong style={{ color: "#c0392b" }}>{brl(cng)}</strong></div>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Receita Eco × 33,3%</span><strong>{brl(eco * 0.333)}</strong></div>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, borderTop: "1px solid #dde3f0", marginTop: 6, paddingTop: 6 }}>
-                          <span style={{ fontWeight: 700 }}>LB Meta</span>
+                          <span style={{ fontWeight: 700 }}>Margem Bruta</span>
                           <strong style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(v || 0)}</strong>
                         </div>
                         <div style={{ marginTop: 8, background: "#fff3cd", color: "#856404", borderRadius: 6, padding: "6px 8px", fontSize: "0.78rem" }}>
@@ -456,10 +444,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         {[
           { label: "Receita Total",   value: brl(totReceita), color: theme.text },
           { label: "Custo Total",     value: brl(totCusto),   color: totCusto   < 0 ? "#c0392b" : theme.text },
-          { label: "Margem Bruta",    value: brl(totMargem),  color: totMargem  < 0 ? "#c0392b" : "#0a7a3e" },
+          { label: "Margem Bruta (Eco 33,3%)", value: brl(totMargem), color: totMargem < 0 ? "#c0392b" : "#0a7a3e" },
           { label: "Margem %",        value: `${(totPct * 100).toFixed(1)}%`, color: totPct < 0.1 ? "#c0392b" : totPct < 0.3 ? "#856404" : "#0a7a3e" },
-          { label: "LB Meta (Eco 33,3%)", value: brl(totLbMeta), color: totLbMeta < 0 ? "#c0392b" : "#0a7a3e" },
-          { label: "Margem Meta %",   value: `${(totLbMetaPct * 100).toFixed(1)}%`, color: totLbMetaPct < 0.1 ? "#c0392b" : totLbMetaPct < 0.3 ? "#856404" : "#0a7a3e" },
         ].map(k => (
           <Card key={k.label}
             style={{ flex: 1, minWidth: 160, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}

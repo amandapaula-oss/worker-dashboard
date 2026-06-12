@@ -191,7 +191,8 @@ export default function NovaBaseMargemTab() {
 
   const totRec  = filteredClientes.reduce((s, r) => s + (r.receita || 0), 0);
   const totCus  = filteredClientes.reduce((s, r) => s + (r.custo_rateado || 0), 0);
-  const totMar  = totRec + totCus;
+  // Margem (formula meta) vem do backend: NG real + Eco a 33,3%
+  const totMar  = filteredClientes.reduce((s, r) => s + (r.margem || 0), 0);
   const totPct  = totRec !== 0 ? totMar / totRec : 0;
 
   const isMensal = viewMode === "Por Mês";
@@ -211,16 +212,17 @@ export default function NovaBaseMargemTab() {
       e[`${r.periodo}_receita`]       = (e[`${r.periodo}_receita`]       || 0) + (Number(r.receita)       || 0);
       e[`${r.periodo}_custo_rateado`] = (e[`${r.periodo}_custo_rateado`] || 0) + (Number(r.custo_rateado) || 0);
       e[`${r.periodo}_horas`]         = (e[`${r.periodo}_horas`]         || 0) + (Number(r.horas)         || 0);
+      // Margem (formula meta) ja vem calculada do backend: NG real + Eco a 33,3%
+      e[`${r.periodo}_margem`]        = (e[`${r.periodo}_margem`]        || 0) + (Number(r.margem)        || 0);
     }
     return Array.from(map.values()).map(r => {
       periodosMensal.forEach(p => {
-        r[`${p}_margem`]     = (r[`${p}_receita`] || 0) + (r[`${p}_custo_rateado`] || 0);
         const rec = r[`${p}_receita`] || 0;
-        r[`${p}_margem_pct`] = rec !== 0 ? r[`${p}_margem`] / rec : null;
+        r[`${p}_margem_pct`] = rec !== 0 ? (r[`${p}_margem`] || 0) / rec : null;
       });
       const tot_rec = periodosMensal.reduce((s, p) => s + (r[`${p}_receita`]       || 0), 0);
       const tot_cus = periodosMensal.reduce((s, p) => s + (r[`${p}_custo_rateado`] || 0), 0);
-      const tot_mar = tot_rec + tot_cus;
+      const tot_mar = periodosMensal.reduce((s, p) => s + (r[`${p}_margem`]        || 0), 0);
       return {
         ...r,
         total_receita:       tot_rec,
@@ -238,14 +240,14 @@ export default function NovaBaseMargemTab() {
     periodosMensal.forEach(p => {
       totRow[`${p}_receita`]       = pivotClientes.reduce((s, r) => s + (r[`${p}_receita`]       || 0), 0);
       totRow[`${p}_custo_rateado`] = pivotClientes.reduce((s, r) => s + (r[`${p}_custo_rateado`] || 0), 0);
-      totRow[`${p}_margem`]        = (totRow[`${p}_receita`] || 0) + (totRow[`${p}_custo_rateado`] || 0);
+      totRow[`${p}_margem`]        = pivotClientes.reduce((s, r) => s + (r[`${p}_margem`]        || 0), 0);
       const rec = totRow[`${p}_receita`] || 0;
       totRow[`${p}_margem_pct`]    = rec !== 0 ? totRow[`${p}_margem`] / rec : null;
       totRow[`${p}_horas`]         = pivotClientes.reduce((s, r) => s + (r[`${p}_horas`]         || 0), 0);
     });
     totRow.total_receita       = pivotClientes.reduce((s, r) => s + (r.total_receita       || 0), 0);
     totRow.total_custo_rateado = pivotClientes.reduce((s, r) => s + (r.total_custo_rateado || 0), 0);
-    totRow.total_margem        = (totRow.total_receita || 0) + (totRow.total_custo_rateado || 0);
+    totRow.total_margem        = pivotClientes.reduce((s, r) => s + (r.total_margem        || 0), 0);
     totRow.total_margem_pct    = totRow.total_receita !== 0 ? totRow.total_margem / totRow.total_receita : null;
     totRow.total_horas         = pivotClientes.reduce((s, r) => s + (r.total_horas || 0), 0);
     return [totRow, ...pivotClientes.map((r, i) => ({ ...r, key: `${r.nome_cliente}_${i}` }))];
