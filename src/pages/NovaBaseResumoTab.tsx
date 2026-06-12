@@ -218,6 +218,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
   const totPct     = totReceita !== 0 ? totMargem / totReceita : 0;
   const totVL      = pivotData.reduce((s, r) => s + (r.total_valor_liquido || 0), 0);
   const totHoras   = pivotData.reduce((s, r) => s + (r.total_horas   || 0), 0);
+  const totLbMeta  = pivotData.reduce((s, r) => s + (r.total_lb_meta || 0), 0);
+  const totLbMetaPct = totReceita !== 0 ? totLbMeta / totReceita : 0;
 
   const tableData = useMemo(() => {
     const totDespesa = pivotData.reduce((s, r) => s + (r.total_despesa || 0), 0);
@@ -456,6 +458,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
           { label: "Custo Total",     value: brl(totCusto),   color: totCusto   < 0 ? "#c0392b" : theme.text },
           { label: "Margem Bruta",    value: brl(totMargem),  color: totMargem  < 0 ? "#c0392b" : "#0a7a3e" },
           { label: "Margem %",        value: `${(totPct * 100).toFixed(1)}%`, color: totPct < 0.1 ? "#c0392b" : totPct < 0.3 ? "#856404" : "#0a7a3e" },
+          { label: "LB Meta (Eco 33,3%)", value: brl(totLbMeta), color: totLbMeta < 0 ? "#c0392b" : "#0a7a3e" },
+          { label: "Margem Meta %",   value: `${(totLbMetaPct * 100).toFixed(1)}%`, color: totLbMetaPct < 0.1 ? "#c0392b" : totLbMetaPct < 0.3 ? "#856404" : "#0a7a3e" },
         ].map(k => (
           <Card key={k.label}
             style={{ flex: 1, minWidth: 160, borderRadius: 10, border: "1px solid #dde3f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
