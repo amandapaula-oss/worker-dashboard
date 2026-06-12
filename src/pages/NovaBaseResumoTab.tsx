@@ -182,8 +182,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     }
     return Array.from(map.values()).map(r => {
       periodos.forEach(p => {
-        // Margem Bruta (formula de apuracao de meta):
-        //   Margem = Receita NG + Custo NG + 33,3% da Receita Eco
+        // Margem Bruta = Receita NG + Custo NG + 33,3% da Receita Eco.
         // Eco entra com margem fixa de 33,3% — custo real de Eco nao conta.
         r[`${p}_margem`] = (r[`${p}_receita_ng`] || 0) + (r[`${p}_custo_ng`] || 0) + 0.333 * (r[`${p}_receita_eco`] || 0);
         const rec = r[`${p}_receita`] || 0;
@@ -444,7 +443,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         {[
           { label: "Receita Total",   value: brl(totReceita), color: theme.text },
           { label: "Custo Total",     value: brl(totCusto),   color: totCusto   < 0 ? "#c0392b" : theme.text },
-          { label: "Margem Bruta (Eco 33,3%)", value: brl(totMargem), color: totMargem < 0 ? "#c0392b" : "#0a7a3e" },
+          { label: "Margem Bruta", value: brl(totMargem), color: totMargem < 0 ? "#c0392b" : "#0a7a3e" },
           { label: "Margem %",        value: `${(totPct * 100).toFixed(1)}%`, color: totPct < 0.1 ? "#c0392b" : totPct < 0.3 ? "#856404" : "#0a7a3e" },
         ].map(k => (
           <Card key={k.label}

@@ -4434,9 +4434,10 @@ def get_nova_base_resumo(
     df["_horas_direto"] = df["horas"].where(~is_despesa, 0)
     df["_despesa"]      = df["custo_rateado"].where(is_despesa, 0)
 
-    # Componentes do "LB Meta" (formula de apuracao de meta dos diretores):
-    #   LB = Receita NG + Custo NG (classificacao=custo) + Receita Eco * 33,3%
-    # Retorna os 3 componentes pro frontend computar a metrica por celula.
+    # Componentes da Margem Bruta:
+    #   Margem = Receita NG + Custo NG (classificacao=custo) + Receita Eco * 33,3%
+    # Eco entra com margem fixa de 33,3% da receita — o custo real de Eco
+    # nao entra. Retorna os 3 componentes pro frontend computar por celula.
     ap_ser = df["apuracao"].fillna("").astype(str).str.strip() if "apuracao" in df.columns else pd.Series("", index=df.index)
     mask_ng  = ap_ser.eq("NG")
     mask_eco = ap_ser.eq("Ecossistema")
@@ -4592,8 +4593,7 @@ def get_nova_base_margem_clientes(
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     df = df[df["nome_cliente"].fillna("").astype(str).str.strip().ne("")]
-    # Margem Bruta (formula de apuracao de meta):
-    #   Margem = Receita NG + Custo NG (classificacao=custo) + Receita Eco * 33,3%
+    # Margem Bruta = Receita NG + Custo NG (classificacao=custo) + Receita Eco * 33,3%.
     # Ecossistema entra com margem fixa de 33,3% da receita — o custo real
     # de Eco NAO entra na conta.
     _ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)

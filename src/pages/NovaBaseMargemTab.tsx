@@ -191,7 +191,7 @@ export default function NovaBaseMargemTab() {
 
   const totRec  = filteredClientes.reduce((s, r) => s + (r.receita || 0), 0);
   const totCus  = filteredClientes.reduce((s, r) => s + (r.custo_rateado || 0), 0);
-  // Margem (formula meta) vem do backend: NG real + Eco a 33,3%
+  // Margem Bruta vem do backend: NG real + Eco a 33,3%
   const totMar  = filteredClientes.reduce((s, r) => s + (r.margem || 0), 0);
   const totPct  = totRec !== 0 ? totMar / totRec : 0;
 
@@ -212,7 +212,7 @@ export default function NovaBaseMargemTab() {
       e[`${r.periodo}_receita`]       = (e[`${r.periodo}_receita`]       || 0) + (Number(r.receita)       || 0);
       e[`${r.periodo}_custo_rateado`] = (e[`${r.periodo}_custo_rateado`] || 0) + (Number(r.custo_rateado) || 0);
       e[`${r.periodo}_horas`]         = (e[`${r.periodo}_horas`]         || 0) + (Number(r.horas)         || 0);
-      // Margem (formula meta) ja vem calculada do backend: NG real + Eco a 33,3%
+      // Margem Bruta ja vem calculada do backend: NG real + Eco a 33,3%
       e[`${r.periodo}_margem`]        = (e[`${r.periodo}_margem`]        || 0) + (Number(r.margem)        || 0);
     }
     return Array.from(map.values()).map(r => {
