@@ -4434,6 +4434,16 @@ def get_nova_base_resumo(
     df["_horas_direto"] = df["horas"].where(~is_despesa, 0)
     df["_despesa"]      = df["custo_rateado"].where(is_despesa, 0)
 
+    # Componentes do "LB Meta" (formula de apuracao de meta dos diretores):
+    #   LB = Receita NG + Custo NG (classificacao=custo) + Receita Eco * 33,3%
+    # Retorna os 3 componentes pro frontend computar a metrica por celula.
+    ap_ser = df["apuracao"].fillna("").astype(str).str.strip() if "apuracao" in df.columns else pd.Series("", index=df.index)
+    mask_ng  = ap_ser.eq("NG")
+    mask_eco = ap_ser.eq("Ecossistema")
+    df["_rec_ng"]   = df["receita"].where(mask_ng, 0)
+    df["_rec_eco"]  = df["receita"].where(mask_eco, 0)
+    df["_custo_ng"] = df["custo_rateado"].where(mask_ng & (classif_str == "custo"), 0)
+
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
         custo_rateado = ("_custo_direto", "sum"),
@@ -4441,6 +4451,9 @@ def get_nova_base_resumo(
         horas         = ("_horas_direto", "sum"),
         valor_liquido = ("valor_liquido", "sum"),
         custo_fonte   = ("custo_fonte",   "sum"),
+        receita_ng    = ("_rec_ng",       "sum"),
+        receita_eco   = ("_rec_eco",      "sum"),
+        custo_ng      = ("_custo_ng",     "sum"),
     )
     agg = agg.rename(columns={group_col: "grupo"})
 

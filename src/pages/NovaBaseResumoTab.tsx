@@ -50,10 +50,10 @@ const labelStyle: React.CSSProperties = {
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const ALL_METRICS = ["receita", "custo", "despesa", "custo_despesa", "custo_fonte", "margem", "margem_pct", "valor_liquido", "horas"] as const;
+const ALL_METRICS = ["receita", "custo", "despesa", "custo_despesa", "custo_fonte", "margem", "margem_pct", "valor_liquido", "lb_meta", "horas"] as const;
 type Metric = typeof ALL_METRICS[number];
 const METRIC_LABELS: Record<Metric, string> = {
-  receita: "Receita", custo: "Custo", despesa: "Despesa", custo_despesa: "Custo + Despesa", custo_fonte: "Custo na Fonte", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", horas: "Horas",
+  receita: "Receita", custo: "Custo", despesa: "Despesa", custo_despesa: "Custo + Despesa", custo_fonte: "Custo na Fonte", margem: "Margem", margem_pct: "Margem %", valor_liquido: "Lucro Bruto", lb_meta: "LB Meta", horas: "Horas",
 };
 
 function MargemTag({ value }: { value: number | null | undefined }) {
@@ -176,6 +176,9 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       e[`${r.periodo}_valor_liquido`] = (e[`${r.periodo}_valor_liquido`] || 0) + (Number(r.valor_liquido) || 0);
       e[`${r.periodo}_horas`]         = (e[`${r.periodo}_horas`]         || 0) + (Number(r.horas)         || 0);
       e[`${r.periodo}_custo_fonte`]   = (e[`${r.periodo}_custo_fonte`]   || 0) + (Number(r.custo_fonte)  || 0);
+      e[`${r.periodo}_receita_ng`]    = (e[`${r.periodo}_receita_ng`]    || 0) + (Number(r.receita_ng)   || 0);
+      e[`${r.periodo}_receita_eco`]   = (e[`${r.periodo}_receita_eco`]   || 0) + (Number(r.receita_eco)  || 0);
+      e[`${r.periodo}_custo_ng`]      = (e[`${r.periodo}_custo_ng`]      || 0) + (Number(r.custo_ng)     || 0);
     }
     return Array.from(map.values()).map(r => {
       periodos.forEach(p => {
@@ -183,6 +186,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? r[`${p}_margem`] / rec : null;
         r[`${p}_custo_despesa`] = (r[`${p}_custo`] || 0) + (r[`${p}_despesa`] || 0);
+        // LB Meta = Receita NG + Custo NG + 33,3% da Receita Eco (formula de apuracao de meta)
+        r[`${p}_lb_meta`] = (r[`${p}_receita_ng`] || 0) + (r[`${p}_custo_ng`] || 0) + 0.333 * (r[`${p}_receita_eco`] || 0);
       });
       const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
       const tot_cus = periodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
@@ -199,6 +204,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         total_valor_liquido: periodos.reduce((s, p) => s + (r[`${p}_valor_liquido`] || 0), 0),
         total_horas:         periodos.reduce((s, p) => s + (r[`${p}_horas`]         || 0), 0),
         total_custo_fonte:   periodos.reduce((s, p) => s + (r[`${p}_custo_fonte`]   || 0), 0),
+        total_lb_meta:       periodos.reduce((s, p) => s + (r[`${p}_lb_meta`]       || 0), 0),
+        total_receita_ng:    periodos.reduce((s, p) => s + (r[`${p}_receita_ng`]    || 0), 0),
+        total_receita_eco:   periodos.reduce((s, p) => s + (r[`${p}_receita_eco`]   || 0), 0),
+        total_custo_ng:      periodos.reduce((s, p) => s + (r[`${p}_custo_ng`]      || 0), 0),
       };
     }).sort((a, b) => b.total_receita - a.total_receita);
   }, [rawData, periodos]);
@@ -220,6 +229,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       total_custo_fonte: pivotData.reduce((s, r) => s + (r.total_custo_fonte || 0), 0),
       total_margem: totMargem, total_margem_pct: totPct,
       total_valor_liquido: totVL, total_horas: totHoras,
+      total_lb_meta:     pivotData.reduce((s, r) => s + (r.total_lb_meta     || 0), 0),
+      total_receita_ng:  pivotData.reduce((s, r) => s + (r.total_receita_ng  || 0), 0),
+      total_receita_eco: pivotData.reduce((s, r) => s + (r.total_receita_eco || 0), 0),
+      total_custo_ng:    pivotData.reduce((s, r) => s + (r.total_custo_ng    || 0), 0),
       _isTotal: true,
     };
     periodos.forEach(p => {
@@ -233,20 +246,24 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       totRow[`${p}_margem_pct`]    = rec !== 0 ? totRow[`${p}_margem`] / rec : null;
       totRow[`${p}_valor_liquido`] = pivotData.reduce((s, r) => s + (r[`${p}_valor_liquido`] || 0), 0);
       totRow[`${p}_horas`]         = pivotData.reduce((s, r) => s + (r[`${p}_horas`]         || 0), 0);
+      totRow[`${p}_lb_meta`]       = pivotData.reduce((s, r) => s + (r[`${p}_lb_meta`]       || 0), 0);
+      totRow[`${p}_receita_ng`]    = pivotData.reduce((s, r) => s + (r[`${p}_receita_ng`]    || 0), 0);
+      totRow[`${p}_receita_eco`]   = pivotData.reduce((s, r) => s + (r[`${p}_receita_eco`]   || 0), 0);
+      totRow[`${p}_custo_ng`]      = pivotData.reduce((s, r) => s + (r[`${p}_custo_ng`]      || 0), 0);
     });
     return [totRow, ...pivotData.map((d, i) => ({ ...d, key: i }))];
   }, [pivotData, periodos, totReceita, totCusto, totVL, totHoras]);
 
   const columnsDef = useMemo(() => {
-    type MetricKey = "receita" | "custo" | "despesa" | "custo_despesa" | "custo_fonte" | "margem" | "margem_pct" | "valor_liquido" | "horas";
+    type MetricKey = "receita" | "custo" | "despesa" | "custo_despesa" | "custo_fonte" | "margem" | "margem_pct" | "valor_liquido" | "lb_meta" | "horas";
     // Mapeia métrica do frontend → métrica que o backend entende como filtro
     const metricApiKey: Record<string, string> = {
       receita: "receita", custo: "custo_rateado", despesa: "despesa", custo_despesa: "", custo_fonte: "", margem: "",
-      valor_liquido: "valor_liquido", horas: "horas", margem_pct: "",
+      valor_liquido: "valor_liquido", lb_meta: "", horas: "horas", margem_pct: "",
     };
     const metricLabelMap: Record<string, string> = {
       receita: "Receita", custo: "Custo Rateado", despesa: "Despesa", custo_despesa: "Custo + Despesa", custo_fonte: "Custo na Fonte", margem: "Margem",
-      valor_liquido: "Lucro Bruto", horas: "Horas", margem_pct: "Margem %",
+      valor_liquido: "Lucro Bruto", lb_meta: "LB Meta", horas: "Horas", margem_pct: "Margem %",
     };
     const clickable = (prefix: string, metric: MetricKey, content: React.ReactNode, row: any, v: any) => (
       <span
@@ -290,6 +307,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       { metric: "margem",        title: "Margem",     width: 130 },
       { metric: "margem_pct",    title: "%",          width: 75, renderFn: "pct" },
       { metric: "valor_liquido", title: "Lucro Bruto", width: 130 },
+      { metric: "lb_meta",       title: "LB Meta",    width: 130 },
       { metric: "horas",         title: "Horas",      width: 90  },
     ];
 
@@ -313,6 +331,37 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
               render: (v: number, row: any) => clickable(prefix, m.metric as MetricKey, (
                 <span style={{ fontWeight: bold ? 700 : 600, color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(v || 0)}</span>
               ), row, v),
+            };
+          }
+          if (m.metric === "lb_meta") {
+            return { ...col, title: m.title, width: m.width,
+              render: (v: number, row: any) => {
+                const rng = row[`${prefix}_receita_ng`]  || 0;
+                const cng = row[`${prefix}_custo_ng`]    || 0;
+                const eco = row[`${prefix}_receita_eco`] || 0;
+                return (
+                  <Popover trigger="click" placement="left" title="LB Meta — composição"
+                    content={
+                      <div style={{ minWidth: 250, fontSize: "0.85rem" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Receita NG</span><strong>{brl(rng)}</strong></div>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Custo NG</span><strong style={{ color: "#c0392b" }}>{brl(cng)}</strong></div>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Receita Eco × 33,3%</span><strong>{brl(eco * 0.333)}</strong></div>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, borderTop: "1px solid #dde3f0", marginTop: 6, paddingTop: 6 }}>
+                          <span style={{ fontWeight: 700 }}>LB Meta</span>
+                          <strong style={{ color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e" }}>{brl(v || 0)}</strong>
+                        </div>
+                        <div style={{ marginTop: 8, background: "#fff3cd", color: "#856404", borderRadius: 6, padding: "6px 8px", fontSize: "0.78rem" }}>
+                          Margem de Ecossistema é fixada em <strong>33,3%</strong> da receita — o custo real de Eco não entra nesta conta.
+                        </div>
+                      </div>
+                    }
+                  >
+                    <span style={{ cursor: "pointer", fontWeight: bold ? 700 : 600, color: (v || 0) < 0 ? "#c0392b" : "#0a7a3e", borderBottom: "1px dashed #6b7fa3" }}>
+                      {brl(v || 0)}
+                    </span>
+                  </Popover>
+                );
+              },
             };
           }
           return { ...col, title: m.title, width: m.width };
