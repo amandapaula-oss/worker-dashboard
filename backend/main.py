@@ -2212,16 +2212,19 @@ HYPER_CLIENTES = {
 }
 
 
-def _multisector_sem_apuracao_para_others(df: pd.DataFrame) -> pd.DataFrame:
-    """Move pra BU Others toda linha que ficou em BU Multisector mas nao tem
-    apuracao (nem Ecossistema nem NG). Sao linhas que a Amanda nao considera
-    Multisector — viraram "outros" e devem ser separadas.
+def _sem_apuracao_para_others(df: pd.DataFrame) -> pd.DataFrame:
+    """Move pra BU Others toda linha em QUALQUER BU explicita (Retail, Health,
+    Finance, Multisector, Logistics, Hyper) que NAO tenha flag de apuracao
+    (nem Ecossistema nem NG). Sao linhas que nao se encaixam em nenhuma
+    categoria de receita -> devem ficar isoladas em BU Others.
     """
     if "vertical" not in df.columns or "apuracao" not in df.columns:
         return df
+    BU_EXPLICITAS = {"BU Retail", "BU Health", "BU Finance",
+                     "BU Multisector", "BU Logistics", "BU Hyper"}
     v  = df["vertical"].fillna("").astype(str).str.strip()
     ap = df["apuracao"].fillna("").astype(str).str.strip()
-    mask = v.eq("BU Multisector") & ap.eq("")
+    mask = v.isin(BU_EXPLICITAS) & ap.eq("")
     if mask.any():
         df.loc[mask, "vertical"] = "BU Others"
     return df
@@ -3927,7 +3930,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _aplicar_rateio_custos(df)
                 df = _aplicar_vertical_por_pep(df)
                 df = _reclassificar_hyper(df)
-                df = _multisector_sem_apuracao_para_others(df)
+                df = _sem_apuracao_para_others(df)
                 df = _aplicar_rateio_100h(df)
                 df = _aplicar_rateio_tdm(df)
                 _cache["nova_base"] = df
@@ -4032,7 +4035,7 @@ def _get_nova_base() -> pd.DataFrame:
         df = _aplicar_rateio_custos(df)
         df = _aplicar_vertical_por_pep(df)
         df = _reclassificar_hyper(df)
-        df = _multisector_sem_apuracao_para_others(df)
+        df = _sem_apuracao_para_others(df)
         df = _aplicar_rateio_100h(df)
         df = _aplicar_rateio_tdm(df)
         _cache["nova_base"] = df
