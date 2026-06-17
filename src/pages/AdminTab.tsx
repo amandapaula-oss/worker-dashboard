@@ -66,6 +66,7 @@ function UsersList() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<AdminUserRow | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [tempPwd, setTempPwd] = useState<string | null>(null);
   const [createForm] = Form.useForm();
   const [editForm]   = Form.useForm();
@@ -101,6 +102,7 @@ function UsersList() {
 
   const onSaveEdit = async (values: any) => {
     if (!editing) return;
+    setSavingEdit(true);
     try {
       await adminUpdateUser(editing.username, {
         name: values.name,
@@ -115,6 +117,8 @@ function UsersList() {
       load();
     } catch (e: any) {
       message.error(e?.message || "Falha ao atualizar.");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -226,10 +230,22 @@ function UsersList() {
       <Modal
         open={!!editing}
         title={`Editar ${editing?.username}`}
-        onCancel={() => setEditing(null)}
+        onCancel={() => { if (!savingEdit) setEditing(null); }}
         onOk={() => editForm.submit()}
+        okText="Salvar"
+        confirmLoading={savingEdit}
+        maskClosable={!savingEdit}
+        forceRender
       >
-        <Form layout="vertical" form={editForm} onFinish={onSaveEdit}>
+        <Form
+          layout="vertical"
+          form={editForm}
+          onFinish={onSaveEdit}
+          onFinishFailed={(info) => {
+            const first = info?.errorFields?.[0]?.errors?.[0];
+            if (first) message.error(first);
+          }}
+        >
           <Form.Item name="name" label="Nome" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
