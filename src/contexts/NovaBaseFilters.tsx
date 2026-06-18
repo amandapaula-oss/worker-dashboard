@@ -16,6 +16,7 @@ interface NovaBaseFiltersState {
   resetFilters: () => void;
   hasAnyFilter: boolean;
   lockedVertical: string | null;
+  periodoLocked: boolean;
 }
 
 const Ctx = createContext<NovaBaseFiltersState | null>(null);
@@ -23,10 +24,11 @@ const Ctx = createContext<NovaBaseFiltersState | null>(null);
 interface ProviderProps {
   children: ReactNode;
   lockedVertical?: string;
+  lockPeriodo?: boolean;
 }
 
-export function NovaBaseFiltersProvider({ children, lockedVertical }: ProviderProps) {
-  const [selPeriodos, setSelPeriodos]   = useState<string[]>(DEFAULT_PERIODOS);
+export function NovaBaseFiltersProvider({ children, lockedVertical, lockPeriodo }: ProviderProps) {
+  const [selPeriodos, setSelPeriodosRaw] = useState<string[]>(DEFAULT_PERIODOS);
   const [selEmpresas, setSelEmpresas]   = useState<string[]>([]);
   const [selFontes, setSelFontes]       = useState<string[]>([]);
   const [selMacroAreas, setSelMacroAreas] = useState<string[]>([]);
@@ -45,8 +47,12 @@ export function NovaBaseFiltersProvider({ children, lockedVertical }: ProviderPr
     ? (() => { /* travado */ })
     : setSelVerticaisRaw;
 
+  // Se o período está travado (ex: card Visão por BU), o setter ignora —
+  // mantém o default (Q1) e o usuário não consegue mexer no filtro de meses.
+  const setSelPeriodos = lockPeriodo ? (() => { /* travado */ }) : setSelPeriodosRaw;
+
   const resetFilters = useCallback(() => {
-    setSelPeriodos(DEFAULT_PERIODOS);
+    setSelPeriodosRaw(DEFAULT_PERIODOS);
     setSelEmpresas([]);
     setSelFontes([]);
     setSelMacroAreas([]);
@@ -80,6 +86,7 @@ export function NovaBaseFiltersProvider({ children, lockedVertical }: ProviderPr
       selClientes, setSelClientes,
       resetFilters, hasAnyFilter,
       lockedVertical: lockedVertical ?? null,
+      periodoLocked: !!lockPeriodo,
     }}>
       {children}
     </Ctx.Provider>

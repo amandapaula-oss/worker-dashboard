@@ -75,7 +75,7 @@ export default function NovaBaseTab() {
     selNoHier, setSelNoHier,
     selClientes, setSelClientes,
     resetFilters, hasAnyFilter,
-    lockedVertical,
+    lockedVertical, periodoLocked,
   } = useNovaBaseFilters();
   const [rows, setRows]                     = useState<any[]>([]);
   const [total, setTotal]                   = useState(0);
@@ -249,7 +249,7 @@ export default function NovaBaseTab() {
           <div style={labelStyle}>Período</div>
           <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
             onChange={setSelPeriodos} options={opt(filters.periodos ?? [])}
-            maxTagCount="responsive" placeholder="Todos" allowClear />
+            maxTagCount="responsive" placeholder="Todos" allowClear disabled={periodoLocked} />
         </div>
         <div style={{ flex: 1, minWidth: 150 }}>
           <div style={labelStyle}>Fonte</div>

@@ -226,7 +226,7 @@ const BU_ICON: Record<string, React.ReactNode> = {
 
 function BUTabs({ bu }: { bu: string }) {
   return (
-    <NovaBaseFiltersProvider lockedVertical={bu}>
+    <NovaBaseFiltersProvider lockedVertical={bu} lockPeriodo>
       <Tabs
         defaultActiveKey="resumoEmp"
         type="card"
@@ -447,7 +447,7 @@ function DashboardInner() {
                   {BU_LABEL[selectedBu] ?? selectedBu}
                 </Title>
                 <span style={{ fontSize: "0.78rem", color: t.secondary, background: t.tagBg, padding: "2px 10px", borderRadius: 20, border: `1px solid ${t.border}` }}>
-                  Filtro de BU travado em <b>{selectedBu}</b>
+                  Filtro de BU travado em <b>{selectedBu}</b> · período travado
                 </span>
               </div>
               <BUTabs bu={selectedBu} />

@@ -46,6 +46,7 @@ export default function WorkersTab() {
   // WorkersTab é sempre renderizado dentro de NovaBaseFiltersProvider.
   const novaBaseCtx = useNovaBaseFilters();
   const ctxLocked = novaBaseCtx.lockedVertical;
+  const periodoLocked = novaBaseCtx.periodoLocked;
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [selPer, setSelPer] = useState<string[]>(["2026-01","2026-02","2026-03"]);
@@ -173,9 +174,10 @@ export default function WorkersTab() {
       <Card size="small" style={{ marginBottom: 12 }}>
         <Row gutter={[12, 12]} align="middle">
           <Col flex="auto">
-            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Períodos</div>
+            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Períodos{periodoLocked ? " (travado)" : ""}</div>
             <Select mode="multiple" allowClear style={{ width: "100%" }}
-              value={selPer} onChange={setSelPer} placeholder="Todos até hoje"
+              value={selPer} onChange={periodoLocked ? undefined : setSelPer} placeholder="Todos até hoje"
+              disabled={periodoLocked}
               options={MESES.map(m => ({ label: m, value: m }))} />
           </Col>
           <Col flex="auto">

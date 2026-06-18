@@ -40,7 +40,7 @@ export default function NovaBaseMargemTab() {
     selFontes, setSelFontes,
     selApuracoes, setSelApuracoes,
     selNoHier, setSelNoHier,
-    resetFilters, hasAnyFilter,
+    resetFilters, hasAnyFilter, periodoLocked,
   } = useNovaBaseFilters();
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading]         = useState(true);
@@ -706,7 +706,7 @@ export default function NovaBaseMargemTab() {
           <div style={{ flex: 1, minWidth: 150 }}>
             <div style={labelStyle}>Período</div>
             <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
-              onChange={setSelPeriodos} options={opt(filters.periodos || [])} maxTagCount="responsive" placeholder="Todos" allowClear />
+              onChange={setSelPeriodos} options={opt(filters.periodos || [])} maxTagCount="responsive" placeholder="Todos" allowClear disabled={periodoLocked} />
           </div>
           <div style={{ flex: 1, minWidth: 150 }}>
             <div style={labelStyle}>Empresa</div>

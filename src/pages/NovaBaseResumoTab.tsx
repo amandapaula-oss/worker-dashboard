@@ -79,7 +79,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     selNoHier, setSelNoHier,
     selVerticais,
     resetFilters, hasAnyFilter: ctxHasFilter,
-    lockedVertical,
+    lockedVertical, periodoLocked,
   } = useNovaBaseFilters();
   const [rawData, setRawData]           = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -413,7 +413,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
             <div style={labelStyle}>Período</div>
             <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
               onChange={setSelPeriodos} options={opt(filters.periodos ?? [])}
-              maxTagCount="responsive" placeholder="Todos" allowClear />
+              maxTagCount="responsive" placeholder="Todos" allowClear disabled={periodoLocked} />
           </div>
           <div style={{ flex: 1, minWidth: 150 }}>
             <div style={labelStyle}>Empresa</div>
@@ -526,7 +526,7 @@ export function NovaDreTab() {
     selNoHier, setSelNoHier,
     selVerticais,
     resetFilters, hasAnyFilter: ctxHasFilter2,
-    lockedVertical,
+    lockedVertical, periodoLocked,
   } = useNovaBaseFilters();
   const [data, setData]               = useState<any>(null);
   const [loading, setLoading]         = useState(true);
@@ -613,7 +613,7 @@ export function NovaDreTab() {
             <div style={labelStyle}>Período</div>
             <Select mode="multiple" style={{ width: "100%" }} value={selPeriodos}
               onChange={setSelPeriodos} options={opt(filters.periodos ?? [])}
-              maxTagCount="responsive" placeholder="Todos" allowClear />
+              maxTagCount="responsive" placeholder="Todos" allowClear disabled={periodoLocked} />
           </div>
           <div style={{ flex: 1, minWidth: 150 }}>
             <div style={labelStyle}>Empresa</div>
