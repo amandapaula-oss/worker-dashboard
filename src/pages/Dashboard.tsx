@@ -226,7 +226,7 @@ const BU_ICON: Record<string, React.ReactNode> = {
 
 function BUTabs({ bu }: { bu: string }) {
   return (
-    <NovaBaseFiltersProvider lockedVertical={bu} lockPeriodo>
+    <NovaBaseFiltersProvider lockedVertical={bu}>
       <Tabs
         defaultActiveKey="resumoEmp"
         type="card"

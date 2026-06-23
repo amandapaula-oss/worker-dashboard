@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 
-const DEFAULT_PERIODOS = ["2026-01", "2026-02", "2026-03"];
+const DEFAULT_PERIODOS = ["2026-01", "2026-02", "2026-03", "2026-04"];
 
 interface NovaBaseFiltersState {
   selPeriodos: string[];      setSelPeriodos: (v: string[]) => void;
