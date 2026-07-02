@@ -3444,7 +3444,15 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     # TDMs participam do rateio padrao se tiverem racional/Orange (com horas).
     # Quem nao tem, fica com custo na linha CLT/PJ original e e redistribuido
     # via _aplicar_rateio_tdm (% receita BU).
-    is_custo_ger = df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"]) & df["_pk"].notna()
+    # REALOCFIN e uma "ilha": custo indevido movido de cliente (ajuste da
+    # apuracao de metas comerciais) fica fixado na propria linha — fora do
+    # pool de rateio (senao o rateio devolve o custo pro cliente antigo via
+    # racionais/Orange da pessoa) e fora do residual do passo 5.
+    _is_realocfin = df.get("nome_cliente", pd.Series([""] * len(df), index=df.index)) \
+        .fillna("").astype(str).str.strip().eq("REALOCFIN")
+
+    is_custo_ger = (df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"])
+                    & df["_pk"].notna() & ~_is_realocfin)
     custo_ger_pessoa = (df[is_custo_ger]
                         .groupby(["_pk", "_periodo_str"])["custo_rateado"].sum()
                         .rename("_custo_total").reset_index())
@@ -3479,7 +3487,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     # - custo_gerencial/CLTs sempre é primary (CLT)
     # - PJs eh primary (PJ — valor_liquido eh o custo)
     # - custo_project é primary SÓ se a pessoa-período NÃO é CLT nem tem PJ
-    is_custo_total_primary = df["_pk"].notna() & (
+    is_custo_total_primary = df["_pk"].notna() & ~_is_realocfin & (
         (df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"])) |
         ((df["fonte"].astype(str) == "custo_project") & ~df["_eh_clt"])
     )
@@ -3590,6 +3598,8 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[is_custo_total_primary, "custo_rateado"] = _new_primary[is_custo_total_primary]
     df.loc[is_custo_total_primary & df["_foi_rateado"], "tag_rateio"] = "Custo rateado aos PEPs (residual de PEP sem racional fica aqui)"
     df.loc[is_custo_total_primary & ~df["_foi_rateado"], "tag_rateio"] = "Custo nao rateado (pessoa sem racional no periodo)"
+    df.loc[_is_realocfin & df["fonte"].astype(str).isin(["CLTs", "PJs"]), "tag_rateio"] = (
+        "REALOCFIN — custo fixado na linha (fora do rateio)")
 
     # 6. Zera custo nas linhas de custo_project conforme caso:
     # - Pessoa é CLT (tem custo_gerencial): custo do projeto já está em gerencial → zera
@@ -3735,7 +3745,9 @@ def _aplicar_rateio_100h(df: pd.DataFrame) -> pd.DataFrame:
     indices_to_zero = []
 
     for (nm_v, per_v), shares in shares_map.items():
-        mask_pp = (nome == nm_v) & (per == per_v)
+        # Linhas REALOCFIN ficam fora da captura: custo indevido movido de
+        # cliente nao pode voltar pro cliente >100h via este rateio.
+        mask_pp = (nome == nm_v) & (per == per_v) & (cli != "REALOCFIN")
         if not mask_pp.any(): continue
         idx_pp = df.index[mask_pp]
         total_custo = float(custo_n.loc[idx_pp].sum())

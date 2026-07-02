@@ -225,3 +225,54 @@ RESUMO
 - Rateio estendido com Base Orange como fallback
 
 Documentado em 2026-05-27.
+
+
+================================================================================
+9. REALOCFIN - CUSTOS CLT INDEVIDOS (APURACAO METAS COMERCIAIS)
+================================================================================
+
+Contexto (2026-07-02): na apuracao de metas dos comerciais foram encontrados
+custos CLT alocados em clientes fora do periodo real de alocacao da pessoa.
+Decisao: NAO deletar - mover pro "projeto" REALOCFIN (nome_cliente=REALOCFIN,
+tipos=REALOCFIN, mantendo BU/empresa/mes). Regra de proracao p/ entrada/saida
+no meio do mes: mantem no cliente so dias uteis x 8h do periodo valido; o
+excedente vira linha nova (fonte_dados=Ajuste REALOCFIN...).
+
+9.1 BANCO BTG jan-abr/26 (regra regra_realocfin_btg no re_aplicar_ajustes.py)
+    - R$ 326.495,13 movidos: 17 linhas inteiras + 4 splits
+      (Evandro jan 48h/168h; Danielle mar 48h/176h; Diego mar 96h/176h;
+       Wilhams mar 80h/176h)
+    - Caso Robson: ha 2 pessoas - ROBSON DOS SANTOS (BR07 Hyper,
+      Energisa/IBM Watson, NUNCA foi BTG) e ROBSON DOS SANTOS ROSA
+      (BR09 NextGen, o BTG legitimo). Filtros usam eq. exato.
+    - Backup pre-ajuste: _backup_realocfin_btg_jan_abr26.json
+    - PENDENTES (fora do lote): Gustavo Felipe Haus Goncalves (conflito
+      data entrada 21/02 x racionais jan/fev - aguardando responsavel);
+      Robson Rosa sem custo CLT em abr/26; trio cliente 'nan' abr/26
+      (Ana Carolina 8.965,90 / Gabriel 10.571,22 / Leonardo 16.285,87).
+
+9.2 LOTE 2: BANCO ABC / TRANSUNION / BULLLA (regra regra_realocfin_abc_tu_bullla)
+    - R$ 88.594,70 movidos: 3 linhas inteiras + 3 splits
+      Integrais: Mario Cesar Miranda Junior (ABC jan/26, saiu 16/12/25);
+                 Alex dos Santos Nalim e Joao Luis Mendes da Silva Brito
+                 (TU mar/26, sairam 27/02/26)
+      Splits fev/26: Rosangela Dantas Lima (ABC, entrou 23/02 -> ficam 40h);
+                     Vinicius Farias Rocha (TU, entrou 09/02 -> ficam 120h);
+                     Jose Eliomar Inacio de Oliveira (Bullla, entrou 09/02
+                     -> ficam 120h, bate com estimativa ~10k da Amanda)
+    - Obs: Orange mar/26 mostra 152h na TU pra Alex e Joao (contradiz saida
+      27/02); Amanda confirmou mover mesmo assim.
+    - Backup pre-ajuste: _backup_realocfin_abc_tu_bullla_lote2.json
+    - PENDENTES: Vinicius jan/26 esta no BANCO MUFG (19.216,65) e nao na TU -
+      Amanda vai verificar onde ele estava; custos abr/26 cliente 'nan'
+      (Rosangela 27.217,39 / Joao Brito 21.009,68).
+
+9.3 GUSTAVO FELIPE HAUS GONCALVES (BTG) - resolvido em 2026-07-02
+    - Amanda decidiu aplicar a regua padrao apesar do conflito com racionais
+      (tinha receita T&E 64h jan + 160h fev no BTG, mas entrada em 21/02/26):
+      jan/26 inteiro -> REALOCFIN (22.396,76); fev/26 split 40h de 160h
+      (BTG fica 5.617,85; REALOCFIN 16.853,54). Adicionado a regra 4.1.
+    - Backup pre-ajuste: _backup_realocfin_gustavo_btg.json
+    - Alex Nalim / Joao Brito (TU): data de saida 27/02 CONFIRMADA pela Amanda
+      (mar/26 inteiro movido, apesar das 152h na Orange) - pendencia encerrada.
+    - REALOCFIN acumulado apos 9.1+9.2+9.3: 29 linhas / R$ 454.340,13.

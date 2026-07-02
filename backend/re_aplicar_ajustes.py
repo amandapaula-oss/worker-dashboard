@@ -369,6 +369,158 @@ def regra_pj_w_vertical_dc002():
     print(f"  PJ W='Vertical': {len(to_upd)} linhas atualizadas")
 
 
+def _realocfin_aplicar(integrais, splits):
+    """Motor comum das regras REALOCFIN (4.x): custos CLT indevidos saem do
+    cliente pro "projeto" REALOCFIN, mantendo BU/empresa/mes.
+
+    integrais: [(periodo, nome_pessoa, nome_cliente)] - move a linha inteira
+    splits:    [(periodo, nome, cliente, full_vl, keep_vl, keep_sap, keep_h,
+                 move_vl, move_sap, move_h, motivo)] - reduz a original pro
+                proporcional e insere linha nova REALOCFIN com o excedente.
+    Idempotente; valores dos splits sao fixos (se o valor cheio mudar num
+    re-upload, pula com AVISO pra recalibrar).
+    """
+    ALVO = {"nome_cliente": "REALOCFIN", "tipos": "REALOCFIN"}
+    FD_AJUSTE = "Ajuste REALOCFIN (apuracao metas comerciais)"
+    COPY_EXCLUDE = {"id", "upload_id", "uploaded_at", "uploaded_by",
+                    "apuracao"}  # apuracao e generated column (nao aceita INSERT)
+
+    for per, nome, cli in integrais:
+        patch(f"fonte=eq.CLTs&periodo=eq.{per}&nome_pessoa=eq.{urllib.parse.quote(nome, safe='')}"
+              f"&nome_cliente=eq.{urllib.parse.quote(cli, safe='')}",
+              ALVO, f"{nome} {per} ({cli}) -> REALOCFIN")
+
+    for (per, nome, cli, full_vl, keep_vl, keep_sap, keep_h,
+         move_vl, move_sap, move_h, motivo) in splits:
+        q = urllib.parse.quote(nome, safe="")
+        base_f = f"fonte=eq.CLTs&periodo=eq.{per}&nome_pessoa=eq.{q}"
+        r = httpx.get(f"{URL}/rest/v1/nova_base?{base_f}&nome_cliente=eq.{urllib.parse.quote(cli, safe='')}&select=*",
+                      headers=H, timeout=60)
+        rows = r.json() if r.status_code < 300 else []
+        r2 = httpx.get(f"{URL}/rest/v1/nova_base?{base_f}&nome_cliente=eq.REALOCFIN&select=id", headers=H, timeout=60)
+        ja_inserida = bool(r2.json()) if r2.status_code < 300 else False
+
+        if len(rows) != 1:
+            print(f"  AVISO {nome} {per}: esperava 1 linha {cli}, achei {len(rows)}"
+                  f"{' (split ja aplicado)' if ja_inserida else ''} - pulando")
+            continue
+        row = rows[0]
+        cur_vl = round(float(row.get("valor_liquido") or 0), 2)
+        precisa_patch = abs(cur_vl - keep_vl) > 0.02
+        if precisa_patch and abs(cur_vl - full_vl) > 0.02:
+            print(f"  AVISO {nome} {per}: valor atual {cur_vl:,.2f} != esperado {full_vl:,.2f} - pulando")
+            continue
+
+        if not APPLY:
+            print(f"  {nome} {per} ({motivo}): "
+                  f"{f'{cli} ja proporcional' if not precisa_patch else f'{cli} {cur_vl:,.2f} -> {keep_vl:,.2f}'}"
+                  f"{'; linha REALOCFIN ja existe' if ja_inserida else f'; + INSERT REALOCFIN {move_vl:,.2f}'}")
+            continue
+
+        if precisa_patch:
+            body = {"valor_liquido": keep_vl, "custo_rateado": -keep_vl, "margem": -keep_vl,
+                    "custo_gerencial_sap": keep_sap, "horas": keep_h}
+            rp = httpx.patch(f"{URL}/rest/v1/nova_base?id=eq.{row['id']}", headers=HP, json=body, timeout=60)
+            if rp.status_code >= 300:
+                print(f"  ERRO patch {nome} {per}: {rp.status_code} {rp.text[:150]}")
+                continue
+        if not ja_inserida:
+            nova = {k: v for k, v in row.items() if k not in COPY_EXCLUDE}
+            nova.update({"nome_cliente": "REALOCFIN", "tipos": "REALOCFIN", "fonte_dados": FD_AJUSTE,
+                         "valor_liquido": move_vl, "custo_rateado": -move_vl, "margem": -move_vl,
+                         "custo_gerencial_sap": move_sap, "horas": move_h})
+            ri = httpx.post(f"{URL}/rest/v1/nova_base", headers=HP, json=nova, timeout=60)
+            if ri.status_code >= 300:
+                print(f"  ERRO insert {nome} {per}: {ri.status_code} {ri.text[:150]}")
+                continue
+        print(f"  {nome} {per}: split ok ({motivo}) - {cli} fica {keep_vl:,.2f}, REALOCFIN {move_vl:,.2f}")
+
+
+def regra_realocfin_btg():
+    """4.1 - Apuracao metas comerciais (jul/26): custos CLT indevidos no BANCO BTG
+    -> projeto REALOCFIN (sai do cliente, mantem BU/empresa/mes).
+
+    Pessoas desligadas/transferidas cujo custo continuou caindo no BTG, e
+    entradas/saidas no meio do mes com custo cheio (regra: dias uteis x 8h).
+    Robson dos Santos (BR07 Hyper) nunca atuou no BTG (Orange: Callink/Energisa);
+    o BTG legitimo e ROBSON DOS SANTOS ROSA - eq. exato nao pega ele.
+    Gustavo (entrou 21/02): Amanda decidiu 2026-07-02 aplicar a regua padrao
+    (jan inteiro fora + fev proporcional), apesar do conflito com racionais.
+    Backups pre-ajuste: _backup_realocfin_btg_jan_abr26.json + _backup_realocfin_gustavo_btg.json
+    """
+    print("\n[4.1] BTG: custos CLT indevidos -> REALOCFIN (apuracao metas comerciais)")
+
+    # (a) meses inteiros indevidos: pessoa nao estava mais/ainda no BTG
+    INTEGRAIS = [
+        ("2026-01", "ELLEN DALECIO MATOS"),               # saiu 18/12/25
+        ("2026-02", "ELLEN DALECIO MATOS"),
+        ("2026-01", "ERIK LOPES VITELLI"),                # saiu 05/12/25
+        ("2026-01", "LEONARDO FERREIRA SILVA"),           # saiu 27/10/25
+        ("2026-02", "LEONARDO FERREIRA SILVA"),
+        ("2026-03", "LEONARDO FERREIRA SILVA"),
+        ("2026-01", "PABLO MADEIRA FREIRE"),              # saiu em 2025
+        ("2026-02", "MARCELO SANTOS DA COSTA"),           # saiu 31/01/26
+        ("2026-03", "MARCELO SANTOS DA COSTA"),
+        ("2026-03", "ANA CAROLINA RODRIGUES LEITE"),      # saiu 27/02/26
+        ("2026-03", "GABRIEL DAMASCENO DANTAS ESTEFANO"), # saiu 27/02/26
+        ("2026-02", "EVANDRO ARAUJO DE ABREU"),           # saiu 09/01/26
+        ("2026-04", "WILHAMS MEIRA JUNIOR"),              # saiu 13/03/26
+        ("2026-01", "ROBSON DOS SANTOS"),                 # Hyper, nunca foi BTG
+        ("2026-02", "ROBSON DOS SANTOS"),
+        ("2026-03", "ROBSON DOS SANTOS"),
+        ("2026-04", "ROBSON DOS SANTOS"),
+        ("2026-01", "GUSTAVO FELIPE HAUS GONCALVES"),     # entrou 21/02/26
+    ]
+    # (b) meses parciais: mantem no BTG so o proporcional (dias uteis x 8h).
+    #     Valores fixados a partir do estado de 2026-07-02 (ver backup).
+    SPLITS = [
+        # (periodo, nome, full_vl, keep: vl/sap/h, move: vl/sap/h, motivo)
+        ("2026-01", "EVANDRO ARAUJO DE ABREU", 20377.70,
+         5822.20, 5781.77, 48.0, 14555.50, 14454.42, 118.8, "saiu 09/01: 48h de 168h"),
+        ("2026-03", "DANIELLE SOUSA DA SILVA", 14734.32,
+         4018.45, 2224.61, 48.0, 10715.87, 5932.29, 49.4, "entrou 24/03: 48h de 176h"),
+        ("2026-03", "DIEGO DO CARMO SILVEIRA", 23248.71,
+         12681.11, 6932.58, 96.2, 10567.60, 5777.15, 0.0, "entrou 16/03: 96h de 176h (horas ja corretas)"),
+        ("2026-03", "WILHAMS MEIRA JUNIOR", 15081.76,
+         6855.35, 5920.53, 80.0, 8226.41, 7104.63, 72.0, "saiu 13/03: 80h de 176h"),
+        ("2026-02", "GUSTAVO FELIPE HAUS GONCALVES", 22471.39,
+         5617.85, 5309.45, 40.0, 16853.54, 15928.36, 111.22, "entrou 21/02: 40h de 160h"),
+    ]
+    _realocfin_aplicar(
+        integrais=[(per, nome, "BANCO BTG") for per, nome in INTEGRAIS],
+        splits=[(per, nome, "BANCO BTG", *resto) for per, nome, *resto in SPLITS])
+
+
+def regra_realocfin_abc_tu_bullla():
+    """4.2 - Apuracao metas comerciais (jul/26), lote 2: BANCO ABC, Transunion
+    e Bullla -> REALOCFIN. Mesma metodologia da 4.1.
+
+    PENDENTES (fora do lote): Vinicius Farias Rocha jan/26 no BANCO MUFG
+    (19.216,65 - Amanda vai verificar onde ele estava em jan); custos abr/26
+    com cliente 'nan' (Rosangela 27.217,39 / Joao Brito 21.009,68).
+    Obs: Orange de mar/26 mostra 152h na TU pra Alex e Joao (contradiz saida
+    27/02) - Amanda confirmou mover mesmo assim.
+    Backup pre-ajuste: _backup_realocfin_abc_tu_bullla_lote2.json
+    """
+    print("\n[4.2] ABC/TransUnion/Bullla: custos CLT indevidos -> REALOCFIN (lote 2)")
+    INTEGRAIS = [
+        ("2026-01", "MARIO CESAR MIRANDA JUNIOR", "BANCO ABC"),        # saiu 16/12/25
+        ("2026-03", "ALEX DOS SANTOS NALIM", "Transunion"),            # saiu 27/02/26
+        ("2026-03", "JOAO LUIS MENDES DA SILVA BRITO", "Transunion"),  # saiu 27/02/26
+    ]
+    # Valores fixados a partir do estado de 2026-07-02 (ver backup do lote 2).
+    SPLITS = [
+        # (periodo, nome, cliente, full_vl, keep: vl/sap/h, move: vl/sap/h, motivo)
+        ("2026-02", "ROSANGELA DANTAS LIMA", "BANCO ABC", 27216.93,
+         6804.23, 6804.23, 40.0, 20412.70, 20412.70, 120.0, "entrou 23/02: 40h de 160h"),
+        ("2026-02", "VINICIUS FARIAS ROCHA", "Transunion", 20087.44,
+         15065.58, 13559.02, 120.0, 5021.86, 4519.68, 24.0, "entrou 09/02: 120h de 160h"),
+        ("2026-02", "JOSE ELIOMAR INACIO DE OLIVEIRA", "Bullla", 14411.45,
+         10808.59, 10307.56, 120.0, 3602.86, 3435.86, 32.58, "entrou 09/02: 120h de 160h"),
+    ]
+    _realocfin_aplicar(integrais=INTEGRAIS, splits=SPLITS)
+
+
 def main():
     print(f"=" * 70)
     print(f"RE-APLICAR AJUSTES MANUAIS  {'[APLICANDO]' if APPLY else '[DRY-RUN]'}")
@@ -390,6 +542,8 @@ def main():
     regra_rodrigo_burgers()
     regra_tdm()
     regra_pj_w_vertical_dc002()
+    regra_realocfin_btg()
+    regra_realocfin_abc_tu_bullla()
 
     print()
     print(f"=" * 70)
