@@ -3444,12 +3444,17 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     # TDMs participam do rateio padrao se tiverem racional/Orange (com horas).
     # Quem nao tem, fica com custo na linha CLT/PJ original e e redistribuido
     # via _aplicar_rateio_tdm (% receita BU).
-    # REALOCFIN e uma "ilha": custo indevido movido de cliente (ajuste da
-    # apuracao de metas comerciais) fica fixado na propria linha — fora do
-    # pool de rateio (senao o rateio devolve o custo pro cliente antigo via
-    # racionais/Orange da pessoa) e fora do residual do passo 5.
-    _is_realocfin = df.get("nome_cliente", pd.Series([""] * len(df), index=df.index)) \
-        .fillna("").astype(str).str.strip().eq("REALOCFIN")
+    # Linhas-ilha: custo fixado na propria linha, fora do pool de rateio
+    # (senao o rateio devolve o custo pro cliente antigo via racionais/Orange
+    # da pessoa) e fora do residual do passo 5. Sao ilhas:
+    #  - nome_cliente = REALOCFIN (custo indevido movido de cliente)
+    #  - fonte_dados comecando com "Ajuste rateio" (ex.: rateio Open
+    #    Accelerator H1 — fatias por cliente ja fixadas manualmente)
+    _cli_norm = df.get("nome_cliente", pd.Series([""] * len(df), index=df.index)) \
+        .fillna("").astype(str).str.strip()
+    _fd_norm = df.get("fonte_dados", pd.Series([""] * len(df), index=df.index)) \
+        .fillna("").astype(str)
+    _is_realocfin = _cli_norm.eq("REALOCFIN") | _fd_norm.str.startswith("Ajuste rateio")
 
     is_custo_ger = (df["fonte"].astype(str).isin(["custo_gerencial", "CLTs", "PJs"])
                     & df["_pk"].notna() & ~_is_realocfin)
@@ -3507,7 +3512,7 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
                + df["_periodo_str"].fillna("").astype(str) + "|"
                + df["pep"].fillna("").astype(str))
     _rac_pep_set = set(_pep_k3[is_rac & df["_pk"].notna()])
-    is_orange_eligible = is_orange_cli & ~_pep_k3.isin(_rac_pep_set)
+    is_orange_eligible = is_orange_cli & ~_pep_k3.isin(_rac_pep_set) & ~_is_realocfin
 
     # Fonte de horas: racional (primario), cp como fallback se pessoa sem racional,
     # Orange-eligible (linha com cliente, PEP sem racional naquela pessoa-periodo).
@@ -3744,10 +3749,13 @@ def _aplicar_rateio_100h(df: pd.DataFrame) -> pd.DataFrame:
     new_rows = []
     indices_to_zero = []
 
+    _fd_100h = df.get("fonte_dados", pd.Series([""] * len(df), index=df.index)) \
+        .fillna("").astype(str)
     for (nm_v, per_v), shares in shares_map.items():
-        # Linhas REALOCFIN ficam fora da captura: custo indevido movido de
-        # cliente nao pode voltar pro cliente >100h via este rateio.
-        mask_pp = (nome == nm_v) & (per == per_v) & (cli != "REALOCFIN")
+        # Linhas-ilha (REALOCFIN / fatias "Ajuste rateio") ficam fora da
+        # captura: custo fixado manualmente nao pode voltar pro cliente >100h.
+        mask_pp = ((nome == nm_v) & (per == per_v) & (cli != "REALOCFIN")
+                   & ~_fd_100h.str.startswith("Ajuste rateio"))
         if not mask_pp.any(): continue
         idx_pp = df.index[mask_pp]
         total_custo = float(custo_n.loc[idx_pp].sum())

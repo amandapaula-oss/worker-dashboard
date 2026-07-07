@@ -276,3 +276,20 @@ excedente vira linha nova (fonte_dados=Ajuste REALOCFIN...).
     - Alex Nalim / Joao Brito (TU): data de saida 27/02 CONFIRMADA pela Amanda
       (mar/26 inteiro movido, apesar das 152h na Orange) - pendencia encerrada.
     - REALOCFIN acumulado apos 9.1+9.2+9.3: 29 linhas / R$ 454.340,13.
+
+9.4 TIME OPEN FINANCE/INSURANCE ACCELERATOR - RATEIO H1/26 (2026-07-07)
+    (regra regra_rateio_open_accelerator_h1 no re_aplicar_ajustes.py)
+    - Time lancava custo sem criterio (concentrado em HDI / linhas sem cliente).
+      Percentual correto H1 (gestor do time): BANCO PAN 50% / HDI 20% /
+      GRUPO BANQI 14% / CARTOS 8% / Justos Seguros 8%.
+    - Valor correto por pessoa/mes = planilha do time (print da Amanda):
+      jan 103.619 / fev 121.119 / mar 121.119. Excedente da base -> REALOCFIN
+      (jan: 45.986,44 = Lucas 17.498,88 integral [nao era do time em jan] +
+      Kleber 12.000 [veio da STRADA] + Yagan 15.200,84 [veio do GCB] +
+      LuizOtavio 571,68 + Vanderson 715,04).
+    - Faltantes INSERIDOS com valor da planilha (149.738 em jan+fev+mar):
+      Felipe/Kleber/Lucas/Ney/Yagan fev-mar e Leonardo Benevenuto jan-mar.
+    - ABRIL FORA (print so vai ate mar/forecast; decisao Amanda 2026-07-07).
+    - Linhas com fonte_dados='Ajuste rateio Open Accelerator H1' viram ILHA
+      no rateio do site (main.py: pool, orange-eligible e rateio_100h).
+    - Backup pre-ajuste: _backup_rateio_open_h1.json

@@ -521,6 +521,163 @@ def regra_realocfin_abc_tu_bullla():
     _realocfin_aplicar(integrais=INTEGRAIS, splits=SPLITS)
 
 
+def regra_rateio_open_accelerator_h1():
+    """4.3 - Time Open Finance/Insurance Accelerator (H1/26, jan-mar).
+
+    O time lancava custo sem criterio (concentrado em HDI / linhas sem cliente).
+    Percentual correto H1 (definicao do gestor, jul/26):
+      BANCO PAN 50% | HDI 20% | GRUPO BANQI 14% | CARTOS 8% | Justos Seguros 8%
+    O valor correto por pessoa/mes vem da planilha do time (print da Amanda);
+    o excedente do custo real vai pro REALOCFIN. Lucas jan/26 = 100% REALOCFIN
+    (print marca 'x' - nao era do time em jan). Faltantes (sem linha PJ na base:
+    Felipe/Kleber/Lucas/Ney/Yagan fev-mar e Leonardo Benevenuto jan-mar) sao
+    INSERIDOS com o valor da planilha, ja rateados. ABRIL FORA (sem print).
+    Linhas novas/alteradas: fonte_dados = LABEL (ilha no rateio do site).
+    Backup pre-ajuste: _backup_rateio_open_h1.json
+    """
+    print("\n[4.3] Open Accelerator H1: rateio 50/20/14/8/8 + excedente -> REALOCFIN")
+    LABEL = "Ajuste rateio Open Accelerator H1"
+    PCTS = [("BANCO PAN", 0.50), ("HDI", 0.20), ("GRUPO BANQI", 0.14),
+            ("CARTOS", 0.08), ("Justos Seguros", 0.08)]
+    COPY_EXCLUDE = {"id", "upload_id", "uploaded_at", "uploaded_by", "apuracao"}
+
+    def shares(p):
+        """[(cliente, valor)] - 4 primeiros arredondados, ultimo fecha a soma."""
+        vals = [round(p * pct, 2) for _, pct in PCTS[:-1]]
+        vals.append(round(p - sum(vals), 2))
+        return list(zip([c for c, _ in PCTS], vals))
+
+    def _get_pj(per, nome, cli=None):
+        q = f"fonte=eq.PJs&periodo=eq.{per}&nome_pessoa=eq.{urllib.parse.quote(nome, safe='')}"
+        if cli is not None:
+            q += f"&nome_cliente=eq.{urllib.parse.quote(cli, safe='')}"
+        r = httpx.get(f"{URL}/rest/v1/nova_base?{q}&select=*", headers=H, timeout=60)
+        return r.json() if r.status_code < 300 else []
+
+    def _ja_aplicado(per, nome):
+        q = (f"fonte=eq.PJs&periodo=eq.{per}&nome_pessoa=eq.{urllib.parse.quote(nome, safe='')}"
+             f"&fonte_dados=eq.{urllib.parse.quote(LABEL, safe='')}")
+        r = httpx.get(f"{URL}/rest/v1/nova_base?{q}&select=id&limit=1", headers=H, timeout=60)
+        return bool(r.json()) if r.status_code < 300 else False
+
+    def _post(row):
+        r = httpx.post(f"{URL}/rest/v1/nova_base", headers=HP, json=row, timeout=60)
+        if r.status_code >= 300:
+            print(f"  ERRO insert: {r.status_code} {r.text[:150]}")
+            return False
+        return True
+
+    def _nova(base_row, cliente, valor, tipos=None, vertical=None):
+        nova = {k: v for k, v in base_row.items() if k not in COPY_EXCLUDE}
+        nova.update({"nome_cliente": cliente, "fonte_dados": LABEL,
+                     "valor_liquido": valor, "custo_rateado": -valor, "margem": -valor})
+        if tipos is not None: nova["tipos"] = tipos
+        if vertical is not None: nova["vertical"] = vertical
+        return nova
+
+    # (a) Lucas jan: 100% REALOCFIN (nao era do time; nao pertence a HDI)
+    patch("fonte=eq.PJs&periodo=eq.2026-01&nome_pessoa=eq.Lucas Alves Barbosa Monteiro&nome_cliente=eq.HDI",
+          {"nome_cliente": "REALOCFIN", "tipos": "REALOCFIN"},
+          "Lucas Alves Barbosa Monteiro 2026-01 (HDI) -> REALOCFIN integral")
+
+    # (b) linhas PJ existentes: viram 5 fatias + excedente REALOCFIN
+    #     (periodo, nome_pessoa exato, cliente atual, valor na base B, valor planilha P)
+    RESHAPE = [
+        ("2026-01", "Felipe Mateus Marcolla", "BANCO PAN", 12000.00, 12000.00),
+        ("2026-01", "Gleisy Caroline Marc Fracasso", "HDI", 11000.00, 11000.00),
+        ("2026-01", "Kleber Aquino dos Santos Junior", "STRADA", 23000.00, 11000.00),
+        ("2026-01", "Luiz Otavio Lima Pinheiro", "HDI", 12571.68, 12000.00),
+        ("2026-01", "Ana Caroline Brandão Costa", "GRUPO BANQI", 8500.00, 8500.00),
+        ("2026-01", "Ney Candido Fonseca", "BANCO PAN", 30000.00, 30000.00),
+        ("2026-01", "Vanderson Teodoro Camatini", "HDI", 15715.04, 15000.00),
+        ("2026-01", "Yagan James Cadorin", "GRUPO CASAS BAHIA", 18819.84, 3619.00),
+        ("2026-02", "GLEISY CONSULTORIA DE TI LTDA", "nan", 11000.00, 11000.00),
+        ("2026-02", "LUIZ OTAVIO LIMA PINHEIRO CONSULTOR", "HDI", 12000.00, 12000.00),
+        ("2026-02", "54.609.378 ANA CAROLINE BRANDAO COS", "nan", 8500.00, 8500.00),
+        ("2026-02", "CAMATINI DESENVOLVIMENTO DE SOFTWAR", "nan", 15000.00, 15000.00),
+        ("2026-03", "GLEISY CONSULTORIA DE TI LTDA", "nan", 11000.00, 11000.00),
+        ("2026-03", "LUIZ OTAVIO LIMA PINHEIRO CONSULTOR", "HDI", 12000.00, 12000.00),
+        ("2026-03", "54.609.378 ANA CAROLINE BRANDAO COS", "nan", 8500.00, 8500.00),
+        ("2026-03", "CAMATINI DESENVOLVIMENTO DE SOFTWAR", "nan", 15000.00, 15000.00),
+    ]
+    for per, nome, cli_atual, b_esp, p in RESHAPE:
+        rows = _get_pj(per, nome, cli_atual)
+        if len(rows) != 1:
+            ok_msg = " (ja aplicado)" if _ja_aplicado(per, nome) else " - AVISO: verificar!"
+            print(f"  {nome} {per}: linha em {cli_atual} nao encontrada{ok_msg}")
+            continue
+        row = rows[0]
+        b = round(float(row.get("valor_liquido") or 0), 2)
+        if abs(b - b_esp) > 0.02:
+            print(f"  AVISO {nome} {per}: valor {b:,.2f} != esperado {b_esp:,.2f} - pulando")
+            continue
+        fatias = shares(p)
+        sobra = round(b - p, 2)
+        if not APPLY:
+            print(f"  {nome} {per}: {cli_atual} {b:,.2f} -> "
+                  + ", ".join(f"{c} {v:,.2f}" for c, v in fatias)
+                  + (f", REALOCFIN {sobra:,.2f}" if sobra > 0.005 else ""))
+            continue
+        # PATCH original -> 1a fatia (BANCO PAN); INSERT demais + excedente
+        c0, v0 = fatias[0]
+        rp = httpx.patch(f"{URL}/rest/v1/nova_base?id=eq.{row['id']}", headers=HP,
+                         json={"nome_cliente": c0, "valor_liquido": v0, "custo_rateado": -v0,
+                               "margem": -v0, "fonte_dados": LABEL, "vertical": "BU Finance"},
+                         timeout=60)
+        if rp.status_code >= 300:
+            print(f"  ERRO patch {nome} {per}: {rp.status_code} {rp.text[:150]}")
+            continue
+        ok = all(_post(_nova(row, c, v, vertical="BU Finance")) for c, v in fatias[1:])
+        if ok and sobra > 0.005:
+            vert_orig = row.get("vertical") if str(row.get("vertical")) not in ("nan", "None", "") else "BU Finance"
+            ok = _post(_nova(row, "REALOCFIN", sobra, tipos="REALOCFIN", vertical=vert_orig))
+        print(f"  {nome} {per}: rateado ({b:,.2f} = {p:,.2f} nos 5 clientes"
+              + (f" + {sobra:,.2f} REALOCFIN)" if sobra > 0.005 else ")"))
+
+    # (c) faltantes: sem linha PJ na base -> INSERE valor da planilha ja rateado.
+    #     (periodo, nome da nova linha, P, pessoa-template, periodo-template)
+    INSERTS = [
+        ("2026-01", "LEONARDO JUNIO BENEVENUTO", 500.00, "Felipe Mateus Marcolla", "2026-01"),
+        ("2026-02", "Felipe Mateus Marcolla", 12000.00, "Felipe Mateus Marcolla", "2026-01"),
+        ("2026-02", "Kleber Aquino dos Santos Junior", 11000.00, "Kleber Aquino dos Santos Junior", "2026-01"),
+        ("2026-02", "Lucas Alves Barbosa Monteiro", 17500.00, "Lucas Alves Barbosa Monteiro", "2026-01"),
+        ("2026-02", "Ney Candido Fonseca", 30000.00, "Ney Candido Fonseca", "2026-01"),
+        ("2026-02", "Yagan James Cadorin", 3619.00, "Yagan James Cadorin", "2026-01"),
+        ("2026-02", "LEONARDO JUNIO BENEVENUTO", 500.00, "Felipe Mateus Marcolla", "2026-01"),
+        ("2026-03", "Felipe Mateus Marcolla", 12000.00, "Felipe Mateus Marcolla", "2026-01"),
+        ("2026-03", "Kleber Aquino dos Santos Junior", 11000.00, "Kleber Aquino dos Santos Junior", "2026-01"),
+        ("2026-03", "Lucas Alves Barbosa Monteiro", 17500.00, "Lucas Alves Barbosa Monteiro", "2026-01"),
+        ("2026-03", "Ney Candido Fonseca", 30000.00, "Ney Candido Fonseca", "2026-01"),
+        ("2026-03", "Yagan James Cadorin", 3619.00, "Yagan James Cadorin", "2026-01"),
+        ("2026-03", "LEONARDO JUNIO BENEVENUTO", 500.00, "Felipe Mateus Marcolla", "2026-01"),
+    ]
+    for per, nome, p, tpl_nome, tpl_per in INSERTS:
+        if _ja_aplicado(per, nome):
+            print(f"  {nome} {per}: inserts ja existem")
+            continue
+        # se a pessoa ja tem linha PJ nesse mes fora do LABEL, nao insere (evita duplicar custo)
+        if _get_pj(per, nome):
+            print(f"  AVISO {nome} {per}: ja existe linha PJ nesse mes - NAO inserindo (verificar)")
+            continue
+        fatias = shares(p)
+        if not APPLY:
+            print(f"  {nome} {per}: INSERIR {p:,.2f} -> " + ", ".join(f"{c} {v:,.2f}" for c, v in fatias))
+            continue
+        tpl_rows = _get_pj(tpl_per, tpl_nome)
+        tpl = None
+        for t in tpl_rows:  # template ja pode ter sido re-rateado; qualquer linha serve de molde
+            tpl = t; break
+        if tpl is None:
+            print(f"  ERRO {nome} {per}: template {tpl_nome} {tpl_per} nao encontrado")
+            continue
+        base_row = dict(tpl)
+        base_row.update({"periodo": per, "nome_pessoa": nome, "horas": None,
+                         "tipos": "Open Finance Accelerator", "pep": None, "pep_base": None,
+                         "custo_gerencial_sap": 0, "receita": 0})
+        ok = all(_post(_nova(base_row, c, v, vertical="BU Finance")) for c, v in fatias)
+        print(f"  {nome} {per}: inseridos {p:,.2f} nos 5 clientes {'ok' if ok else 'COM ERRO'}")
+
+
 def main():
     print(f"=" * 70)
     print(f"RE-APLICAR AJUSTES MANUAIS  {'[APLICANDO]' if APPLY else '[DRY-RUN]'}")
@@ -544,6 +701,7 @@ def main():
     regra_pj_w_vertical_dc002()
     regra_realocfin_btg()
     regra_realocfin_abc_tu_bullla()
+    regra_rateio_open_accelerator_h1()
 
     print()
     print(f"=" * 70)
