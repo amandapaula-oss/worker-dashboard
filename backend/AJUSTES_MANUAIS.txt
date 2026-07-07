@@ -293,3 +293,15 @@ excedente vira linha nova (fonte_dados=Ajuste REALOCFIN...).
     - Linhas com fonte_dados='Ajuste rateio Open Accelerator H1' viram ILHA
       no rateio do site (main.py: pool, orange-eligible e rateio_100h).
     - Backup pre-ajuste: _backup_rateio_open_h1.json
+
+9.5 HORAS ORANGE DO TIME OPEN ACCELERATOR (regra regra_horas_open_accelerator_h1)
+    - Complemento da 9.4 (pedido Amanda 2026-07-07): horas base Orange de cada
+      pessoa/mes redistribuidas na MESMA proporcao do custo alocado
+      (fatias 50/20/14/8/8 + excedente em horas no REALOCFIN).
+    - Totais de horas preservados: jan 1.664h / fev 1.598h / mar 1.453,99h
+      (REALOCFIN jan: 379,67h - Lucas 176 + Kleber 103,29 + Yagan 82,38 +
+       LuizOtavio 9 + Vanderson 9).
+    - Upload novo da Base Orange restaura horas originais -> rodar
+      re_aplicar_ajustes.py --apply re-redistribui. O CUSTO nao e afetado
+      nem no intervalo (linhas de custo sao ilha no rateio do site).
+    - Backup pre-ajuste: _backup_orange_open_h1.json

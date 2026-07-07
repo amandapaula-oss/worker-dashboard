@@ -601,6 +601,9 @@ def regra_rateio_open_accelerator_h1():
         ("2026-03", "CAMATINI DESENVOLVIMENTO DE SOFTWAR", "nan", 15000.00, 15000.00),
     ]
     for per, nome, cli_atual, b_esp, p in RESHAPE:
+        if _ja_aplicado(per, nome):
+            print(f"  {nome} {per}: ja aplicado")
+            continue
         rows = _get_pj(per, nome, cli_atual)
         if len(rows) != 1:
             ok_msg = " (ja aplicado)" if _ja_aplicado(per, nome) else " - AVISO: verificar!"
@@ -678,6 +681,110 @@ def regra_rateio_open_accelerator_h1():
         print(f"  {nome} {per}: inseridos {p:,.2f} nos 5 clientes {'ok' if ok else 'COM ERRO'}")
 
 
+def regra_horas_open_accelerator_h1():
+    """4.4 - Horas Orange do time Open Accelerator compativeis com o custo (4.3).
+
+    Redistribui as horas 'base Orange' de cada pessoa/mes na MESMA proporcao
+    do custo alocado: fatias 50/20/14/8/8 sobre o valor da planilha (P) e o
+    excedente (B-P) em horas no REALOCFIN. Total de horas da pessoa preservado.
+    Re-aplicavel: upload novo da Base Orange restaura as horas originais e
+    este script re-redistribui (rodar apos cada upload, como sempre).
+    Backup pre-ajuste: _backup_orange_open_h1.json
+    """
+    print("\n[4.4] Open Accelerator H1: horas Orange na proporcao do custo")
+    LABEL = "Ajuste rateio Open Accelerator H1"
+    COPY_EXCLUDE = {"id", "upload_id", "uploaded_at", "uploaded_by", "apuracao"}
+    PEP_MAP = {
+        "BANCO PAN":      ("BR02CLP00071", "BR02CLP00071.1.2"),
+        "HDI":            ("BR02CLP00008", "BR02CLP00008.1.1"),
+        "GRUPO BANQI":    ("BR02CLP00097", "BR02CLP00097.1.1"),
+        "CARTOS":         ("BR02CLP00072", "BR02CLP00072.1.1"),
+        "Justos Seguros": ("BR02CLP00074", "BR02CLP00074.1.1"),
+        "REALOCFIN":      (None, None),
+    }
+    PCTS = [("BANCO PAN", 0.50), ("HDI", 0.20), ("GRUPO BANQI", 0.14),
+            ("CARTOS", 0.08), ("Justos Seguros", 0.08)]
+
+    # (periodo, nome exato nas linhas Orange, custo na base B, valor planilha P)
+    TIME = []
+    PESSOAS = [  # (nome, {periodo: (B, P)})
+        ("Felipe Mateus Marcolla", {"2026-01": (12000.00, 12000.00), "2026-02": (12000.00, 12000.00), "2026-03": (12000.00, 12000.00)}),
+        ("Gleisy Caroline Marc Fracasso", {"2026-01": (11000.00, 11000.00), "2026-02": (11000.00, 11000.00), "2026-03": (11000.00, 11000.00)}),
+        ("Kleber Aquino dos Santos Junior", {"2026-01": (23000.00, 11000.00), "2026-02": (11000.00, 11000.00), "2026-03": (11000.00, 11000.00)}),
+        ("Lucas Alves Barbosa Monteiro", {"2026-01": (17498.88, 0.00), "2026-02": (17500.00, 17500.00), "2026-03": (17500.00, 17500.00)}),
+        ("Luiz Otavio Lima Pinheiro", {"2026-01": (12571.68, 12000.00), "2026-02": (12000.00, 12000.00), "2026-03": (12000.00, 12000.00)}),
+        ("Ana Caroline Brandão Costa", {"2026-01": (8500.00, 8500.00), "2026-02": (8500.00, 8500.00), "2026-03": (8500.00, 8500.00)}),
+        ("Ney Candido Fonseca", {"2026-01": (30000.00, 30000.00), "2026-02": (30000.00, 30000.00), "2026-03": (30000.00, 30000.00)}),
+        ("Vanderson Teodoro Camatini", {"2026-01": (15715.04, 15000.00), "2026-02": (15000.00, 15000.00), "2026-03": (15000.00, 15000.00)}),
+        ("Yagan James Cadorin", {"2026-01": (18819.84, 3619.00), "2026-02": (3619.00, 3619.00), "2026-03": (3619.00, 3619.00)}),
+    ]
+    for nome, meses in PESSOAS:
+        for per, (b, p) in meses.items():
+            TIME.append((per, nome, b, p))
+
+    for per, nome, b, p in TIME:
+        q = urllib.parse.quote(nome, safe="")
+        r = httpx.get(f"{URL}/rest/v1/nova_base?fonte=eq.base Orange&periodo=eq.{per}"
+                      f"&nome_pessoa=eq.{q}&select=*", headers=H, timeout=60)
+        rows = r.json() if r.status_code < 300 else []
+        labeled = [x for x in rows if x.get("fonte_dados") == LABEL]
+        if labeled and len(labeled) == len(rows):
+            print(f"  {nome} {per}: horas ja redistribuidas")
+            continue
+        if labeled:
+            print(f"  AVISO {nome} {per}: estado misto ({len(labeled)}/{len(rows)} com label) - pulando")
+            continue
+        if not rows:
+            print(f"  {nome} {per}: sem linhas Orange - nada a fazer")
+            continue
+        htot = round(sum(float(x.get("horas") or 0) for x in rows), 2)
+        if htot <= 0:
+            print(f"  {nome} {per}: horas totais 0 - nada a fazer")
+            continue
+
+        # fatias de valor (mesmas da 4.3) -> fracoes de hora
+        vals = [round(p * pct, 2) for _, pct in PCTS[:-1]]
+        vals.append(round(p - sum(vals), 2))
+        fatias = [(c, v) for (c, _), v in zip(PCTS, vals) if p > 0.005]
+        sobra = round(b - p, 2)
+        if sobra > 0.005:
+            fatias.append(("REALOCFIN", sobra))
+        buckets = []
+        for c, v in fatias[:-1]:
+            buckets.append((c, round(htot * v / b, 2)))
+        buckets.append((fatias[-1][0], round(htot - sum(h for _, h in buckets), 2)))
+
+        if not APPLY:
+            print(f"  {nome} {per}: {htot}h -> " + ", ".join(f"{c} {h}h" for c, h in buckets))
+            continue
+
+        erro = False
+        for i, (c, h) in enumerate(buckets):
+            pep_b, pep = PEP_MAP[c]
+            body = {"nome_cliente": c, "horas": h, "fonte_dados": LABEL,
+                    "vertical": "BU Finance", "pep": pep, "pep_base": pep_b,
+                    "tipos": "REALOCFIN" if c == "REALOCFIN" else "Open Finance Accelerator"}
+            if i < len(rows):
+                rr = httpx.patch(f"{URL}/rest/v1/nova_base?id=eq.{rows[i]['id']}", headers=HP, json=body, timeout=60)
+            else:
+                nova = {k: v for k, v in rows[0].items() if k not in COPY_EXCLUDE}
+                nova.update(body)
+                rr = httpx.post(f"{URL}/rest/v1/nova_base", headers=HP, json=nova, timeout=60)
+            if rr.status_code >= 300:
+                print(f"  ERRO {nome} {per} bucket {c}: {rr.status_code} {rr.text[:120]}")
+                erro = True
+        # linhas originais sobrando alem dos buckets: zera no REALOCFIN
+        for x in rows[len(buckets):]:
+            rr = httpx.patch(f"{URL}/rest/v1/nova_base?id=eq.{x['id']}", headers=HP,
+                             json={"nome_cliente": "REALOCFIN", "horas": 0, "fonte_dados": LABEL,
+                                   "tipos": "REALOCFIN", "pep": None, "pep_base": None}, timeout=60)
+            if rr.status_code >= 300:
+                print(f"  ERRO {nome} {per} zerando linha extra: {rr.status_code}")
+                erro = True
+        if not erro:
+            print(f"  {nome} {per}: {htot}h redistribuidas em {len(buckets)} linhas")
+
+
 def main():
     print(f"=" * 70)
     print(f"RE-APLICAR AJUSTES MANUAIS  {'[APLICANDO]' if APPLY else '[DRY-RUN]'}")
@@ -702,6 +809,7 @@ def main():
     regra_realocfin_btg()
     regra_realocfin_abc_tu_bullla()
     regra_rateio_open_accelerator_h1()
+    regra_horas_open_accelerator_h1()
 
     print()
     print(f"=" * 70)
