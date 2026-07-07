@@ -1,0 +1,6 @@
+# Vercel hospeda so o frontend (build/). Backend deploya no Render.
+backend
+zenclose
+handoff_extract_pl
+*.log
+*.pbix
