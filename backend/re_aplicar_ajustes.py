@@ -436,6 +436,14 @@ def _realocfin_aplicar(integrais, splits):
         print(f"  {nome} {per}: split ok ({motivo}) - {cli} fica {keep_vl:,.2f}, REALOCFIN {move_vl:,.2f}")
 
 
+def _migrar_excedente_orange(per, nome, dest_cli, pep_b, pep, tipos, vert, label):
+    """Move horas Orange do excedente (REALOCFIN) pro cliente de origem real."""
+    patch(f"fonte=eq.base Orange&periodo=eq.{per}&nome_pessoa=eq.{urllib.parse.quote(nome, safe='')}"
+          f"&nome_cliente=eq.REALOCFIN&fonte_dados=eq.{urllib.parse.quote(label, safe='')}",
+          {"nome_cliente": dest_cli, "pep_base": pep_b, "pep": pep, "tipos": tipos, "vertical": vert},
+          f"{nome} {per}: horas excedente REALOCFIN -> {dest_cli}")
+
+
 def regra_realocfin_btg():
     """4.1 - Apuracao metas comerciais (jul/26): custos CLT indevidos no BANCO BTG
     -> projeto REALOCFIN (sai do cliente, mantem BU/empresa/mes).
@@ -600,7 +608,22 @@ def regra_rateio_open_accelerator_h1():
         ("2026-03", "54.609.378 ANA CAROLINE BRANDAO COS", "nan", 8500.00, 8500.00),
         ("2026-03", "CAMATINI DESENVOLVIMENTO DE SOFTWAR", "nan", 15000.00, 15000.00),
     ]
+    # Excedentes com trabalho real no cliente de origem NAO vao pro REALOCFIN:
+    # voltam pro proprio cliente (decisao Amanda 2026-07-07 - Yagan tem receita
+    # racional no GCB o trimestre todo; Kleber tem horas Orange na STRADA).
+    EXCEDENTE_DESTINO = {
+        ("2026-01", "Kleber Aquino dos Santos Junior"): ("STRADA", "Assessment Modernização", "BU Retail"),
+        ("2026-01", "Yagan James Cadorin"): ("GRUPO CASAS BAHIA", "Open Insurance Accelerator Lib", "BU Retail"),
+    }
+
     for per, nome, cli_atual, b_esp, p in RESHAPE:
+        dest_cli, dest_tipos, dest_vert = EXCEDENTE_DESTINO.get((per, nome), ("REALOCFIN", "REALOCFIN", None))
+        if dest_cli != "REALOCFIN":
+            # migra excedente que tenha ido pro REALOCFIN em versao anterior da regra
+            patch(f"fonte=eq.PJs&periodo=eq.{per}&nome_pessoa=eq.{urllib.parse.quote(nome, safe='')}"
+                  f"&nome_cliente=eq.REALOCFIN&fonte_dados=eq.{urllib.parse.quote(LABEL, safe='')}",
+                  {"nome_cliente": dest_cli, "tipos": dest_tipos, "vertical": dest_vert},
+                  f"{nome} {per}: excedente REALOCFIN -> {dest_cli}")
         if _ja_aplicado(per, nome):
             print(f"  {nome} {per}: ja aplicado")
             continue
@@ -701,6 +724,13 @@ def regra_horas_open_accelerator_h1():
         "CARTOS":         ("BR02CLP00072", "BR02CLP00072.1.1"),
         "Justos Seguros": ("BR02CLP00074", "BR02CLP00074.1.1"),
         "REALOCFIN":      (None, None),
+        "STRADA":            ("BR02CLP000250", "BR02CLP000250.1.1"),
+        "GRUPO CASAS BAHIA": ("BR02CLP00042", "BR02CLP00042.1.3"),
+    }
+    # Excedente em horas segue o mesmo destino do custo (Yagan->GCB, Kleber->STRADA)
+    EXCEDENTE_DESTINO_H = {
+        ("2026-01", "Kleber Aquino dos Santos Junior"): ("STRADA", "Assessment Modernização", "BU Retail"),
+        ("2026-01", "Yagan James Cadorin"): ("GRUPO CASAS BAHIA", "Open Insurance Accelerator Lib", "BU Retail"),
     }
     PCTS = [("BANCO PAN", 0.50), ("HDI", 0.20), ("GRUPO BANQI", 0.14),
             ("CARTOS", 0.08), ("Justos Seguros", 0.08)]
@@ -723,6 +753,10 @@ def regra_horas_open_accelerator_h1():
             TIME.append((per, nome, b, p))
 
     for per, nome, b, p in TIME:
+        dest_h = EXCEDENTE_DESTINO_H.get((per, nome))
+        if dest_h:
+            _migrar_excedente_orange(per, nome, dest_h[0], PEP_MAP[dest_h[0]][0],
+                                     PEP_MAP[dest_h[0]][1], dest_h[1], dest_h[2], LABEL)
         q = urllib.parse.quote(nome, safe="")
         r = httpx.get(f"{URL}/rest/v1/nova_base?fonte=eq.base Orange&periodo=eq.{per}"
                       f"&nome_pessoa=eq.{q}&select=*", headers=H, timeout=60)
@@ -748,7 +782,7 @@ def regra_horas_open_accelerator_h1():
         fatias = [(c, v) for (c, _), v in zip(PCTS, vals) if p > 0.005]
         sobra = round(b - p, 2)
         if sobra > 0.005:
-            fatias.append(("REALOCFIN", sobra))
+            fatias.append(((dest_h[0] if dest_h else "REALOCFIN"), sobra))
         buckets = []
         for c, v in fatias[:-1]:
             buckets.append((c, round(htot * v / b, 2)))
@@ -764,6 +798,8 @@ def regra_horas_open_accelerator_h1():
             body = {"nome_cliente": c, "horas": h, "fonte_dados": LABEL,
                     "vertical": "BU Finance", "pep": pep, "pep_base": pep_b,
                     "tipos": "REALOCFIN" if c == "REALOCFIN" else "Open Finance Accelerator"}
+            if dest_h and c == dest_h[0]:
+                body["tipos"], body["vertical"] = dest_h[1], dest_h[2]
             if i < len(rows):
                 rr = httpx.patch(f"{URL}/rest/v1/nova_base?id=eq.{rows[i]['id']}", headers=HP, json=body, timeout=60)
             else:

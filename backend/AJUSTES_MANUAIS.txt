@@ -305,3 +305,15 @@ excedente vira linha nova (fonte_dados=Ajuste REALOCFIN...).
       re_aplicar_ajustes.py --apply re-redistribui. O CUSTO nao e afetado
       nem no intervalo (linhas de custo sao ilha no rateio do site).
     - Backup pre-ajuste: _backup_orange_open_h1.json
+
+9.6 EXCEDENTES YAGAN/KLEBER DEVOLVIDOS AO CLIENTE DE ORIGEM (2026-07-08)
+    - Decisao Amanda: excedente com trabalho real no cliente NAO fica no
+      REALOCFIN - volta pro proprio cliente:
+      Yagan -> GRUPO CASAS BAHIA (15.200,84 + 82,38h; ele tem receita
+      racional no GCB o trimestre todo)
+      Kleber -> STRADA (12.000,00 + 103,29h; assessment com horas Orange)
+    - Delta liquido desses clientes vira exatamente a taxa do time:
+      GCB -3.619 / STRADA -11.000.
+    - Regras 4.3/4.4 atualizadas (EXCEDENTE_DESTINO) com migracao automatica
+      idempotente. Linhas continuam rotuladas (ilha no rateio do site).
+    - REALOCFIN geral apos 9.1-9.6: 35 linhas / R$ 473.125,73.
