@@ -644,16 +644,20 @@ def regra_rateio_open_accelerator_h1():
                   + ", ".join(f"{c} {v:,.2f}" for c, v in fatias)
                   + (f", REALOCFIN {sobra:,.2f}" if sobra > 0.005 else ""))
             continue
-        # PATCH original -> 1a fatia (BANCO PAN); INSERT demais + excedente
+        # PATCH original -> 1a fatia (BANCO PAN); INSERT demais + excedente.
+        # tipos uniforme nas fatias (rotulo herdado da planilha - ex. 'Projeto
+        # Embracon' do Luiz Otavio - confundia o dash: projeto amarrado em 5 clientes)
         c0, v0 = fatias[0]
         rp = httpx.patch(f"{URL}/rest/v1/nova_base?id=eq.{row['id']}", headers=HP,
                          json={"nome_cliente": c0, "valor_liquido": v0, "custo_rateado": -v0,
-                               "margem": -v0, "fonte_dados": LABEL, "vertical": "BU Finance"},
+                               "margem": -v0, "fonte_dados": LABEL, "vertical": "BU Finance",
+                               "tipos": "Open Finance Accelerator"},
                          timeout=60)
         if rp.status_code >= 300:
             print(f"  ERRO patch {nome} {per}: {rp.status_code} {rp.text[:150]}")
             continue
-        ok = all(_post(_nova(row, c, v, vertical="BU Finance")) for c, v in fatias[1:])
+        ok = all(_post(_nova(row, c, v, tipos="Open Finance Accelerator", vertical="BU Finance"))
+                 for c, v in fatias[1:])
         if ok and sobra > 0.005:
             vert_orig = row.get("vertical") if str(row.get("vertical")) not in ("nan", "None", "") else "BU Finance"
             ok = _post(_nova(row, "REALOCFIN", sobra, tipos="REALOCFIN", vertical=vert_orig))
