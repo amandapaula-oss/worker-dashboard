@@ -178,12 +178,14 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       e[`${r.periodo}_receita_ng`]    = (e[`${r.periodo}_receita_ng`]    || 0) + (Number(r.receita_ng)   || 0);
       e[`${r.periodo}_receita_eco`]   = (e[`${r.periodo}_receita_eco`]   || 0) + (Number(r.receita_eco)  || 0);
       e[`${r.periodo}_custo_ng`]      = (e[`${r.periodo}_custo_ng`]      || 0) + (Number(r.custo_ng)     || 0);
+      e[`${r.periodo}_custo_outro`]   = (e[`${r.periodo}_custo_outro`]   || 0) + (Number(r.custo_outro)  || 0);
     }
     return Array.from(map.values()).map(r => {
       periodos.forEach(p => {
-        // Margem Bruta = Receita NG + Custo NG + 33,3% da Receita Eco.
+        // Margem Bruta = Receita NG + Custo NG + Custo Outro + 33,3% da Receita Eco.
+        // "Outro" = custo direto sem flag NG/Eco (rateados, REALOCFIN etc.).
         // Eco entra com margem fixa de 33,3% — custo real de Eco nao conta.
-        r[`${p}_margem`] = (r[`${p}_receita_ng`] || 0) + (r[`${p}_custo_ng`] || 0) + 0.333 * (r[`${p}_receita_eco`] || 0);
+        r[`${p}_margem`] = (r[`${p}_receita_ng`] || 0) + (r[`${p}_custo_ng`] || 0) + (r[`${p}_custo_outro`] || 0) + 0.333 * (r[`${p}_receita_eco`] || 0);
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? r[`${p}_margem`] / rec : null;
         r[`${p}_custo_despesa`] = (r[`${p}_custo`] || 0) + (r[`${p}_despesa`] || 0);
@@ -210,6 +212,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         total_receita_ng:    periodos.reduce((s, p) => s + (r[`${p}_receita_ng`]    || 0), 0),
         total_receita_eco:   periodos.reduce((s, p) => s + (r[`${p}_receita_eco`]   || 0), 0),
         total_custo_ng:      periodos.reduce((s, p) => s + (r[`${p}_custo_ng`]      || 0), 0),
+        total_custo_outro:   periodos.reduce((s, p) => s + (r[`${p}_custo_outro`]   || 0), 0),
       };
     }).sort((a, b) => b.total_receita - a.total_receita);
   }, [rawData, periodos]);
@@ -238,6 +241,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       total_receita_ng:  pivotData.reduce((s, r) => s + (r.total_receita_ng  || 0), 0),
       total_receita_eco: pivotData.reduce((s, r) => s + (r.total_receita_eco || 0), 0),
       total_custo_ng:    pivotData.reduce((s, r) => s + (r.total_custo_ng    || 0), 0),
+      total_custo_outro: pivotData.reduce((s, r) => s + (r.total_custo_outro || 0), 0),
       _isTotal: true,
     };
     periodos.forEach(p => {
@@ -254,6 +258,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       totRow[`${p}_receita_ng`]    = pivotData.reduce((s, r) => s + (r[`${p}_receita_ng`]    || 0), 0);
       totRow[`${p}_receita_eco`]   = pivotData.reduce((s, r) => s + (r[`${p}_receita_eco`]   || 0), 0);
       totRow[`${p}_custo_ng`]      = pivotData.reduce((s, r) => s + (r[`${p}_custo_ng`]      || 0), 0);
+      totRow[`${p}_custo_outro`]   = pivotData.reduce((s, r) => s + (r[`${p}_custo_outro`]   || 0), 0);
     });
     return [totRow, ...pivotData.map((d, i) => ({ ...d, key: i }))];
   }, [pivotData, periodos, totReceita, totCusto, totVL, totHoras]);
@@ -334,6 +339,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
               render: (v: number, row: any) => {
                 const rng = row[`${prefix}_receita_ng`]  || 0;
                 const cng = row[`${prefix}_custo_ng`]    || 0;
+                const cou = row[`${prefix}_custo_outro`] || 0;
                 const eco = row[`${prefix}_receita_eco`] || 0;
                 return (
                   <Popover trigger="click" placement="left" title="Margem Bruta — composição"
@@ -341,6 +347,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
                       <div style={{ minWidth: 250, fontSize: "0.85rem" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Receita NG</span><strong>{brl(rng)}</strong></div>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Custo NG</span><strong style={{ color: "#c0392b" }}>{brl(cng)}</strong></div>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Custo Outro</span><strong style={{ color: "#c0392b" }}>{brl(cou)}</strong></div>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span>Receita Eco × 33,3%</span><strong>{brl(eco * 0.333)}</strong></div>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, borderTop: "1px solid #dde3f0", marginTop: 6, paddingTop: 6 }}>
                           <span style={{ fontWeight: 700 }}>Margem Bruta</span>

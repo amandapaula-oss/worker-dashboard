@@ -2234,6 +2234,27 @@ def _sem_apuracao_para_others(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _apuracao_outro_para_custos(df: pd.DataFrame) -> pd.DataFrame:
+    """Terceira apuracao "Outro": linhas de CUSTO direto (nao-despesa) sem flag
+    NG/Ecossistema. Com isso NG + Ecossistema + Outro cobrem 100% do custo
+    direto — a Margem Bruta subtrai Custo NG + Custo Outro (custo de Eco nunca
+    entra; Eco = 33,3% da receita). Roda no fim do pipeline, apos os rateios.
+    """
+    if "apuracao" not in df.columns or "custo_rateado" not in df.columns:
+        return df
+    ap = df["apuracao"].fillna("").astype(str).str.strip()
+    custo = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0)
+    has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    fonte = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    socio = fonte.isin(["Custo Socios", "Custo Sócios"])
+    cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    is_despesa = (cl == "despesa") | ((cl != "custo") & (has_ma | socio))
+    mask = ap.eq("") & custo.ne(0) & ~is_despesa
+    if mask.any():
+        df.loc[mask, "apuracao"] = "Outro"
+    return df
+
+
 def _reclassificar_hyper(df: pd.DataFrame) -> pd.DataFrame:
     """1) Cliente-consistency: se algum row do cliente tem BU explicita
        (BU Finance/Health/Logistics/Multisector/Retail/Others), propaga essa
@@ -3957,6 +3978,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _sem_apuracao_para_others(df)
                 df = _aplicar_rateio_100h(df)
                 df = _aplicar_rateio_tdm(df)
+                df = _apuracao_outro_para_custos(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
             except Exception as e:
@@ -4468,6 +4490,9 @@ def get_nova_base_resumo(
     df["_rec_ng"]   = df["receita"].where(mask_ng, 0)
     df["_rec_eco"]  = df["receita"].where(mask_eco, 0)
     df["_custo_ng"] = df["custo_rateado"].where(mask_ng & (classif_str == "custo"), 0)
+    # Custo Outro = todo custo direto que nao e Eco nem ja contado como Custo NG.
+    # Garante Custo NG + Custo Outro = custo direto ex-Eco (nada fica de fora).
+    df["_custo_outro"] = df["_custo_direto"].where(~mask_eco, 0) - df["_custo_ng"]
 
     agg = df.groupby([group_col, "periodo"], as_index=False).agg(
         receita       = ("receita",       "sum"),
@@ -4479,6 +4504,7 @@ def get_nova_base_resumo(
         receita_ng    = ("_rec_ng",       "sum"),
         receita_eco   = ("_rec_eco",      "sum"),
         custo_ng      = ("_custo_ng",     "sum"),
+        custo_outro   = ("_custo_outro",  "sum"),
     )
     agg = agg.rename(columns={group_col: "grupo"})
 
@@ -4633,7 +4659,10 @@ def get_nova_base_margem_clientes(
     df["_rec_ng"]   = df["receita"].where(_mask_ng, 0)
     df["_rec_eco"]  = df["receita"].where(_mask_eco, 0)
     df["_custo_ng"] = df["custo_rateado"].where(_mask_ng & (_cl == "custo"), 0)
-    df["margem"] = df["_rec_ng"] + df["_custo_ng"] + 0.333 * df["_rec_eco"]
+    # Custo Outro: custo direto sem flag NG/Eco (apuracao "Outro" etc.) — entra
+    # na margem junto com o Custo NG. Custo de Eco continua fora (Eco = 33,3%).
+    df["_custo_outro"] = df["custo_rateado"].where(~_mask_eco, 0) - df["_custo_ng"]
+    df["margem"] = df["_rec_ng"] + df["_custo_ng"] + df["_custo_outro"] + 0.333 * df["_rec_eco"]
     def _moda_cli(s):
         nz = s[s.fillna("").astype(str).str.strip().ne("")]
         m = nz.mode()
@@ -4650,6 +4679,7 @@ def get_nova_base_margem_clientes(
         receita_ng     = ("_rec_ng",       "sum"),
         receita_eco    = ("_rec_eco",      "sum"),
         custo_ng       = ("_custo_ng",     "sum"),
+        custo_outro    = ("_custo_outro",  "sum"),
         vertical       = ("vertical",      _moda_cli),
         no_hierarquia  = ("no_hierarquia", _moda_cli),
     )
