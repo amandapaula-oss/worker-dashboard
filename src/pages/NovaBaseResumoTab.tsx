@@ -173,7 +173,6 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       e[`${r.periodo}_receita`]       = (e[`${r.periodo}_receita`]       || 0) + (Number(r.receita)       || 0);
       e[`${r.periodo}_custo`]         = (e[`${r.periodo}_custo`]         || 0) + (Number(r.custo_rateado) || 0);
       e[`${r.periodo}_despesa`]       = (e[`${r.periodo}_despesa`]       || 0) + (Number(r.despesa)       || 0);
-      e[`${r.periodo}_valor_liquido`] = (e[`${r.periodo}_valor_liquido`] || 0) + (Number(r.valor_liquido) || 0);
       e[`${r.periodo}_horas`]         = (e[`${r.periodo}_horas`]         || 0) + (Number(r.horas)         || 0);
       e[`${r.periodo}_custo_fonte`]   = (e[`${r.periodo}_custo_fonte`]   || 0) + (Number(r.custo_fonte)  || 0);
       e[`${r.periodo}_receita_ng`]    = (e[`${r.periodo}_receita_ng`]    || 0) + (Number(r.receita_ng)   || 0);
@@ -188,6 +187,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
         const rec = r[`${p}_receita`] || 0;
         r[`${p}_margem_pct`] = rec !== 0 ? r[`${p}_margem`] / rec : null;
         r[`${p}_custo_despesa`] = (r[`${p}_custo`] || 0) + (r[`${p}_despesa`] || 0);
+        // Lucro Bruto = Receita - Custo (custo eh negativo). NAO usar o campo
+        // valor_liquido cru: ele vem poluido por P&L Holding (linhas de receita=0
+        // com valor_liquido de milhoes = consolidado da Holding, nao lucro por BU).
+        r[`${p}_valor_liquido`] = (r[`${p}_receita`] || 0) + (r[`${p}_custo`] || 0);
       });
       const tot_rec = periodos.reduce((s, p) => s + (r[`${p}_receita`] || 0), 0);
       const tot_cus = periodos.reduce((s, p) => s + (r[`${p}_custo`]   || 0), 0);
