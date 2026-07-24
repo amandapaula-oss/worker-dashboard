@@ -113,7 +113,6 @@ export default function DetalheCelulaModal({ open, onClose, filters, titulo, met
   const totRec = rows.reduce((s, r) => s + (Number(r.receita) || 0), 0);
   const totCus = rows.reduce((s, r) => s + (Number(r.custo_rateado) || 0), 0);
   const totHrs = rows.reduce((s, r) => s + (Number(r.horas) || 0), 0);
-  const totVL  = rows.reduce((s, r) => s + (Number(r.valor_liquido) || 0), 0);
 
   const fmt = (v: any) =>
     v == null || v === "" ? "—" : typeof v === "number"
@@ -239,9 +238,11 @@ export default function DetalheCelulaModal({ open, onClose, filters, titulo, met
           { label: "Linhas", value: rows.length.toLocaleString("pt-BR"), color: theme.text },
           { label: "Receita", value: brl(totRec), color: theme.text },
           { label: "Custo Rateado", value: brl(totCus), color: totCus < 0 ? "#c0392b" : theme.text },
-          { label: "Margem", value: brl(totRec + totCus), color: (totRec+totCus) < 0 ? "#c0392b" : "#0a7a3e" },
+          // Receita + custo = Lucro Bruto do recorte (nao e a Margem Bruta oficial,
+          // que fixa Eco em 33,3%). "Vlr Liq" removido: campo valor_liquido cru e
+          // poluido pela fonte P&L Holding e nao representa lucro.
+          { label: "Lucro Bruto", value: brl(totRec + totCus), color: (totRec+totCus) < 0 ? "#c0392b" : "#0a7a3e" },
           { label: "Horas", value: totHrs.toLocaleString("pt-BR", { maximumFractionDigits: 0 }), color: theme.text },
-          { label: "Vlr Líq", value: brl(totVL), color: totVL < 0 ? "#c0392b" : theme.text },
         ].map(k => (
           <Card key={k.label} style={{ flex: 1, minWidth: 130, borderRadius: 8, border: "1px solid #dde3f0" }}
             styles={{ body: { padding: "0.5rem 0.8rem", textAlign: "center" } }}>

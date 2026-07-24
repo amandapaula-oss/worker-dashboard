@@ -4461,7 +4461,12 @@ def get_nova_base_resumo(
     if group_col == "vertical":
         _NOT_BU = {"Executive Leadership", "Operations VP", "Sales VP", "Tech VP", "Delivery Play"}
         df = df[~df[group_col].isin(_NOT_BU)]
-    df = df[df[group_col].ne("") & df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
+    # Grupos vazios NAO sao descartados — viram "(vazio)". Descartar escondia
+    # receita/custo real (ex: streams sem BU, custo de areas internas) e fazia
+    # os totais divergirem entre as abas (Resumo x Apuracao x Margem).
+    df[group_col] = df[group_col].replace({"nan": "", "None": ""})
+    df.loc[df[group_col].eq(""), group_col] = "(vazio)"
+    df = df[df["periodo"].str.match(r"^\d{4}-\d{2}$")].copy()
 
     # Separa custo (billable, sem macro_area) de despesa (com macro_area). A coluna
     # `custo_rateado` no resumo agrega so o custo direto — despesas (SGA, Backoffice,
@@ -5596,9 +5601,10 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", 
     _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
     df["_is_desp"] = (_cl == "despesa") | ((_cl != "custo") & (df["_has_ma"] | _socio))
 
-    # Receita: linhas de receita (racionais), sem macro_area
-    df_rec = df[~df["_has_ma"]]
-    agg_rec = df_rec.groupby("periodo")["receita"].sum().reindex(all_periods, fill_value=0)
+    # Receita: TODAS as linhas. (Antes excluia linhas com macro_area, mas o
+    # pipeline propaga macro_area por pessoa — receita de T&E de pessoas de
+    # Backoffice/Sales era silenciosamente descartada do DRE, ~R$335k no quadr.)
+    agg_rec = df.groupby("periodo")["receita"].sum().reindex(all_periods, fill_value=0)
 
     # Custo direto: tudo que não é despesa
     df_cus = df[~df["_is_desp"]]
@@ -5640,93 +5646,3 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", 
 
     return _sanitize({"rows": rows, "columns": columns})
 
-
-@app.get("/api/nova-base/margem-cliente")
-def get_nova_base_margem_cliente(
-    periodos: str = "",
-    empresas: str = "",
-    fontes: str = "",
-    verticais: str = "",
-    macro_areas: str = "",
-    tipos_contrato: str = "",
-    classificacoes: str = "",
-    breakdown: bool = False,
-    user=Depends(get_current_user)
-):
-    from datetime import datetime
-    verticais = enforce_bu_filter(user, verticais)
-    df = _get_nova_base().copy()
-
-    if not periodos:
-        current_period = datetime.now().strftime("%Y-%m")
-        df = df[df["periodo"].fillna("").astype(str) <= current_period]
-
-    def filt(col, param):
-        """Filtra por valores. Sentinel '__blank__' pega linhas vazias/NaN."""
-        vals = [v.strip() for v in param.split(",") if v.strip()]
-        if vals and col in df.columns:
-            col_clean = df[col].fillna("").astype(str).str.strip()
-            regular_vals = [v for v in vals if v != "__blank__"]
-            mask = pd.Series(False, index=df.index)
-            if regular_vals:
-                mask = mask | col_clean.isin(regular_vals)
-            if "__blank__" in vals:
-                mask = mask | (col_clean == "")
-            return df[mask].copy()
-        return df
-
-    if periodos:       df = filt("periodo", periodos)
-    if empresas:       df = filt("empresa", empresas)
-    if fontes:         df = filt("fonte_familia", fontes)
-    if verticais:      df = filt("vertical", verticais)
-    if macro_areas:    df = filt("macro_area", macro_areas)
-    if tipos_contrato: df = filt("tipo_contrato", tipos_contrato)
-    if classificacoes: df = filt("classificacao", classificacoes)
-
-
-    df = df.copy()
-    for col in ["receita", "custo_rateado", "horas", "valor_liquido"]:
-        if col not in df.columns:
-            df[col] = 0.0
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
-    # Custo (direto) vs Despesa: Margem Bruta usa SO custo direto.
-    # despesa = linhas com macro_area, sócios, ou classificacao='despesa'.
-    has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
-    fonte_s = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
-    is_socio = fonte_s.isin(["Custo Socios", "Custo Sócios"])
-    classif = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
-    expl_desp = classif == "despesa"
-    expl_cus = classif == "custo"
-    is_despesa = expl_desp | ((~expl_cus) & (has_ma | is_socio))
-    df["_custo"] = df["custo_rateado"].where(~is_despesa, 0)
-
-    # Margem Bruta = receita + custo direto (despesa NAO entra)
-    df["_margem"] = df["receita"] + df["_custo"]
-
-    # Normaliza campos de agrupamento
-    for col in ["nome_cliente", "pep_base", "empresa", "vertical", "fonte", "periodo"]:
-        if col in df.columns:
-            df[col] = df[col].fillna("").astype(str).str.strip()
-
-    # Filtra linhas sem cliente
-    df = df[df["nome_cliente"].ne("")]
-
-    if breakdown:
-        group_keys = ["periodo", "pep_base", "nome_cliente", "empresa", "vertical", "fonte"]
-    else:
-        group_keys = ["pep_base", "nome_cliente", "empresa", "vertical", "fonte"]
-
-    group_keys = [k for k in group_keys if k in df.columns]
-
-    agg = df.groupby(group_keys, as_index=False).agg(
-        receita       = ("receita",       "sum"),
-        custo_rateado = ("_custo",         "sum"),
-        horas         = ("horas",         "sum"),
-        margem        = ("_margem",       "sum"),
-    )
-    agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
-    )
-    agg = agg.sort_values("receita", ascending=False)
-    return _sanitize(agg.fillna("").to_dict(orient="records"))

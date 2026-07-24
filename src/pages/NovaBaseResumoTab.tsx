@@ -99,6 +99,8 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     if (selEmpresas.length) filters.empresas = selEmpresas.join(",");
     if (selFontes.length)   filters.fontes   = selFontes.join(",");
     if (selVerticais.length) filters.verticais = selVerticais.join(",");
+    if (selApuracoes.length) filters.apuracoes = selApuracoes.join(",");
+    if (selNoHier.length)    filters.no_hierarquias = selNoHier.join(",");
     // Filtro do grupo clicado. Labels sinteticos (criados no backend pra agrupamento)
     // mapeiam pro sentinel "__blank__" porque a coluna real esta vazia.
     const paramKey = AGRUPAR_PARAM_KEY[agruparPor] || "empresas";
@@ -107,7 +109,7 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
       macro_area: ["Projetos"],
     };
     const synthLabels = SYNTH_TO_BLANK[agruparPor] || [];
-    filters[paramKey] = synthLabels.includes(grupo) ? "__blank__" : grupo;
+    filters[paramKey] = (synthLabels.includes(grupo) || grupo === "(vazio)") ? "__blank__" : grupo;
     // Período (se for célula de período específico)
     if (prefix !== "total") filters.periodos = prefix;
     // Métrica
@@ -267,8 +269,10 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     type MetricKey = "receita" | "custo" | "despesa" | "custo_despesa" | "custo_fonte" | "margem" | "margem_pct" | "valor_liquido" | "horas";
     // Mapeia métrica do frontend → métrica que o backend entende como filtro
     const metricApiKey: Record<string, string> = {
+      // valor_liquido (coluna Lucro Bruto) NAO filtra pela coluna crua valor_liquido:
+      // o Lucro Bruto exibido e receita+custo — o drill mostra todas as linhas do grupo.
       receita: "receita", custo: "custo_rateado", despesa: "despesa", custo_despesa: "", custo_fonte: "", margem: "",
-      valor_liquido: "valor_liquido", horas: "horas", margem_pct: "",
+      valor_liquido: "", horas: "horas", margem_pct: "",
     };
     const metricLabelMap: Record<string, string> = {
       receita: "Receita", custo: "Custo Rateado", despesa: "Despesa", custo_despesa: "Custo + Despesa", custo_fonte: "Custo na Fonte", margem: "Margem",
