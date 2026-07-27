@@ -2255,6 +2255,21 @@ def _apuracao_outro_para_custos(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _aplicar_alias_nome_cliente(df: pd.DataFrame) -> pd.DataFrame:
+    """Re-aplica o NOME_CLIENTE_ALIAS (definido em _enriquecer_dados_pessoa) no
+    fim do pipeline — pega linhas criadas por rateios/derivações que nascem com
+    o nome cru depois do enriquecimento."""
+    alias = globals().get("_NOME_CLIENTE_ALIAS")
+    if not alias or "nome_cliente" not in df.columns:
+        return df
+    _nc = (df["nome_cliente"].fillna("").astype(str)
+           .str.strip().str.replace(r"\s+", " ", regex=True))
+    df["nome_cliente"] = _nc.str.upper().map(alias).fillna(_nc)
+    df.loc[df["nome_cliente"].astype(str).str.upper().str.startswith("FUTEBOLCARD"),
+           "nome_cliente"] = "FUTEBOLCARD SISTEMAS LTDA"
+    return df
+
+
 def _custo_cliente_eco_segue_eco(df: pd.DataFrame) -> pd.DataFrame:
     """Cliente Eco tem custo Eco: linhas de CUSTO direto de um cliente cuja
     receita do periodo e >=80% Ecossistema herdam apuracao='Ecossistema' —
@@ -2689,6 +2704,21 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
     # Aliases de nome de cliente — variantes que são o mesmo cliente.
     # Chave = nome normalizado (UPPER, sem espaços extras); valor = nome canônico.
     NOME_CLIENTE_ALIAS = {
+        # ── Varredura sistemática de variantes (jul/26, check B da _audit_semantica) —
+        #    canônico = grafia dominante por volume na base ─────────────────────────
+        "ACO CEARENSE": "Aço Cearense",
+        "CONDOR": "CONDOR S.A",
+        "GOUVEA EXPERIENCE": "GOUVEA EXPERIENCE LTDA",
+        "GRUPO CASAS BAHIA S.A.": "GRUPO CASAS BAHIA",
+        "HYDRONORTH": "HYDRONORTH S/A",
+        "KLABIN": "KLABIN S.A.",
+        "MANDIC": "MANDIC",
+        "ODONTOPREV": "ODONTOPREV S.A.",
+        "RAIA DROGASIL S/A": "RAIA DROGASIL",
+        "RUMO": "RUMO S.A.",
+        "TECNOSPEED": "TECNOSPEED S/A",
+        "TRANSUNION": "Transunion",
+        # ──────────────────────────────────────────────────────────────────────────
         "11406-RIACHUELO": "Riachuelo",
         "ACRISURE": "ACRISURE",
         "ADCOS": "ADCOS",
@@ -2699,7 +2729,7 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "ALGAR TELECOM": "ALGAR TELECOM S/A",
         "ALGAR TELECOM S/A": "ALGAR TELECOM S/A",
         "ALMAP": "DISTRITO",
-        "ALOCACAO MANDIC": "Mandic",
+        "ALOCACAO MANDIC": "MANDIC",
         "ALOCAÇÃO - ACRISURE": "ACRISURE",
         "AMBIPAR": "AMBIPAR",
         "AMBIPAR PARTICIPACOES E EMPREENDIMENTOS": "AMBIPAR",
@@ -2829,7 +2859,7 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "JUSTOS SEGUROS": "Justos Seguros",
         "JUSTOS SEGUROS S.A.": "Justos Seguros",
         "KLABIN": "KLABIN S.A.",
-        "KLABIN S.A.": "KLABIN",
+        "KLABIN S.A.": "KLABIN S.A.",
         "LOJA ELETRICA": "Loja Eletrica",
         "LOJA ELETRICA LTDA": "Loja Eletrica",
         "LOJAS CASTOR": "Lojas Castor",
@@ -2853,7 +2883,7 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "OBVIO BRASIL SOFTWARE E SERVICOS LTDA": "RECLAMEAQUI",
         "ODONTOPREV": "ODONTOPREV S.A.",
         "ODONTOPREV - TESTES ALWAYS ON": "ODONTOPREV S.A.",
-        "ODONTOPREV S.A.": "ODONTOPREV",
+        "ODONTOPREV S.A.": "ODONTOPREV S.A.",
         "OPEN FINANCE ACCELERATOR OPEN-CO": "Open-Co",
         "OPEN-CO": "Open-Co",
         "ORACLE": "ORACLE",
@@ -2880,15 +2910,15 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "RIMINI STREET BRAZIL SERVICOS DE TECNOLO": "RIMINI STREET",
         "RUMO": "RUMO S.A.",
         "RUMO S.A": "RUMO S.A.",
-        "RUMO S.A.": "RUMO",
+        "RUMO S.A.": "RUMO S.A.",
         "SADA": "SADA TRANSPORTES E ARMAZENAGENS LTDA",
         "SADA TRANSPORTES": "SADA TRANSPORTES E ARMAZENAGENS LTDA",
         "SADA TRANSPORTES E ARMAZENAGENS LTD": "SADA TRANSPORTES E ARMAZENAGENS LTDA",
         "SADA TRANSPORTES E ARMAZENAGENS LTDA": "SADA",
-        "SOCIEDADE REGIONAL DE ENSINO E SAUD": "Mandic",
-        "SOCIEDADE REGIONAL DE ENSINO E SAUDE LTD": "Mandic",
-        "SOCIEDADE REGIONAL DE ENSINO E SAUDE LTDA": "Mandic",
-        "SORRIA + (SUST./MELHORIA)": "ODONTOPREV",
+        "SOCIEDADE REGIONAL DE ENSINO E SAUD": "MANDIC",
+        "SOCIEDADE REGIONAL DE ENSINO E SAUDE LTD": "MANDIC",
+        "SOCIEDADE REGIONAL DE ENSINO E SAUDE LTDA": "MANDIC",
+        "SORRIA + (SUST./MELHORIA)": "ODONTOPREV S.A.",
         "SORTENABET": "SORTENABET",
         "SORTENABET GAMING BRASIL SA": "SORTENABET",
         "SPAD COMERCIO DE COSMETICOS": "Adcos",
@@ -2946,6 +2976,10 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "WAYCARBON SOLUCOES AMBIENTAIS E PROJETOS": "WAYCARBON",
         "YELUM SEGUROS SA": "HDI",
         }
+    # Expõe o mapa pra re-aplicação no FIM do pipeline: linhas criadas por
+    # rateios/derivações depois do enriquecimento nascem com o nome cru e
+    # escapavam da unificação (ex: KLABIN vs KLABIN S.A. convivendo).
+    globals()["_NOME_CLIENTE_ALIAS"] = NOME_CLIENTE_ALIAS
     if "nome_cliente" in df.columns:
         _nc = (df["nome_cliente"].fillna("").astype(str)
                .str.strip().str.replace(r"\s+", " ", regex=True))
@@ -4029,6 +4063,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _sem_apuracao_para_others(df)
                 df = _aplicar_rateio_100h(df)
                 df = _aplicar_rateio_tdm(df)
+                df = _aplicar_alias_nome_cliente(df)
                 df = _apuracao_outro_para_custos(df)
                 df = _custo_cliente_eco_segue_eco(df)
                 _cache["nova_base"] = df
