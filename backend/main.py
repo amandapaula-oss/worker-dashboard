@@ -2292,10 +2292,18 @@ def _custo_cliente_eco_segue_eco(df: pd.DataFrame) -> pd.DataFrame:
     cl2 = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
     is_despesa = (cl2 == "despesa") | ((cl2 != "custo") & (has_ma | socio))
     manual = df["apuracao_manual"].notna() if "apuracao_manual" in df.columns else pd.Series(False, index=df.index)
-    mask = (eco_dom & cli.ne("") & cus.ne(0) & rec.eq(0) & ~is_despesa
-            & ~ap.eq("Ecossistema") & ~manual & vert.ne("BU Hyper"))
+    base_custo = cli.ne("") & cus.ne(0) & rec.eq(0) & ~is_despesa & ~manual & vert.ne("BU Hyper")
+    mask = eco_dom & base_custo & ~ap.eq("Ecossistema")
     if mask.any():
         df.loc[mask, "apuracao"] = "Ecossistema"
+    # Direcao inversa: cliente NG-dominante (<=20% da receita e Eco) com custo
+    # flagado Ecossistema — esse custo estava ESCAPANDO da margem (custo Eco nao
+    # entra). Herda NG pra voltar a contar. Clientes mistos (20-80%) ficam como
+    # estao — o split deles e caso a caso.
+    ng_dom = (tot_by > 0) & (eco_by <= 0.2 * tot_by)
+    mask_ng = ng_dom & base_custo & ap.eq("Ecossistema")
+    if mask_ng.any():
+        df.loc[mask_ng, "apuracao"] = "NG"
     return df
 
 
