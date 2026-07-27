@@ -112,6 +112,9 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     filters[paramKey] = (synthLabels.includes(grupo) || grupo === "(vazio)") ? "__blank__" : grupo;
     // Período (se for célula de período específico)
     if (prefix !== "total") filters.periodos = prefix;
+    // Coluna Total sem filtro de período selecionado: envia os períodos exibidos
+    // na tabela — senão o /data traria meses fora do corte do resumo.
+    else if (!selPeriodos.length && periodos.length) filters.periodos = periodos.join(",");
     // Métrica
     filters.metric = metric;
     setDrillFilters(filters);

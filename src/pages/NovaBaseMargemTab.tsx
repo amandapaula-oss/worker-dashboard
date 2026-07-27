@@ -74,6 +74,8 @@ export default function NovaBaseMargemTab() {
     if (selEmpresas.length) filters.empresas = selEmpresas.join(",");
     if (selVerticais.length) filters.verticais = selVerticais.join(",");
     if (selFontes.length) filters.fontes = selFontes.join(",");
+    if (selApuracoes.length) filters.apuracoes = selApuracoes.join(",");
+    if (selNoHier.length) filters.no_hierarquias = selNoHier.join(",");
     if (prefix !== "total") filters.periodos = prefix;
     if (metric) filters.metric = metric;
     if (pep) filters.pep = pep;
@@ -663,6 +665,9 @@ export default function NovaBaseMargemTab() {
                   {detalheMensal && <Table.Summary.Cell index={ci++} />}
                   <Table.Summary.Cell index={ci++}>TOTAL</Table.Summary.Cell>
                   <Table.Summary.Cell index={ci++} />
+                  <Table.Summary.Cell index={ci++} />
+                  {/* 3 colunas de texto (Empresa/Vertical/Centro de Lucro) — sem esta
+                      celula os totais deslocavam 1 coluna pra esquerda */}
                   <Table.Summary.Cell index={ci++} />
                   <Table.Summary.Cell index={ci++} align="right">{brl(tRec)}</Table.Summary.Cell>
                   <Table.Summary.Cell index={ci++} align="right"><span style={{ color: "#c0392b" }}>{brl(tCus)}</span></Table.Summary.Cell>

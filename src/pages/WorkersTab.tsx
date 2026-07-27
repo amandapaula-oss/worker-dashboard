@@ -37,7 +37,7 @@ const pct = (v: number) => `${((v || 0) * 100).toFixed(1)}%`;
 
 const MESES = ["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06",
                "2026-07","2026-08","2026-09","2026-10","2026-11","2026-12"];
-const VERTICAIS = ["BU Finance","BU Health","BU Logistics","BU Multisector","BU Retail","BU Others","Hyper"];
+const VERTICAIS = ["BU Finance","BU Health","BU Logistics","BU Multisector","BU Retail","BU Others","BU Hyper"];
 
 const PIE_COLORS = ["#FF5C35","#1E7C99","#7B61FF","#52c41a","#fa8c16","#13c2c2","#eb2f96","#a0d911","#fadb14","#722ed1"];
 
@@ -49,7 +49,8 @@ export default function WorkersTab() {
   const periodoLocked = novaBaseCtx.periodoLocked;
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selPer, setSelPer] = useState<string[]>(["2026-01","2026-02","2026-03"]);
+  // Mesmo default das demais abas (DEFAULT_PERIODOS do contexto = Jan-Abr)
+  const [selPer, setSelPer] = useState<string[]>(["2026-01","2026-02","2026-03","2026-04"]);
   const [selVerts, setSelVerts] = useState<string[]>(ctxLocked ? [ctxLocked] : []);
   const [selClientes, setSelClientes] = useState<string[]>([]);
   const [search, setSearch] = useState("");

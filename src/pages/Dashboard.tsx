@@ -447,7 +447,7 @@ function DashboardInner() {
                   {BU_LABEL[selectedBu] ?? selectedBu}
                 </Title>
                 <span style={{ fontSize: "0.78rem", color: t.secondary, background: t.tagBg, padding: "2px 10px", borderRadius: 20, border: `1px solid ${t.border}` }}>
-                  Filtro de BU travado em <b>{selectedBu}</b> · período travado
+                  Filtro de BU travado em <b>{selectedBu}</b>
                 </span>
               </div>
               <BUTabs bu={selectedBu} />

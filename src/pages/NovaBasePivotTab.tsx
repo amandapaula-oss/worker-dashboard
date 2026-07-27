@@ -35,14 +35,14 @@ const DIM_OPTIONS = [
   { value: "billable_category",label: "Billable" },
 ];
 
-type MetricKey = "receita" | "custo_rateado" | "margem" | "horas" | "valor_liquido" | "count";
+// "valor_liquido" removido: campo cru poluido (P&L Holding) — nao e metrica valida
+type MetricKey = "receita" | "custo_rateado" | "margem" | "horas" | "count";
 
 const METRIC_DEFS: Record<MetricKey, { label: string; money: boolean }> = {
   receita:       { label: "Receita",        money: true },
   custo_rateado: { label: "Custo Rateado",  money: true },
   margem:        { label: "Margem",         money: true },
   horas:         { label: "Horas",          money: false },
-  valor_liquido: { label: "Valor Líquido",  money: true },
   count:         { label: "Contagem",       money: false },
 };
 

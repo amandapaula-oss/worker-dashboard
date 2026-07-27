@@ -2669,7 +2669,6 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "BANCO DIGIO S.A.": "Grupo Digio",
         "BANCO INTER": "BANCO INTER S.A.",
         "BANCO INTER S.A": "BANCO INTER S.A.",
-        "BANCO INTER S.A.": "BANCO INTER",
         "BANCO MUFG BRASIL S.A.": "BANCO MUFG BRASIL S.A.",
         "BANCO OURINVEST - FL 01": "OURIBANK",
         "BANCO OURINVEST S/A": "OURIBANK",
@@ -4236,6 +4235,17 @@ async def upload_nova_base_file(
     # Invalidate cache
     _cache["nova_base"] = None
 
+    # Re-sincroniza a nova_base_calculada em background — o Excel da FP&A consome
+    # essa tabela; antes o upload a deixava desatualizada ate alguem clicar em
+    # "Atualizar Dados" (clear-cache).
+    import threading
+    def _sync_calculada_bg():
+        try:
+            _sync_nova_base_calculada()
+        except Exception as e:
+            print(f"[upload] sync calculada em background falhou: {e}")
+    threading.Thread(target=_sync_calculada_bg, daemon=True).start()
+
     return {"status": "ok", "rows_inserted": inserted, "upload_id": upload_id, "filename": fname}
 
 
@@ -4291,9 +4301,13 @@ def _sync_nova_base_calculada() -> dict:
         "tipo_contrato": _s("tipo_contrato"), "classificacao": _s("classificacao"),
         "billable_category": _s("billable_category"), "tipos": _s("tipos"), "agrupador": _s("agrupador"),
         "receita": _n("receita"), "custo": df["_custo"].round(2), "despesa": df["_despesa"].round(2),
-        "horas": _n("horas"), "valor_liquido": _n("valor_liquido"),
+        # Horas de linhas de despesa zeradas — mesma regra _horas_direto do resumo
+        "horas": _n("horas").where(df["_despesa"].round(2).eq(0), 0),
+        "valor_liquido": _n("valor_liquido"),
     })
-    # Margem Bruta = Receita + Custo (custo direto apenas; despesa NAO entra)
+    # ATENCAO: a coluna `margem` da calculada e o LUCRO BRUTO da linha (receita +
+    # custo direto; despesa nao entra). NAO e a Margem Bruta oficial (que fixa
+    # Eco em 33,3%) — essa deve ser derivada no Excel via coluna `apuracao`.
     out["margem"] = (out["receita"] + out["custo"]).round(2)
     out["atualizado_em"] = agora
 
@@ -4305,8 +4319,10 @@ def _sync_nova_base_calculada() -> dict:
     }
     base_url = f"{SUPABASE_URL}/rest/v1/nova_base_calculada"
     with httpx.Client(timeout=120) as client:
-        # Limpa a tabela
-        client.delete(f"{base_url}?id=gt.0", headers=headers)
+        # Limpa a tabela (verifica o status — DELETE falho + insert duplicaria tudo)
+        r_del = client.delete(f"{base_url}?id=gt.0", headers=headers)
+        if r_del.status_code not in (200, 204):
+            raise HTTPException(500, f"Erro sync calculada (DELETE): {r_del.text[:200]}")
         # Insere em batches
         BATCH = 500
         inserted = 0
@@ -4404,7 +4420,7 @@ def get_nova_base_resumo(
             if regular_vals:
                 mask = mask | col_clean.isin(regular_vals)
             if "__blank__" in vals:
-                mask = mask | (col_clean == "")
+                mask = mask | col_clean.isin(["", "nan", "None"])
             return df[mask].copy()
         return df
 
@@ -4561,9 +4577,12 @@ def get_budget_vs_realizado(
     # Separa custo (somente custo direto, exclui despesa)
     has_ma = df.get("macro_area", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().ne("")
     classif = df.get("classificacao", pd.Series("", index=df.index)).fillna("").astype(str).str.strip().str.lower()
+    fonte_bvr = df.get("fonte", pd.Series("", index=df.index)).fillna("").astype(str).str.strip()
+    is_socio_bvr = fonte_bvr.isin(["Custo Socios", "Custo Sócios"])
     expl_desp = classif == "despesa"
     expl_cus = classif == "custo"
-    is_despesa = expl_desp | ((~expl_cus) & has_ma)
+    # Mesma regra oficial do resumo (incluindo a clausula de socios)
+    is_despesa = expl_desp | ((~expl_cus) & (has_ma | is_socio_bvr))
     df["_custo"] = np.where(~is_despesa, df["custo_rateado"], 0.0)
     # LB realizado = receita + custo (custo negativo)
     df["_lb"] = df["receita"] + df["_custo"]
@@ -4658,6 +4677,8 @@ def get_nova_base_margem_clientes(
     _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
     _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
     df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
+    # Horas de linhas de despesa nao entram (mesma regra _horas_direto do resumo)
+    df["horas"] = df["horas"].where(~_is_desp, 0)
     _ap = df["apuracao"].fillna("").astype(str).str.strip() if "apuracao" in df.columns else pd.Series("", index=df.index)
     _mask_ng  = _ap.eq("NG")
     _mask_eco = _ap.eq("Ecossistema")
@@ -4722,7 +4743,7 @@ def get_nova_base_margem_cliente_detalhe(
         regular = [v for v in vals if v != "__blank__"]
         mask = pd.Series(False, index=df.index)
         if regular: mask = mask | col_clean.isin(regular)
-        if "__blank__" in vals: mask = mask | (col_clean == "")
+        if "__blank__" in vals: mask = mask | col_clean.isin(["", "nan", "None"])
         return df[mask].copy()
 
     if empresas:       df = _filt_with_blank("empresa", empresas)
@@ -4743,7 +4764,14 @@ def get_nova_base_margem_cliente_detalhe(
     _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
     _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
     df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
-    df["margem"] = df["receita"] + df["custo_rateado"]
+    # Margem Bruta oficial (mesma formula da lista /margem/clientes):
+    # Rec NG + Custo NG + Custo Outro + 0,333 x Rec Eco — custo de Eco nao entra.
+    _ap_d = df["apuracao"].fillna("").astype(str).str.strip() if "apuracao" in df.columns else pd.Series("", index=df.index)
+    _mng_d = _ap_d.eq("NG"); _meco_d = _ap_d.eq("Ecossistema")
+    _cng_d = df["custo_rateado"].where(_mng_d & (_cl == "custo"), 0)
+    _cout_d = df["custo_rateado"].where(~_meco_d, 0) - _cng_d
+    df["margem"] = df["receita"].where(_mng_d, 0) + _cng_d + _cout_d + 0.333 * df["receita"].where(_meco_d, 0)
+    df["horas"] = pd.to_numeric(df.get("horas"), errors="coerce").fillna(0).where(~_is_desp, 0)
     # pep_base ja vem propagado pelo backend (custo_gerencial/custo_project herdam
     # o PEP do racional da mesma pessoa+periodo). Usa essa coluna — NAO recompoe
     # de `pep` (que e vazio em custo_gerencial e excluiria o custo da visao).
@@ -4818,7 +4846,7 @@ def get_nova_base_margem_projeto_pessoas(
         regular = [v for v in vals if v != "__blank__"]
         mask = pd.Series(False, index=df.index)
         if regular: mask = mask | col_clean.isin(regular)
-        if "__blank__" in vals: mask = mask | (col_clean == "")
+        if "__blank__" in vals: mask = mask | col_clean.isin(["", "nan", "None"])
         return df[mask].copy()
 
     if empresas:       df = _filt_with_blank("empresa", empresas)
@@ -4857,7 +4885,13 @@ def get_nova_base_margem_projeto_pessoas(
     _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
     _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
     df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
-    df["margem"] = df["receita"] + df["custo_rateado"]
+    # Margem Bruta oficial (mesma formula da lista /margem/clientes).
+    _ap_d = df["apuracao"].fillna("").astype(str).str.strip() if "apuracao" in df.columns else pd.Series("", index=df.index)
+    _mng_d = _ap_d.eq("NG"); _meco_d = _ap_d.eq("Ecossistema")
+    _cng_d = df["custo_rateado"].where(_mng_d & (_cl == "custo"), 0)
+    _cout_d = df["custo_rateado"].where(~_meco_d, 0) - _cng_d
+    df["margem"] = df["receita"].where(_mng_d, 0) + _cng_d + _cout_d + 0.333 * df["receita"].where(_meco_d, 0)
+    df["horas"] = pd.to_numeric(df.get("horas"), errors="coerce").fillna(0).where(~_is_desp, 0)
     df["nome_pessoa"] = df["nome_pessoa"].fillna("").astype(str).str.strip()
     # Linhas sem pessoa (Sales Boost, Budget, etc.) viram placeholder pra
     # nao sumirem no drill-down.
@@ -4919,7 +4953,7 @@ def get_nova_base_margem_pessoa_clientes(
         regular = [v for v in vals if v != "__blank__"]
         mask = pd.Series(False, index=df.index)
         if regular: mask = mask | col_clean.isin(regular)
-        if "__blank__" in vals: mask = mask | (col_clean == "")
+        if "__blank__" in vals: mask = mask | col_clean.isin(["", "nan", "None"])
         return df[mask].copy()
 
     if empresas:       df = _filt_with_blank("empresa", empresas)
@@ -4940,7 +4974,13 @@ def get_nova_base_margem_pessoa_clientes(
     _cl = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
     _is_desp = (_cl == "despesa") | ((_cl != "custo") & (_ma | _socio))
     df["custo_rateado"] = df["custo_rateado"].where(~_is_desp, 0)
-    df["margem"] = df["receita"] + df["custo_rateado"]
+    # Margem Bruta oficial (mesma formula da lista /margem/clientes).
+    _ap_d = df["apuracao"].fillna("").astype(str).str.strip() if "apuracao" in df.columns else pd.Series("", index=df.index)
+    _mng_d = _ap_d.eq("NG"); _meco_d = _ap_d.eq("Ecossistema")
+    _cng_d = df["custo_rateado"].where(_mng_d & (_cl == "custo"), 0)
+    _cout_d = df["custo_rateado"].where(~_meco_d, 0) - _cng_d
+    df["margem"] = df["receita"].where(_mng_d, 0) + _cng_d + _cout_d + 0.333 * df["receita"].where(_meco_d, 0)
+    df["horas"] = pd.to_numeric(df.get("horas"), errors="coerce").fillna(0).where(~_is_desp, 0)
     df["nome_cliente"] = df["nome_cliente"].fillna("").astype(str).str.strip()
     df.loc[df["nome_cliente"].eq(""), "nome_cliente"] = "(sem cliente)"
 
@@ -4977,6 +5017,8 @@ def download_nova_base(user=Depends(get_current_user)):
         "vertical", "area", "macro_area",
         "receita", "custo_rateado", "horas", "margem", "valor_liquido",
     ] if c in df.columns]
+    # 'de para' e mapeamento auxiliar, nao dado financeiro (Base Detalhada e Pivot ja excluem)
+    df = df[df["fonte"].fillna("").astype(str).str.strip() != "de para"]
     df = df[cols]
     buf = io.BytesIO()
     df.to_excel(buf, index=False, sheet_name="Nova Base", engine="openpyxl")
@@ -5011,13 +5053,19 @@ def get_nova_base_pivot(
     df = _get_nova_base().copy()
     df = df[df["fonte"].astype(str) != "de para"]
 
-    # Derive agrupador_pl from fonte/macro_area/receita
+    # Deriva agrupador_pl pela regra OFICIAL de custo/despesa (mesma do resumo).
+    # Antes so fonte=='custo_gerencial' era classificada — CLTs/PJs/Socios e
+    # classificacao explicita caiam em "Outros".
     fonte_s = df["fonte"].fillna("").astype(str).str.strip()
     ma_s = df["macro_area"].fillna("").astype(str).str.strip() if "macro_area" in df.columns else pd.Series("", index=df.index)
     rec_s = pd.to_numeric(df["receita"], errors="coerce").fillna(0)
+    cus_s = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0)
+    cl_s = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    socio_s = fonte_s.isin(["Custo Socios", "Custo Sócios"])
+    desp_s = (cl_s == "despesa") | ((cl_s != "custo") & (ma_s.ne("") | socio_s))
     apl = pd.Series("Outros", index=df.index)
-    apl[(fonte_s == "custo_gerencial") & (ma_s != "")] = "Despesa"
-    apl[(fonte_s == "custo_gerencial") & (ma_s == "")] = "Custo Direto"
+    apl[(cus_s != 0) & desp_s] = "Despesa"
+    apl[(cus_s != 0) & ~desp_s] = "Custo Direto"
     apl[rec_s > 0] = "Receita"
     df["agrupador_pl"] = apl
 
@@ -5030,7 +5078,7 @@ def get_nova_base_pivot(
             if regular_vals:
                 mask = mask | col_clean.isin(regular_vals)
             if "__blank__" in vals:
-                mask = mask | (col_clean == "")
+                mask = mask | col_clean.isin(["", "nan", "None"])
             return df[mask].copy()
         return df
 
@@ -5067,7 +5115,8 @@ def get_nova_base_pivot(
     col_dims = [c.strip() for c in cols.split(",") if c.strip() in ALLOWED_DIMS and c.strip() in df.columns]
 
     # Lista de metricas. Aceita CSV em `metrics`, ou single `metric` (backward compat).
-    ALLOWED_METRICS = {"receita", "custo_rateado", "horas", "valor_liquido", "count"}
+    # valor_liquido removido: campo cru poluido (P&L Holding) — nao e metrica valida
+    ALLOWED_METRICS = {"receita", "custo_rateado", "horas", "count"}
     raw_metrics = [m.strip() for m in metrics.split(",") if m.strip()] if metrics else ([metric] if metric else ["receita"])
     metric_list = [m for m in raw_metrics if m in ALLOWED_METRICS]
     if not metric_list:
@@ -5161,7 +5210,7 @@ def get_nova_base_data(
             if regular_vals:
                 mask = mask | col_clean.isin(regular_vals)
             if "__blank__" in vals:
-                mask = mask | (col_clean == "")
+                mask = mask | col_clean.isin(["", "nan", "None"])
             return df[mask].copy()
         return df
 
@@ -5249,7 +5298,8 @@ def get_nova_base_data(
     elif metric == "despesa":
         df = df[(pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0) != 0) & _is_despesa]
     elif metric == "horas":
-        df = df[pd.to_numeric(df["horas"], errors="coerce").fillna(0) != 0]
+        # Exclui linhas de despesa — a celula do resumo agrega _horas_direto
+        df = df[(pd.to_numeric(df["horas"], errors="coerce").fillna(0) != 0) & (~_is_despesa)]
     elif metric == "valor_liquido":
         df = df[pd.to_numeric(df["valor_liquido"], errors="coerce").fillna(0) != 0]
 
@@ -5428,6 +5478,10 @@ def get_worker_detalhe(
         pers = [p.strip() for p in periodos.split(",") if p.strip()]
         if pers:
             df = df[df["periodo"].astype(str).isin(pers)]
+    else:
+        # Mesmo corte default da lista /api/workers: so ate o mes atual
+        from datetime import datetime as _dt
+        df = df[df["periodo"].astype(str) <= _dt.now().strftime("%Y-%m")]
     if df.empty:
         return {"nome": nome, "totais": {"horas": 0, "receita": 0, "custo": 0, "margem": 0},
                 "por_periodo": [], "por_cliente": []}
@@ -5535,7 +5589,7 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", 
             if regular_vals:
                 mask = mask | col_clean.isin(regular_vals)
             if "__blank__" in vals:
-                mask = mask | (col_clean == "")
+                mask = mask | col_clean.isin(["", "nan", "None"])
             return df[mask].copy()
         return df
 
@@ -5639,6 +5693,16 @@ def _nova_base_dre_logic(periodos, empresas, fontes, macro_areas, apuracoes="", 
                            .reindex(all_periods, fill_value=0))
                 if float(sub_cus.sum()) != 0:
                     rows.append({"name": f"  {ma}", "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(sub_cus)})
+
+    # Residual de despesa SEM macro_area (ex: sócios, despesa explícita) — sem
+    # essa linha a soma do detalhe ficava menor que o total do grupo Despesas.
+    if not df_desp.empty:
+        df_desp_resto = df_desp[~df_desp["_has_ma"]]
+        if not df_desp_resto.empty:
+            sub_resto = (df_desp_resto.groupby("periodo")["custo_rateado"]
+                         .sum().reindex(all_periods, fill_value=0))
+            if float(sub_resto.sum()) != 0:
+                rows.append({"name": "  (sem macro área / sócios)", "is_subtotal": False, "is_pct": False, "is_group": False, "values": row_vals(sub_resto)})
 
     # ── EBITDA: Gross Profit + Despesas (despesa é negativa, somando = subtraindo) ─
     agg_ebitda = agg_gp + agg_desp_total
