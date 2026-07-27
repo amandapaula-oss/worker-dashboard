@@ -4066,6 +4066,11 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _aplicar_alias_nome_cliente(df)
                 df = _apuracao_outro_para_custos(df)
                 df = _custo_cliente_eco_segue_eco(df)
+                # Materializa o rotulo: apuracao vazia vira "Sem Apuração" ESCRITO
+                # (nao so exibido) — aparece igual em todas as views e no Excel
+                # (nova_base_calculada). Roda por ultimo: as regras acima testam "".
+                _ap_fim = df["apuracao"].fillna("").astype(str).str.strip()
+                df.loc[_ap_fim.eq(""), "apuracao"] = "Sem Apuração"
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
             except Exception as e:

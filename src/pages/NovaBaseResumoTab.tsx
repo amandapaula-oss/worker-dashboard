@@ -104,8 +104,9 @@ export default function NovaBaseResumoTab({ agruparPor = "empresa" }: { agruparP
     // Filtro do grupo clicado. Labels sinteticos (criados no backend pra agrupamento)
     // mapeiam pro sentinel "__blank__" porque a coluna real esta vazia.
     const paramKey = AGRUPAR_PARAM_KEY[agruparPor] || "empresas";
+    // "Sem Apuração" saiu daqui: agora e valor ESCRITO na coluna (materializado
+    // no fim do pipeline), entao o drill filtra pelo literal, nao por __blank__.
     const SYNTH_TO_BLANK: Record<string, string[]> = {
-      apuracao:   ["Sem Apuração"],
       macro_area: ["Projetos"],
     };
     const synthLabels = SYNTH_TO_BLANK[agruparPor] || [];
