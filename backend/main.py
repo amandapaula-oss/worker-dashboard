@@ -2255,6 +2255,50 @@ def _apuracao_outro_para_custos(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _custo_cliente_eco_segue_eco(df: pd.DataFrame) -> pd.DataFrame:
+    """Cliente Eco tem custo Eco: linhas de CUSTO direto de um cliente cuja
+    receita do periodo e >=80% Ecossistema herdam apuracao='Ecossistema' —
+    o custo sai da Margem Bruta (Eco entra com margem fixa de 33,3%).
+
+    Motivacao: receita e custo do mesmo cliente nascem em fontes diferentes
+    (receita das abas de stream flagada Eco; custo da base Orange com
+    no_hierarquia DC002=NG) e a apuracao por linha descasava — o cliente
+    aparecia "alternando" NG/Eco e era penalizado em dobro na margem
+    (ex: ESTAPAR, ODONTOPREV, QUANTITY).
+
+    Excecoes: BU Hyper fica FORA (pendencia aberta — o P&L Gerencial trata
+    Hyper Servicos com custo real, nao com a regra dos 33%); apuracao_manual
+    explicita e sempre respeitada. Roda por ultimo no pipeline.
+    """
+    need = {"nome_cliente", "periodo", "apuracao", "receita", "custo_rateado"}
+    if not need.issubset(df.columns):
+        return df
+    rec = pd.to_numeric(df["receita"], errors="coerce").fillna(0)
+    cus = pd.to_numeric(df["custo_rateado"], errors="coerce").fillna(0)
+    cli = df["nome_cliente"].fillna("").astype(str).str.strip()
+    per = df["periodo"].fillna("").astype(str).str.strip()
+    ap = df["apuracao"].fillna("").astype(str).str.strip()
+    vert = df["vertical"].fillna("").astype(str).str.strip() if "vertical" in df.columns else pd.Series("", index=df.index)
+    # Dominancia Eco por cliente+periodo (>=80% da receita do mes e Eco)
+    key = cli + "||" + per
+    rec_eco = rec.where(ap.eq("Ecossistema"), 0)
+    tot_by = rec.groupby(key).transform("sum")
+    eco_by = rec_eco.groupby(key).transform("sum")
+    eco_dom = (tot_by > 0) & (eco_by >= 0.8 * tot_by)
+    # Custo direto (nao-despesa), mesma regra oficial
+    has_ma = df["macro_area"].fillna("").astype(str).str.strip().ne("") if "macro_area" in df.columns else pd.Series(False, index=df.index)
+    fonte = df["fonte"].fillna("").astype(str).str.strip() if "fonte" in df.columns else pd.Series("", index=df.index)
+    socio = fonte.isin(["Custo Socios", "Custo Sócios"])
+    cl2 = df["classificacao"].fillna("").astype(str).str.strip().str.lower() if "classificacao" in df.columns else pd.Series("", index=df.index)
+    is_despesa = (cl2 == "despesa") | ((cl2 != "custo") & (has_ma | socio))
+    manual = df["apuracao_manual"].notna() if "apuracao_manual" in df.columns else pd.Series(False, index=df.index)
+    mask = (eco_dom & cli.ne("") & cus.ne(0) & rec.eq(0) & ~is_despesa
+            & ~ap.eq("Ecossistema") & ~manual & vert.ne("BU Hyper"))
+    if mask.any():
+        df.loc[mask, "apuracao"] = "Ecossistema"
+    return df
+
+
 def _reclassificar_hyper(df: pd.DataFrame) -> pd.DataFrame:
     """1) Cliente-consistency: se algum row do cliente tem BU explicita
        (BU Finance/Health/Logistics/Multisector/Retail/Others), propaga essa
@@ -3978,6 +4022,7 @@ def _get_nova_base() -> pd.DataFrame:
                 df = _aplicar_rateio_100h(df)
                 df = _aplicar_rateio_tdm(df)
                 df = _apuracao_outro_para_custos(df)
+                df = _custo_cliente_eco_segue_eco(df)
                 _cache["nova_base"] = df
                 return _cache["nova_base"]
             except Exception as e:
