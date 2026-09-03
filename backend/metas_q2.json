@@ -1,0 +1,899 @@
+{
+ "gerado_em": "2026-09-03",
+ "fonte": "30. FP&A NOVO\\15. Metas (Apuração)\\2026\\Metas Oficiais\\RESUMO.xlsx (base do Yuri, atualizada 02/09/2026)",
+ "q2": [
+  {
+   "periodo": "Q2Y26",
+   "contrato": "CLT",
+   "bu": "Finance & Insurance",
+   "avaliado": "MIRELLA ANDRADE ARAUJO",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.4,
+   "salario": 20940.29,
+   "quantidade": 1.0,
+   "apuracao_rs": 8376.116,
+   "receita": {
+    "realizado": 4635951.62,
+    "meta": 4987474.3,
+    "ating": 0.929519
+   },
+   "mb": {
+    "realizado": 0.376159,
+    "meta": 0.354316,
+    "delta_pp": 0.021843
+   },
+   "lb": {
+    "realizado": 1743856.53,
+    "meta": 1767143.3765,
+    "ating": 0.986822
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "PJ",
+   "bu": "Finance & Insurance",
+   "avaliado": "RICARDO SALLES HENRIQUE",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 26000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 8867066.34,
+    "meta": 9658437.98,
+    "ating": 0.918064
+   },
+   "mb": {
+    "realizado": 0.259535,
+    "meta": 0.355,
+    "delta_pp": -0.095465
+   },
+   "lb": {
+    "realizado": 2301311.1425,
+    "meta": 3428745.4829,
+    "ating": 0.671182
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "CLT",
+   "bu": "Finance & Insurance",
+   "avaliado": "Fábio Rosa",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 16741.84,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 4024651.84,
+    "meta": 4500552.0,
+    "ating": 0.894257
+   },
+   "mb": {
+    "realizado": 0.373259,
+    "meta": 0.352028,
+    "delta_pp": 0.021231
+   },
+   "lb": {
+    "realizado": 1502237.92308,
+    "meta": 1584322.22028,
+    "ating": 0.94819
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "CLT",
+   "bu": "Finance & Insurance",
+   "avaliado": "Amanda Rampazzo",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 8950.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 625357.37,
+    "meta": 880000.0,
+    "ating": 0.710633
+   },
+   "mb": {
+    "realizado": 0.394916,
+    "meta": 0.355,
+    "delta_pp": 0.039916
+   },
+   "lb": {
+    "realizado": 246963.387,
+    "meta": 312400.0,
+    "ating": 0.790536
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "CLT",
+   "bu": "Finance & Insurance",
+   "avaliado": "Zanini",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 27626.11,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 17718242.59,
+    "meta": 19199999.28,
+    "ating": 0.922825
+   },
+   "mb": {
+    "realizado": 0.210624,
+    "meta": 0.26123,
+    "delta_pp": -0.050605
+   },
+   "lb": {
+    "realizado": 3731889.45,
+    "meta": 5015606.71468,
+    "ating": 0.744055
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "Socio",
+   "bu": "Grupo Mult",
+   "avaliado": "EDMILSON GONÇALVES DE ASSIS",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 36000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 3596707.903113,
+    "meta": 4403863.64523,
+    "ating": 0.816716
+   },
+   "mb": {
+    "realizado": 0.274298,
+    "meta": 0.295907,
+    "delta_pp": -0.021609
+   },
+   "lb": {
+    "realizado": 986570.323113,
+    "meta": 1303134.352477,
+    "ating": 0.757075
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "PJ",
+   "bu": "Grupo Mult",
+   "avaliado": "DANILO DE SOUZA MACIEIRA",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 21000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 4189591.53,
+    "meta": 4088871.487884,
+    "ating": 1.024633
+   },
+   "mb": {
+    "realizado": 0.321176,
+    "meta": 0.360055,
+    "delta_pp": -0.038879
+   },
+   "lb": {
+    "realizado": 1345595.11,
+    "meta": 1472218.449979,
+    "ating": 0.913991
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "Socio",
+   "bu": "Grupo Mult",
+   "avaliado": "GUILHERME LOPES DE MOURA BOMFIM",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.4,
+   "salario": 36000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 14400.0,
+   "receita": {
+    "realizado": 4005010.76,
+    "meta": 4290025.82554,
+    "ating": 0.933563
+   },
+   "mb": {
+    "realizado": 0.351467,
+    "meta": 0.33179,
+    "delta_pp": 0.019676
+   },
+   "lb": {
+    "realizado": 1407628.28,
+    "meta": 1423389.081528,
+    "ating": 0.988927
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "PJ",
+   "bu": "Grupo Mult",
+   "avaliado": "Henrique",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 31281.86,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 11905509.693113,
+    "meta": 12782760.958653,
+    "ating": 0.931372
+   },
+   "mb": {
+    "realizado": 0.262013,
+    "meta": 0.266039,
+    "delta_pp": -0.004025
+   },
+   "lb": {
+    "realizado": 3119403.563113,
+    "meta": 3400710.873983,
+    "ating": 0.91728
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "PJ",
+   "bu": "Multisector",
+   "avaliado": "Henrique",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 31281.86,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 5211387.97,
+    "meta": 7178978.9395,
+    "ating": 0.725923
+   },
+   "mb": {
+    "realizado": 0.260068,
+    "meta": 0.203694,
+    "delta_pp": 0.056374
+   },
+   "lb": {
+    "realizado": 1355317.52627,
+    "meta": null,
+    "ating": null
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "CLT",
+   "bu": "Health",
+   "avaliado": "VINICIUS TEDESCO GANDRA MARTINS",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 11271.4,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 4226188.18,
+    "meta": 5960213.2475,
+    "ating": 0.709067
+   },
+   "mb": {
+    "realizado": 0.349262,
+    "meta": 0.332175,
+    "delta_pp": 0.017086
+   },
+   "lb": {
+    "realizado": 1476045.49284,
+    "meta": 1979835.988145,
+    "ating": 0.745539
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "Socio",
+   "bu": "Health",
+   "avaliado": "Marcos",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 47000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 10008288.66,
+    "meta": 14743064.217131,
+    "ating": 0.678847
+   },
+   "mb": {
+    "realizado": 0.286828,
+    "meta": 0.272052,
+    "delta_pp": 0.014777
+   },
+   "lb": {
+    "realizado": 2870659.90339,
+    "meta": 4010873.737178,
+    "ating": 0.715719
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "PJ",
+   "bu": "Retail",
+   "avaliado": "Rogério Segala",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 23000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 721608.34,
+    "meta": 1484412.543918,
+    "ating": 0.486124
+   },
+   "mb": {
+    "realizado": 0.362575,
+    "meta": 0.339182,
+    "delta_pp": 0.023393
+   },
+   "lb": {
+    "realizado": 261636.84867,
+    "meta": 503485.477675,
+    "ating": 0.519651
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "CLT",
+   "bu": "Retail",
+   "avaliado": "Edhemar Tavares",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 15815.54,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 4874078.12,
+    "meta": 5768571.617044,
+    "ating": 0.844937
+   },
+   "mb": {
+    "realizado": 0.246365,
+    "meta": 0.250627,
+    "delta_pp": -0.004262
+   },
+   "lb": {
+    "realizado": 1200803.02047,
+    "meta": 1445761.096919,
+    "ating": 0.830568
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "CLT",
+   "bu": "Retail",
+   "avaliado": "Wendel Machado",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 17649.81,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 2090985.78,
+    "meta": 7792724.693252,
+    "ating": 0.268325
+   },
+   "mb": {
+    "realizado": -1.927098,
+    "meta": 0.256673,
+    "delta_pp": -2.183771
+   },
+   "lb": {
+    "realizado": -4029534.5904,
+    "meta": 2000184.228071,
+    "ating": -2.014582
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "PJ",
+   "bu": "Retail",
+   "avaliado": "Alexsandro",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 45000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 7976200.62,
+    "meta": 14415872.962853,
+    "ating": 0.553293
+   },
+   "mb": {
+    "realizado": -0.391099,
+    "meta": 0.219641,
+    "delta_pp": -0.61074
+   },
+   "lb": {
+    "realizado": -3119483.49607,
+    "meta": 3166323.438248,
+    "ating": -0.985207
+   }
+  }
+ ],
+ "q1": [
+  {
+   "periodo": "Q1Y26",
+   "contrato": "CLT",
+   "bu": "Finance & Insurance",
+   "avaliado": "MIRELLA ANDRADE ARAUJO",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 20940.29,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 3812503.63,
+    "meta": 4412474.3,
+    "ating": 0.864029
+   },
+   "mb": {
+    "realizado": 0.34029,
+    "meta": 0.353355,
+    "delta_pp": -0.013065
+   },
+   "lb": {
+    "realizado": 1297355.599,
+    "meta": 1559168.3765,
+    "ating": 0.832082
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "PJ",
+   "bu": "Finance & Insurance",
+   "avaliado": "RICARDO SALLES HENRIQUE",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.8,
+   "salario": 26000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 20800.0,
+   "receita": {
+    "realizado": 8605275.61,
+    "meta": 8528437.98,
+    "ating": 1.00901
+   },
+   "mb": {
+    "realizado": 0.368075,
+    "meta": 0.354768,
+    "delta_pp": 0.013308
+   },
+   "lb": {
+    "realizado": 3167390.036,
+    "meta": 3025615.4829,
+    "ating": 1.046858
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "CLT",
+   "bu": "Finance & Insurance",
+   "avaliado": "JOSE EDUARDO DOS SANTOS GARCIA",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.8,
+   "salario": 18132.8,
+   "quantidade": 1.0,
+   "apuracao_rs": 14506.24,
+   "receita": {
+    "realizado": 4526848.68,
+    "meta": 4282964.76,
+    "ating": 1.056943
+   },
+   "mb": {
+    "realizado": 0.352414,
+    "meta": 0.351877,
+    "delta_pp": 0.000537
+   },
+   "lb": {
+    "realizado": 1595326.092,
+    "meta": 1507078.75008,
+    "ating": 1.058555
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "CLT",
+   "bu": "Finance & Insurance",
+   "avaliado": "Amanda Rampazzo",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 1.0,
+   "salario": 8950.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 8950.0,
+   "receita": {
+    "realizado": 776349.61,
+    "meta": 690000.0,
+    "ating": 1.125144
+   },
+   "mb": {
+    "realizado": 0.369627,
+    "meta": 0.355,
+    "delta_pp": 0.014627
+   },
+   "lb": {
+    "realizado": 286959.64,
+    "meta": 244950.0,
+    "ating": 1.171503
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "CLT",
+   "bu": "Finance & Insurance",
+   "avaliado": "Zanini",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.7,
+   "salario": 27626.11,
+   "quantidade": 1.0,
+   "apuracao_rs": 19338.277,
+   "receita": {
+    "realizado": 17808823.2595,
+    "meta": 17799999.28,
+    "ating": 1.000496
+   },
+   "mb": {
+    "realizado": 0.301591,
+    "meta": 0.286733,
+    "delta_pp": 0.014858
+   },
+   "lb": {
+    "realizado": 5370979.2665,
+    "meta": 5103851.71468,
+    "ating": 1.052338
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "Socio",
+   "bu": "Grupo Mult",
+   "avaliado": "Edmilson",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 1.0,
+   "salario": 36000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 36000.0,
+   "receita": {
+    "realizado": 3961116.06,
+    "meta": 3887956.44699,
+    "ating": 1.018817
+   },
+   "mb": {
+    "realizado": 0.321218,
+    "meta": 0.299831,
+    "delta_pp": 0.021388
+   },
+   "lb": {
+    "realizado": 1272383.73,
+    "meta": 1165729.028806,
+    "ating": 1.091492
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "PJ",
+   "bu": "Grupo Mult",
+   "avaliado": "DANILO DE SOUZA MACIEIRA",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.8,
+   "salario": 21000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 16800.0,
+   "receita": {
+    "realizado": 3773745.74,
+    "meta": 3617828.544179,
+    "ating": 1.043097
+   },
+   "mb": {
+    "realizado": 0.408217,
+    "meta": 0.369078,
+    "delta_pp": 0.039139
+   },
+   "lb": {
+    "realizado": 1540507.19,
+    "meta": 1335260.733703,
+    "ating": 1.153713
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "Socio",
+   "bu": "Grupo Mult",
+   "avaliado": "Guilherme",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.6,
+   "salario": 36000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 21600.0,
+   "receita": {
+    "realizado": 3998419.59,
+    "meta": 3810449.896834,
+    "ating": 1.04933
+   },
+   "mb": {
+    "realizado": 0.333102,
+    "meta": 0.337776,
+    "delta_pp": -0.004674
+   },
+   "lb": {
+    "realizado": 1331881.57893,
+    "meta": 1287078.173893,
+    "ating": 1.03481
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "PJ",
+   "bu": "Grupo Mult",
+   "avaliado": "Henrique",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 1.0,
+   "salario": 31281.86,
+   "quantidade": 1.0,
+   "apuracao_rs": 31281.86,
+   "receita": {
+    "realizado": 11733281.39,
+    "meta": 11316234.888003,
+    "ating": 1.036854
+   },
+   "mb": {
+    "realizado": 0.307638,
+    "meta": 0.254111,
+    "delta_pp": 0.053527
+   },
+   "lb": {
+    "realizado": 3609597.59893,
+    "meta": 2875576.926402,
+    "ating": 1.25526
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "CLT",
+   "bu": "Multisector",
+   "avaliado": "FABIO LUIS BERTI BARCELOS",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.8,
+   "salario": 15690.17,
+   "quantidade": 1.0,
+   "apuracao_rs": 12552.136,
+   "receita": {
+    "realizado": 6073303.55,
+    "meta": 5459997.0795,
+    "ating": 1.112327
+   },
+   "mb": {
+    "realizado": 0.390624,
+    "meta": 0.321274,
+    "delta_pp": 0.069349
+   },
+   "lb": {
+    "realizado": 2372375.66397,
+    "meta": 1754157.134004,
+    "ating": 1.352431
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "PJ",
+   "bu": "Multisector",
+   "avaliado": "Artea",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.9,
+   "salario": 47500.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 42750.0,
+   "receita": {
+    "realizado": 7632164.07,
+    "meta": 7043478.9395,
+    "ating": 0.319221
+   },
+   "mb": {
+    "realizado": 0.238652,
+    "meta": 0.321274,
+    "delta_pp": -0.082623
+   },
+   "lb": {
+    "realizado": 2436344.5261,
+    "meta": 1680939.413072,
+    "ating": 1.449395
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "CLT",
+   "bu": "Health",
+   "avaliado": "VINICIUS TEDESCO GANDRA MARTINS",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 11271.4,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 5688563.09,
+    "meta": 6053000.0,
+    "ating": 0.939792
+   },
+   "mb": {
+    "realizado": 0.4,
+    "meta": 0.351037,
+    "delta_pp": 0.048963
+   },
+   "lb": {
+    "realizado": 1996894.30929,
+    "meta": 2048240.462051,
+    "ating": 0.974932
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "Socio",
+   "bu": "Health",
+   "avaliado": "Marcos",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 47000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 11989096.8,
+    "meta": 12838916.887131,
+    "ating": 0.933809
+   },
+   "mb": {
+    "realizado": 0.282711,
+    "meta": 0.267883,
+    "delta_pp": 0.014828
+   },
+   "lb": {
+    "realizado": 3389446.51948,
+    "meta": 3439326.720832,
+    "ating": 0.985497
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "PJ",
+   "bu": "Retail",
+   "avaliado": "Rogério Segala",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 23000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 642110.06,
+    "meta": 717495.5,
+    "ating": 0.894933
+   },
+   "mb": {
+    "realizado": 0.344988,
+    "meta": 0.33967,
+    "delta_pp": 0.005318
+   },
+   "lb": {
+    "realizado": 221520.4979,
+    "meta": 243712.0015,
+    "ating": 0.908944
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "CLT",
+   "bu": "Retail",
+   "avaliado": "Edhemar Tavares",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 15815.54,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 4379429.43,
+    "meta": 4565497.557164,
+    "ating": 0.959245
+   },
+   "mb": {
+    "realizado": 0.231658,
+    "meta": 0.236478,
+    "delta_pp": -0.00482
+   },
+   "lb": {
+    "realizado": 1014529.44152,
+    "meta": 1079640.931865,
+    "ating": 0.939692
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "CLT",
+   "bu": "Retail",
+   "avaliado": "Wendel Machado",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.6,
+   "salario": 17649.81,
+   "quantidade": 1.0,
+   "apuracao_rs": 10589.886,
+   "receita": {
+    "realizado": 7588734.21,
+    "meta": 7792724.693252,
+    "ating": 0.973823
+   },
+   "mb": {
+    "realizado": 0.343327,
+    "meta": 0.286351,
+    "delta_pp": 0.056976
+   },
+   "lb": {
+    "realizado": 2605413.6307,
+    "meta": 2231452.823494,
+    "ating": 1.167586
+   }
+  },
+  {
+   "periodo": "Q1Y26",
+   "contrato": "PJ",
+   "bu": "Retail",
+   "avaliado": "Alexsandro",
+   "posicao": "Diretor",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.7,
+   "salario": 45000.0,
+   "quantidade": 1.0,
+   "apuracao_rs": 31500.0,
+   "receita": {
+    "realizado": 13680381.23,
+    "meta": 13935540.51267,
+    "ating": 0.98169
+   },
+   "mb": {
+    "realizado": 0.241886,
+    "meta": 0.220167,
+    "delta_pp": 0.021719
+   },
+   "lb": {
+    "realizado": 3309089.51555,
+    "meta": 3068142.460561,
+    "ating": 1.078532
+   }
+  }
+ ]
+}

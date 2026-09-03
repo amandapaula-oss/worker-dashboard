@@ -497,6 +497,18 @@ def admin_online(_=Depends(require_super_admin)):
     rows.sort(key=lambda r: r["last_seen_seconds_ago"])
     return {"rows": rows}
 
+@app.get("/api/apuracao-metas")
+def apuracao_metas(_=Depends(require_super_admin)):
+    """Apuração oficial de metas por avaliado (base do Yuri / Metas Oficiais).
+    Restrito a super admin enquanto os diretores não devem ver; quando liberar,
+    trocar a dependência por get_current_user (+ filtro de BU se necessário)."""
+    import json as _json
+    _p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metas_q2.json")
+    if not os.path.exists(_p):
+        raise HTTPException(404, "Base de metas não carregada no servidor.")
+    with open(_p, encoding="utf-8") as f:
+        return _json.load(f)
+
 # ── Cache em memória ───────────────────────────────────────────────────────────
 
 _cache: dict = {"df": None, "nomes": None, "sap": None, "nexus": None, "clt": None, "financeiro": None, "nova_base": None}

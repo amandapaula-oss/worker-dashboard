@@ -25,7 +25,8 @@ import BudgetVsRealizadoTab from "./BudgetVsRealizadoTab";
 import WorkersTab from "./WorkersTab";
 import AdminTab from "./AdminTab";
 import { uploadNovaBase, clearNovaBaseCache } from "../api";
-import { ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import { ReloadOutlined, SafetyCertificateOutlined, TrophyOutlined } from "@ant-design/icons";
+import ApuracaoMetasQ2Tab from "./ApuracaoMetasQ2Tab";
 
 function NovaBaseUploadButton() {
   const [uploading, setUploading] = React.useState(false);
@@ -204,7 +205,7 @@ function WorkerTab({ dark }: { dark: boolean }) {
   );
 }
 
-type Section = "worker" | "cockpit" | "metas" | "nova_base" | "nova_base_pivot" | "budget" | "bus" | "admin" | "obsoleto" | null;
+type Section = "worker" | "cockpit" | "metas" | "nova_base" | "nova_base_pivot" | "budget" | "bus" | "admin" | "apuracao_metas" | "obsoleto" | null;
 
 const BU_LABEL: Record<string, string> = {
   "BU Finance":     "Finance",
@@ -340,13 +341,14 @@ function DashboardInner() {
               nova_base_pivot:  { icon: <TableOutlined />,     title: "Visão Personalizada",     desc: "Tabela dinâmica sobre a Nova Base 2026",                 sub: "Pivot · Drag-and-drop" },
               obsoleto:         { icon: <InboxOutlined />,     title: "Obsoleto",                desc: "Telas legadas (Worker, Financeiro SAP, Metas Q4/Q3)",    sub: "Arquivo" },
               admin:            { icon: <SafetyCertificateOutlined />, title: "Administração",   desc: "Usuários, histórico de login e online agora",             sub: "Painel · só você" },
+              apuracao_metas:   { icon: <TrophyOutlined />,  title: "Apuração de Metas Q2",    desc: "Metas oficiais por AE e Diretor (base Yuri)",            sub: "Restrito · só admins" },
             };
             // Cards da home: backend já calculou em me.visible_cards (default por role aplicado).
             // 'admin' não está em visible_cards (não pode ser desabilitado): adiciono se super_admin.
             const homeKeys: string[] = section === null
               ? [
                   ...(me?.visible_cards ?? []),
-                  ...(me?.is_super_admin ? ["admin"] : []),
+                  ...(me?.is_super_admin ? ["apuracao_metas", "admin"] : []),
                 ]
               : ["worker", "cockpit", "metas"]; // section === "obsoleto"
             // Adiciona ao catálogo o que é específico de "obsoleto"
@@ -529,6 +531,10 @@ function DashboardInner() {
             <NovaBaseFiltersProvider>
               <NovaBasePivotTab />
             </NovaBaseFiltersProvider>
+          )}
+
+          {section === "apuracao_metas" && me?.is_super_admin && (
+            <ApuracaoMetasQ2Tab />
           )}
 
           {section === "admin" && me?.is_super_admin && (

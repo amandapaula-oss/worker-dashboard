@@ -420,3 +420,7 @@ export async function downloadApuracaoPdf(nome: string): Promise<void> {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export async function getApuracaoMetas() {
+  return apiFetch("/api/apuracao-metas");
+}
