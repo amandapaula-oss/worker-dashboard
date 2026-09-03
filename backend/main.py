@@ -503,11 +503,17 @@ def apuracao_metas(_=Depends(require_super_admin)):
     Restrito a super admin enquanto os diretores não devem ver; quando liberar,
     trocar a dependência por get_current_user (+ filtro de BU se necessário)."""
     import json as _json
-    _p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metas_q2.json")
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    _p = os.path.join(_dir, "metas_q2.json")
     if not os.path.exists(_p):
         raise HTTPException(404, "Base de metas não carregada no servidor.")
     with open(_p, encoding="utf-8") as f:
-        return _json.load(f)
+        payload = _json.load(f)
+    _pd = os.path.join(_dir, "metas_detalhe.json")
+    if os.path.exists(_pd):
+        with open(_pd, encoding="utf-8") as f:
+            payload["detalhe"] = _json.load(f)
+    return payload
 
 # ── Cache em memória ───────────────────────────────────────────────────────────
 
