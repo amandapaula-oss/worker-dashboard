@@ -1,6 +1,6 @@
 {
- "gerado_em": "2026-09-03",
- "fonte": "30. FP&A NOVO\\15. Metas (Apuração)\\2026\\Metas Oficiais\\RESUMO.xlsx (base do Yuri, atualizada 02/09/2026)",
+ "gerado_em": "2026-09-14",
+ "fonte": "30. FP&A NOVO\\15. Metas (Apuração)\\2026\\Metas Oficiais\\RESUMO.xlsx (base do Yuri, atualizada 08/09/2026)",
  "q2": [
   {
    "periodo": "Q2Y26",
@@ -127,14 +127,14 @@
     "ating": 0.922825
    },
    "mb": {
-    "realizado": 0.210624,
-    "meta": 0.26123,
-    "delta_pp": -0.050605
+    "realizado": 0.203395,
+    "meta": 0.292015,
+    "delta_pp": -0.08862
    },
    "lb": {
-    "realizado": 3731889.45,
-    "meta": 5015606.71468,
-    "ating": 0.744055
+    "realizado": 3603800.18,
+    "meta": 5606681.71468,
+    "ating": 0.642769
    }
   },
   {
@@ -235,14 +235,41 @@
     "ating": 0.931372
    },
    "mb": {
-    "realizado": 0.262013,
+    "realizado": 0.25077,
     "meta": 0.266039,
-    "delta_pp": -0.004025
+    "delta_pp": -0.015269
    },
    "lb": {
-    "realizado": 3119403.563113,
+    "realizado": 2985547.653113,
     "meta": 3400710.873983,
-    "ating": 0.91728
+    "ating": 0.877919
+   }
+  },
+  {
+   "periodo": "Q2Y26",
+   "contrato": "CLT",
+   "bu": "Multisector",
+   "avaliado": "FABIO LUIS BERTI BARCELOS",
+   "posicao": "AE",
+   "peso_meta": 1.0,
+   "atingimento_final": 0.0,
+   "salario": 15690.17,
+   "quantidade": 1.0,
+   "apuracao_rs": 0.0,
+   "receita": {
+    "realizado": 3555979.66,
+    "meta": 5726497.0795,
+    "ating": 0.620969
+   },
+   "mb": {
+    "realizado": 0.4465,
+    "meta": 0.320735,
+    "delta_pp": 0.125765
+   },
+   "lb": {
+    "realizado": 1587744.20325,
+    "meta": 1836685.69077,
+    "ating": 0.864462
    }
   },
   {
@@ -252,22 +279,22 @@
    "avaliado": "Henrique",
    "posicao": "Diretor",
    "peso_meta": 1.0,
-   "atingimento_final": 0.0,
+   "atingimento_final": 0.7,
    "salario": 31281.86,
    "quantidade": 1.0,
-   "apuracao_rs": 0.0,
+   "apuracao_rs": 21897.302,
    "receita": {
-    "realizado": 5211387.97,
+    "realizado": 5267605.98,
     "meta": 7178978.9395,
-    "ating": 0.725923
+    "ating": 0.733754
    },
    "mb": {
-    "realizado": 0.260068,
-    "meta": 0.203694,
-    "delta_pp": 0.056374
+    "realizado": 0.343996,
+    "meta": 0.238436,
+    "delta_pp": 0.10556
    },
    "lb": {
-    "realizado": 1355317.52627,
+    "realizado": 1812035.88238,
     "meta": null,
     "ating": null
    }
@@ -316,14 +343,14 @@
     "ating": 0.678847
    },
    "mb": {
-    "realizado": 0.286828,
+    "realizado": 0.273454,
     "meta": 0.272052,
-    "delta_pp": 0.014777
+    "delta_pp": 0.001402
    },
    "lb": {
-    "realizado": 2870659.90339,
+    "realizado": 2736803.99339,
     "meta": 4010873.737178,
-    "ating": 0.715719
+    "ating": 0.682346
    }
   },
   {
@@ -424,14 +451,14 @@
     "ating": 0.553293
    },
    "mb": {
-    "realizado": -0.391099,
+    "realizado": -0.407881,
     "meta": 0.219641,
-    "delta_pp": -0.61074
+    "delta_pp": -0.627522
    },
    "lb": {
-    "realizado": -3119483.49607,
+    "realizado": -3253339.40607,
     "meta": 3166323.438248,
-    "ating": -0.985207
+    "ating": -1.027482
    }
   }
  ],

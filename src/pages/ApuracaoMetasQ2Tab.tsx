@@ -21,7 +21,8 @@ type DetRow = {
   peso: number | null; trigger: number | null;
   salario: number | null; quantidade: number | null; bonus: number | null; obs: string | null;
 };
-type Payload = { gerado_em: string; fonte: string; q2: Avaliado[]; q1: Avaliado[]; detalhe?: { fontes: string[]; rows: DetRow[] } };
+type ClienteRow = { bu: string; avaliado: string; trimestre: string; cliente: string };
+type Payload = { gerado_em: string; fonte: string; q2: Avaliado[]; q1: Avaliado[]; detalhe?: { fontes: string[]; rows: DetRow[]; clientes?: ClienteRow[] } };
 
 const fmtBRL = (v: number | null | undefined, dec = 0) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: dec, minimumFractionDigits: dec });
@@ -54,7 +55,7 @@ function Delta({ v, pct = true }: { v: number | null | undefined; pct?: boolean 
   );
 }
 
-function BlocoAvaliado({ nome, rows, dark }: { nome: string; rows: DetRow[]; dark?: boolean }) {
+function BlocoAvaliado({ nome, rows, clientes }: { nome: string; rows: DetRow[]; clientes?: string[] }) {
   const total = rows.find(r => r.metrica === "outra:total");
   const posicao = rows[0]?.posicao || "";
   const metricas = METRICA_ORDEM
@@ -100,6 +101,11 @@ function BlocoAvaliado({ nome, rows, dark }: { nome: string; rows: DetRow[]; dar
           })}
         </tbody>
       </table>
+      {clientes && clientes.length > 0 && (
+        <div style={{ padding: "6px 12px 8px", fontSize: "0.76rem", color: "#8a94ad", borderTop: "1px solid #eef2fa" }}>
+          <b>Clientes considerados ({clientes.length}):</b> {clientes.join(" · ")}
+        </div>
+      )}
     </div>
   );
 }
@@ -259,7 +265,12 @@ export default function ApuracaoMetasQ2Tab() {
                 Reprodução dos quadros das planilhas "Apuração Meta {buSel} OFICIAL" — mesma métrica, peso, trigger, atingimento e bônus. Realizado disponível até Q2Y26; Q3/Q4 mostram as metas contratadas.
               </div>
               {blocos.length === 0 && <div style={{ color: "#9aa4bc", padding: "1rem" }}>Sem bloco de apuração para {buSel} em {triSel}.</div>}
-              {blocos.map(b => <BlocoAvaliado key={b.nome} nome={b.nome} rows={b.rs} />)}
+              {blocos.map(b => (
+                <BlocoAvaliado key={b.nome} nome={b.nome} rows={b.rs}
+                  clientes={(data?.detalhe?.clientes ?? [])
+                    .filter(c => c.bu === buSel && c.avaliado.toUpperCase() === b.nome.toUpperCase() && c.trimestre === triSel)
+                    .map(c => c.cliente)} />
+              ))}
               {referencias.length > 0 && (
                 <div style={{ fontSize: "0.78rem", color: "#8a94ad", marginTop: 6 }}>
                   Metas de referência (avaliados sem bloco oficial neste trimestre):{" "}
