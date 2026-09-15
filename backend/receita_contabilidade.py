@@ -30,10 +30,30 @@ CELL_FONT = Font(name=FONTE_BASE, size=11)
 TOT_FILL = PatternFill("solid", fgColor="FFFFCC")
 TOT_FONT = Font(name=FONTE_BASE, size=11, bold=True)
 BORDA = Border(bottom=Side(style="thin", color="DDDDDD"))
-NUM = "#.##0"
+# ATENCAO: o codigo de formato gravado no xlsx e sempre en-US (virgula = milhar).
+# "#.##0" e o que se digita na INTERFACE em pt-BR (NumberFormatLocal, via COM);
+# escrito pelo openpyxl ele vira 3 casas decimais sem separador.
+NUM = "#,##0"
 
 MES_PT = {1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
           7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez"}
+
+# nome oficial de cada centro de lucro (mesmo mapa do main.py)
+_NOME_POR_CODIGO = {
+    "DC001": "DC001 Squads",
+    "DC002": "DC002 Dedicated Teams",
+    "DC004": "DC004 E-commerce",
+    "DC005": "DC005 Open-X",
+    "DC007": "DC007 Imagine",
+    "DC008": "DC008 Hyperautomation",
+    "DC009": "DC009 Licensing Hyper",
+    "DC010": "DC010 Hyper Cloud Dev Plat",
+    "DC011": "DC011 Hyper Data Prot Comp",
+    "DC029": "DC029 FC Consult. New Rev",
+    "DC037": "DC037 Business Unit",
+    "DC038": "DC038 Back Office",
+    "DC040": "DC040 FC Consult. B. Sales",
+}
 
 
 def _rotulo_mes(periodo: str) -> str:
@@ -108,7 +128,14 @@ def gerar_xlsx_bytes(df: pd.DataFrame, periodos: Optional[List[str]] = None) -> 
     if falta.any() and pc_map:
         alt = pep.str.upper().map(pc_map).fillna(pep_base.str.upper().map(pc_map))
         cod = cod.fillna(alt)
-    nome_pc = nh.str.replace(r"^DC\d+\s*", "", regex=True).str.strip()
+    # o nome do centro de lucro vem do mapa canonico, NUNCA da concatenacao com o
+    # texto da linha: o nome so existe quando a linha tem no_hierarquia, e um mesmo
+    # DCxxx acabaria virando duas linhas ("DC008 Hyperautomation" e "DC008") no pivot
+    nome_completo = cod.map(_NOME_POR_CODIGO)
+    # codigo desconhecido no mapa: aproveita o rotulo que a propria base usa
+    vindo_da_linha = nh.where(nh.str.match(r"^DC\d+\s+\S"), "")
+    nome_completo = nome_completo.fillna(vindo_da_linha.replace("", pd.NA)).fillna(cod)
+    nome_pc = (nome_completo.fillna("").str.replace(r"^DC\d+\s*", "", regex=True).str.strip())
 
     det = pd.DataFrame({
         "Mês": d["periodo"].map(_rotulo_mes),
@@ -187,8 +214,9 @@ def gerar_xlsx_bytes(df: pd.DataFrame, periodos: Optional[List[str]] = None) -> 
         _estiliza(ws2, n2, [22] + [15] * (n2 - 1), t2)
 
         # ---- matriz centro de lucro x mes ----
-        det["_pc"] = (det["Centro de Lucro"].replace("", "(sem centro de lucro)") + " " +
-                      det["Centro de Lucro (nome)"]).str.strip()
+        # chave = codigo (o nome so acompanha para leitura); ver _NOME_POR_CODIGO
+        det["_pc"] = det["Centro de Lucro"].map(
+            lambda c: _NOME_POR_CODIGO.get(c, c) if str(c).strip() else "(sem centro de lucro)")
         piv3 = (det.pivot_table(index="_pc", columns="Competência", values="Valor",
                                 aggfunc="sum", fill_value=0)
                 .reindex(columns=meses, fill_value=0))

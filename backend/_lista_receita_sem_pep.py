@@ -89,13 +89,13 @@ for x in sem:
         cell.font = base
         cell.border = thin
         if j == 9:
-            cell.number_format = '#.##0'
+            cell.number_format = '#,##0'
     r += 1
 
 ws.cell(r, 1, 'TOTAL').font = Font(name='Aptos Narrow', size=11, bold=True)
 c = ws.cell(r, 9, round(sum(x['receita'] for x in sem), 2))
 c.font = Font(name='Aptos Narrow', size=11, bold=True)
-c.number_format = '#.##0'
+c.number_format = '#,##0'
 for j in range(1, len(cols) + 1):
     ws.cell(r, j).fill = tot_fill
 
