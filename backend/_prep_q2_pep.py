@@ -92,8 +92,10 @@ fora = df[~df['per'].isin(PERS)]
 df = df[df['per'].isin(PERS)].copy()
 print(f'\naba 1 (Racional MB% Q2): {len(df)} linhas no Q2 ({len(fora)} fora do Q2, ignoradas)')
 
+# ATENCAO: a tabela nova_base NAO tem coluna 'cpf' (o main.py cria essa coluna em memoria,
+# no processamento). Mandar 'cpf' no insert quebra com PGRST204.
 KEYS = ['fonte', 'fonte_dados', 'periodo', 'empresa', 'pep', 'pep_base', 'nome_pessoa', 'nome_cliente',
-        'vertical', 'apuracao_manual', 'tipos', 'cpf', 'receita', 'custo_rateado', 'classificacao']
+        'vertical', 'apuracao_manual', 'tipos', 'receita', 'custo_rateado', 'classificacao']
 ap_cli = pd.Series(df[df['apuracao'].notna()].groupby(df['Cliente Unificado'].astype(str))['apuracao']
                    .agg(lambda x: x.mode().iat[0] if len(x.mode()) else None)).to_dict()
 
@@ -132,8 +134,7 @@ for _, r in df.iterrows():
             'pep': pep, 'pep_base': pep,
             'nome_pessoa': nome, 'nome_cliente': cli,
             'vertical': ('BU ' + str(r.get('BU')).strip()) if s(r.get('BU')) else None,
-            'apuracao_manual': ap, 'tipos': s(r.get('Tipo')),
-            'cpf': ('BRCPF' + cpf) if cpf else None}
+            'apuracao_manual': ap, 'tipos': s(r.get('Tipo'))}
     if v_rec != 0:
         x = {k: None for k in KEYS}; x.update(base)
         x['fonte'] = 'racionais'; x['receita'] = round(v_rec, 2)

@@ -53,6 +53,14 @@ else:
 
 # ---------- 3/4) cargas do Q2 ----------
 payload = json.load(open(os.path.join(DIR, '_payload_q2_pep.json'), encoding='utf-8'))
+# so manda campos que existem MESMO na tabela (a nova_base nao tem 'cpf', p.ex.)
+_amostra = httpx.get(f'{url}/rest/v1/nova_base', params={'select': '*', 'limit': '1'}, headers=H, timeout=60).json()
+if _amostra:
+    _cols = set(_amostra[0].keys())
+    _fora = set().union(*(set(x) for x in payload)) - _cols
+    if _fora:
+        diga(f'  campos ignorados (nao existem na tabela): {sorted(_fora)}')
+        payload = [{k: v for k, v in x.items() if k in _cols} for x in payload]
 rec = sum(x.get('receita') or 0 for x in payload)
 cus = sum(x.get('custo_rateado') or 0 for x in payload)
 diga(f'payload Q2 (aba 1 + PEP): {len(payload)} linhas | receita {rec:,.0f} | custo {cus:,.0f}')
