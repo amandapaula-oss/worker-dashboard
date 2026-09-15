@@ -1,0 +1,610 @@
+{
+ "2026-01": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 5868722.13,
+    "receita_NG": 5553263.13,
+    "receita_Eco": 315459.0,
+    "custo_total": -4078078.35,
+    "custo_na_margem": -3806152.89,
+    "margem_oficial": 1852158.09
+   },
+   "BU Health": {
+    "receita_total": 4223601.43,
+    "receita_NG": 3274333.35,
+    "receita_Eco": 949268.08,
+    "custo_total": -2903937.39,
+    "custo_na_margem": -2429601.79,
+    "margem_oficial": 1160837.83
+   },
+   "BU Hyper": {
+    "receita_total": 2674034.03,
+    "receita_NG": 0.0,
+    "receita_Eco": 2674034.03,
+    "custo_total": -2623806.75,
+    "custo_na_margem": -1600498.01,
+    "margem_oficial": -710044.68
+   },
+   "BU Logistics": {
+    "receita_total": 3862212.08,
+    "receita_NG": 3817212.08,
+    "receita_Eco": 45000.0,
+    "custo_total": -2747608.32,
+    "custo_na_margem": -2581051.46,
+    "margem_oficial": 1251145.62
+   },
+   "BU Multisector": {
+    "receita_total": 2591774.46,
+    "receita_NG": 2315427.44,
+    "receita_Eco": 276347.02,
+    "custo_total": -1619861.6,
+    "custo_na_margem": -1411498.78,
+    "margem_oficial": 995952.22
+   },
+   "BU Others": {
+    "receita_total": 3119709.73,
+    "receita_NG": 0.0,
+    "receita_Eco": 105179.18,
+    "custo_total": -2869334.61,
+    "custo_na_margem": -248991.82,
+    "margem_oficial": -213967.15
+   },
+   "BU Retail": {
+    "receita_total": 4330771.28,
+    "receita_NG": 3779168.21,
+    "receita_Eco": 551603.07,
+    "custo_total": -3331713.93,
+    "custo_na_margem": -2874963.37,
+    "margem_oficial": 1087888.66
+   },
+   "DISTRITO": {
+    "receita_total": 63833.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 63833.0,
+    "custo_total": -51187.01,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 21256.39
+   },
+   "None": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -818324.39,
+    "custo_na_margem": -818324.39,
+    "margem_oficial": -818324.39
+   },
+   "nan": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -219665.51,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 26734658.14,
+  "custo_total": -21263517.86
+ },
+ "2026-02": {
+  "por_bu": {
+   "BETA-I": {
+    "receita_total": 62265.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 62265.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 20734.25
+   },
+   "BU Finance": {
+    "receita_total": 5826811.59,
+    "receita_NG": 5532700.59,
+    "receita_Eco": 294111.0,
+    "custo_total": -4004264.62,
+    "custo_na_margem": -3762921.54,
+    "margem_oficial": 1867718.01
+   },
+   "BU Health": {
+    "receita_total": 4009812.68,
+    "receita_NG": 3099152.19,
+    "receita_Eco": 910660.49,
+    "custo_total": -2851800.2,
+    "custo_na_margem": -2358118.43,
+    "margem_oficial": 1044283.7
+   },
+   "BU Hyper": {
+    "receita_total": 3060748.72,
+    "receita_NG": 0.0,
+    "receita_Eco": 3060748.72,
+    "custo_total": -2797844.78,
+    "custo_na_margem": -1968334.05,
+    "margem_oficial": -949104.72
+   },
+   "BU Logistics": {
+    "receita_total": 3535817.01,
+    "receita_NG": 3490817.01,
+    "receita_Eco": 45000.0,
+    "custo_total": -2514792.19,
+    "custo_na_margem": -2417017.19,
+    "margem_oficial": 1088784.82
+   },
+   "BU Multisector": {
+    "receita_total": 2610220.92,
+    "receita_NG": 2283700.24,
+    "receita_Eco": 326520.68,
+    "custo_total": -1571579.0,
+    "custo_na_margem": -1379129.79,
+    "margem_oficial": 1013301.84
+   },
+   "BU Others": {
+    "receita_total": 3243966.14,
+    "receita_NG": 0.0,
+    "receita_Eco": 89203.33,
+    "custo_total": -2443250.79,
+    "custo_na_margem": -172067.67,
+    "margem_oficial": -142362.96
+   },
+   "BU Retail": {
+    "receita_total": 4450734.63,
+    "receita_NG": 3916742.99,
+    "receita_Eco": 533991.64,
+    "custo_total": -3339020.01,
+    "custo_na_margem": -2870126.21,
+    "margem_oficial": 1224436.0
+   },
+   "DISTRITO": {
+    "receita_total": 63833.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 63833.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 21256.39
+   },
+   "FC UK": {
+    "receita_total": 124080.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 124080.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 41318.64
+   },
+   "None": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -1116346.81,
+    "custo_na_margem": -1116346.81,
+    "margem_oficial": -1116346.81
+   },
+   "nan": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -332333.26,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 26988289.69,
+  "custo_total": -20971231.67
+ },
+ "2026-03": {
+  "por_bu": {
+   "BETA-I": {
+    "receita_total": 38265.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 38265.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 12742.25
+   },
+   "BU Finance": {
+    "receita_total": 6025443.81,
+    "receita_NG": 5748914.81,
+    "receita_Eco": 276529.0,
+    "custo_total": -4373881.39,
+    "custo_na_margem": -4162481.2,
+    "margem_oficial": 1678517.77
+   },
+   "BU Health": {
+    "receita_total": 3755682.69,
+    "receita_NG": 3052319.7,
+    "receita_Eco": 703362.99,
+    "custo_total": -2868777.37,
+    "custo_na_margem": -2377772.83,
+    "margem_oficial": 908766.75
+   },
+   "BU Hyper": {
+    "receita_total": 1817951.14,
+    "receita_NG": 0.0,
+    "receita_Eco": 1817951.14,
+    "custo_total": -2868035.28,
+    "custo_na_margem": -2117163.89,
+    "margem_oficial": -1511786.16
+   },
+   "BU Logistics": {
+    "receita_total": 4335252.3,
+    "receita_NG": 4335252.3,
+    "receita_Eco": 0.0,
+    "custo_total": -2832351.47,
+    "custo_na_margem": -2734576.47,
+    "margem_oficial": 1600675.83
+   },
+   "BU Multisector": {
+    "receita_total": 2539193.96,
+    "receita_NG": 2275467.78,
+    "receita_Eco": 263726.18,
+    "custo_total": -1469671.52,
+    "custo_na_margem": -1271936.73,
+    "margem_oficial": 1091351.86
+   },
+   "BU Others": {
+    "receita_total": 3483465.66,
+    "receita_NG": 0.0,
+    "receita_Eco": 157773.49,
+    "custo_total": -2680344.47,
+    "custo_na_margem": -236815.74,
+    "margem_oficial": -184277.17
+   },
+   "BU Retail": {
+    "receita_total": 4898875.32,
+    "receita_NG": 4248306.68,
+    "receita_Eco": 650568.64,
+    "custo_total": -3468177.34,
+    "custo_na_margem": -3008734.34,
+    "margem_oficial": 1456211.69
+   },
+   "DISTRITO": {
+    "receita_total": 63833.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 63833.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 21256.39
+   },
+   "FC UK": {
+    "receita_total": 124080.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 124080.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 41318.64
+   },
+   "None": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -1018024.07,
+    "custo_na_margem": -1018024.07,
+    "margem_oficial": -1018024.07
+   },
+   "nan": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -294070.48,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 27082042.88,
+  "custo_total": -21873333.39
+ },
+ "2026-04": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 6355913.56,
+    "receita_NG": 6155126.18,
+    "receita_Eco": 200787.38,
+    "custo_total": -4706576.88,
+    "custo_na_margem": -4327013.78,
+    "margem_oficial": 1894974.6
+   },
+   "BU Health": {
+    "receita_total": 3823025.57,
+    "receita_NG": 2768586.22,
+    "receita_Eco": 1054439.35,
+    "custo_total": -2371029.75,
+    "custo_na_margem": -1982656.79,
+    "margem_oficial": 1137057.73
+   },
+   "BU Hyper": {
+    "receita_total": 3083578.48,
+    "receita_NG": 0.0,
+    "receita_Eco": 3083578.48,
+    "custo_total": -3263720.38,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 1026831.63
+   },
+   "BU Logistics": {
+    "receita_total": 3853531.38,
+    "receita_NG": 3853531.38,
+    "receita_Eco": 0.0,
+    "custo_total": -2844002.74,
+    "custo_na_margem": -2820342.74,
+    "margem_oficial": 1033188.64
+   },
+   "BU Multisector": {
+    "receita_total": 1948604.63,
+    "receita_NG": 1773009.86,
+    "receita_Eco": 175594.77,
+    "custo_total": -1116284.47,
+    "custo_na_margem": -1085760.16,
+    "margem_oficial": 745722.76
+   },
+   "BU Others": {
+    "receita_total": 84898.84,
+    "receita_NG": 0.0,
+    "receita_Eco": 84898.84,
+    "custo_total": -82346.21,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 28271.31
+   },
+   "BU Retail": {
+    "receita_total": 2594432.42,
+    "receita_NG": 2228883.21,
+    "receita_Eco": 365549.21,
+    "custo_total": -3709759.03,
+    "custo_na_margem": -3374859.44,
+    "margem_oficial": -1024248.34
+   }
+  },
+  "receita_total": 21743984.88,
+  "custo_total": -18093719.46
+ },
+ "2026-05": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 5912075.09,
+    "receita_NG": 5707370.45,
+    "receita_Eco": 204704.64,
+    "custo_total": -4402447.95,
+    "custo_na_margem": -4082718.15,
+    "margem_oficial": 1692818.95
+   },
+   "BU Health": {
+    "receita_total": 3350231.73,
+    "receita_NG": 2762488.76,
+    "receita_Eco": 587742.97,
+    "custo_total": -2276329.8,
+    "custo_na_margem": -1910998.04,
+    "margem_oficial": 1047209.13
+   },
+   "BU Hyper": {
+    "receita_total": 3012188.53,
+    "receita_NG": 0.0,
+    "receita_Eco": 3012188.53,
+    "custo_total": -3153030.25,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 1003058.78
+   },
+   "BU Logistics": {
+    "receita_total": 4011736.52,
+    "receita_NG": 4011736.52,
+    "receita_Eco": 0.0,
+    "custo_total": -2986518.46,
+    "custo_na_margem": -2962858.46,
+    "margem_oficial": 1048878.06
+   },
+   "BU Multisector": {
+    "receita_total": 1639282.8,
+    "receita_NG": 1557930.57,
+    "receita_Eco": 81352.23,
+    "custo_total": -972421.79,
+    "custo_na_margem": -904221.99,
+    "margem_oficial": 680798.87
+   },
+   "BU Others": {
+    "receita_total": 84717.34,
+    "receita_NG": 0.0,
+    "receita_Eco": 84717.34,
+    "custo_total": -61334.74,
+    "custo_na_margem": -9745.37,
+    "margem_oficial": 18465.5
+   },
+   "BU Retail": {
+    "receita_total": 2697044.12,
+    "receita_NG": 2310034.6,
+    "receita_Eco": 387009.52,
+    "custo_total": -3704544.48,
+    "custo_na_margem": -3412985.87,
+    "margem_oficial": -974077.1
+   }
+  },
+  "receita_total": 20707276.13,
+  "custo_total": -17556627.47
+ },
+ "2026-06": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 6090094.51,
+    "receita_NG": 5868255.05,
+    "receita_Eco": 221839.46,
+    "custo_total": -4590989.73,
+    "custo_na_margem": -4283645.26,
+    "margem_oficial": 1658482.33
+   },
+   "BU Health": {
+    "receita_total": 3690930.69,
+    "receita_NG": 2973422.87,
+    "receita_Eco": 717507.82,
+    "custo_total": -2442242.76,
+    "custo_na_margem": -2137862.42,
+    "margem_oficial": 1074490.55
+   },
+   "BU Hyper": {
+    "receita_total": 3068781.31,
+    "receita_NG": 0.0,
+    "receita_Eco": 3068781.31,
+    "custo_total": -3130592.24,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 1021904.18
+   },
+   "BU Logistics": {
+    "receita_total": 4018370.05,
+    "receita_NG": 4018370.05,
+    "receita_Eco": 0.0,
+    "custo_total": -3059391.08,
+    "custo_na_margem": -3035731.08,
+    "margem_oficial": 982638.97
+   },
+   "BU Multisector": {
+    "receita_total": 1678731.71,
+    "receita_NG": 1597379.48,
+    "receita_Eco": 81352.23,
+    "custo_total": -1034192.93,
+    "custo_na_margem": -953989.18,
+    "margem_oficial": 670480.59
+   },
+   "BU Others": {
+    "receita_total": 73407.68,
+    "receita_NG": 0.0,
+    "receita_Eco": 73407.68,
+    "custo_total": -48662.63,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 24444.76
+   },
+   "BU Retail": {
+    "receita_total": 2737390.55,
+    "receita_NG": 2384936.58,
+    "receita_Eco": 352453.97,
+    "custo_total": -3859837.61,
+    "custo_na_margem": -3586639.89,
+    "margem_oficial": -1084336.14
+   }
+  },
+  "receita_total": 21357706.5,
+  "custo_total": -18165908.98
+ },
+ "2026-07": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -1838201.99,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   },
+   "BU Hyper": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 0.0,
+  "custo_total": -1838201.99
+ },
+ "2026-08": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -1854765.99,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   },
+   "BU Hyper": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 0.0,
+  "custo_total": -1854765.99
+ },
+ "2026-09": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -1854765.99,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   },
+   "BU Hyper": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 0.0,
+  "custo_total": -1854765.99
+ },
+ "2026-10": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -1156514.05,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   },
+   "BU Hyper": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 0.0,
+  "custo_total": -1156514.05
+ },
+ "2026-11": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -1156514.05,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   },
+   "BU Hyper": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 0.0,
+  "custo_total": -1156514.05
+ },
+ "2026-12": {
+  "por_bu": {
+   "BU Finance": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": -1156514.05,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   },
+   "BU Hyper": {
+    "receita_total": 0.0,
+    "receita_NG": 0.0,
+    "receita_Eco": 0.0,
+    "custo_total": 0.0,
+    "custo_na_margem": 0.0,
+    "margem_oficial": 0.0
+   }
+  },
+  "receita_total": 0.0,
+  "custo_total": -1156514.05
+ }
+}

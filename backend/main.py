@@ -32,6 +32,19 @@ def _supabase_headers():
         "Content-Type": "application/json",
     }
 
+
+def _margem_pct(margem, receita):
+    """Margem % com guarda de resíduo: quando a receita se anula (ex.: cliente com
+    estorno do mesmo valor no período), sobra ~1e-13 de ponto flutuante e a divisão
+    explodia para bilhões de %. Abaixo de meio centavo a margem % não existe."""
+    try:
+        r = float(receita or 0)
+        if abs(r) < 0.005:
+            return None
+        return float(margem or 0) / r
+    except (TypeError, ValueError):
+        return None
+
 def _sanitize(obj):
     """Recursively replace NaN/Inf with None so JSON serialization never fails."""
     if isinstance(obj, float):
@@ -1241,7 +1254,7 @@ def get_margem_proj() -> pd.DataFrame:
         df.loc[openx_mask, "margem"]        = df.loc[openx_mask, "receita"] * 0.45
         df.loc[openx_mask, "custo_rateado"] = df.loc[openx_mask, "receita"] * -0.55
 
-    df["margem_pct"] = df.apply(lambda r: r["margem"] / r["receita"] if r["receita"] and r["receita"] > 0 else None, axis=1)
+    df["margem_pct"] = df.apply(lambda r: _margem_pct(r["margem"], r["receita"]), axis=1)
     df = df.drop(columns=["pep_base", "receita_rac", "pep_rac_key"], errors="ignore")
 
     vlookup, ae_lookup = _clientes_lookup()
@@ -1341,7 +1354,7 @@ def get_resumo(periodos: str = "", empresas: str = "", categorias_bu: str = "", 
         margem        = ("margem",        "sum"),
     )
     agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+        lambda r: _margem_pct(r["margem"], r["receita"]), axis=1
     )
     return agg.fillna("").to_dict(orient="records")
 
@@ -1407,7 +1420,7 @@ def get_clientes_list(search: str = "", user=Depends(get_current_user)):
 
     merged = clientes.merge(totais, on="nome_upper", how="left").drop(columns=["nome_upper"])
     merged["margem_pct"] = merged.apply(
-        lambda r: float(r["margem"]) / float(r["receita"]) if r.get("receita") not in ("", None, 0) and float(r.get("receita",0)) != 0 else None,
+        lambda r: _margem_pct(r.get("margem"), r.get("receita")),
         axis=1
     )
     if search:
@@ -1480,7 +1493,7 @@ def get_margem_projetos(periodos: str = "", empresas: str = "", categorias_bu: s
         margem       =("margem",        "sum"),
     )
     agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+        lambda r: _margem_pct(r["margem"], r["receita"]), axis=1
     )
     agg = agg.sort_values("receita", ascending=False)
     return agg.fillna("").to_dict(orient="records")
@@ -1508,7 +1521,7 @@ def get_margem_pessoas(pep: str = "", periodos: str = "", empresas: str = "", br
         margem       =("margem",        "sum"),
     )
     agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+        lambda r: _margem_pct(r["margem"], r["receita"]), axis=1
     )
     # build cpf→ID lookup from relacao_pessoas.xlsx, then nome fallback via rac_pessoas
     # (rac_pessoas.csv has numero_pessoal+nome but no cpf column)
@@ -1584,7 +1597,7 @@ def get_margem_pessoa_projetos(
         margem       =("margem",        "sum"),
     )
     agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+        lambda r: _margem_pct(r["margem"], r["receita"]), axis=1
     )
     proj = get_margem_proj()[["pep", "nome_cliente"]].copy()
     proj["pep_base"] = proj["pep"].str.split(".").str[0]
@@ -2993,6 +3006,27 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "WAYCARBON": "WAYCARBON",
         "WAYCARBON SOLUCOES AMBIENTAIS E PROJETOS": "WAYCARBON",
         "YELUM SEGUROS SA": "HDI",
+        # --- grafias da Base Unificada Q2 (Cliente Unificado do Yuri) ---
+        "BANCO ABC BRASIL": "BANCO ABC",
+        "BANCO DIGIO": "Grupo Digio",
+        "BTG PACTUAL": "BANCO BTG",
+        "DASA (DIAGNOSTICOS DA AMERICA)": "DASA",
+        "DIRECIONAL ENGENHARIA": "DIRECIONAL",
+        "DISTRITO TECNOLOGIA (COMPASS)": "DISTRITO",
+        "LIGGA TELECOMUNICAÇÕES S.A": "LIGGA",
+        "LOJAS RENNER": "RENNER",
+        "M33 CONSULTORIA": "M33",
+        "MMG GESTAO BRASIL": "MMG",
+        "MRS LOGISTICA": "MRS",
+        "MRV ENGENHARIA": "MRV",
+        "POLIEDRO SISTEMA DE ENSINO": "Poliedro",
+        "QUANTITY SERVICOS": "QUANTITY SERVIÇOS",
+        "REAL MOTO PECAS LTDA": "REAL MOTO",
+        "SORTENABET GAMING": "SORTENABET",
+        "STIX FIDELIDADE E INTELIGENCIA S.A.": "STIX",
+        "TRES CORACOES ALIMENTOS": "Grupo Três Corações",
+        "UNIMED ESTADO DE SAO PAULO (FESP)": "UNIMED FESP",
+        "VLI MULTIMODAL": "VLI",
         }
     # Expõe o mapa pra re-aplicação no FIM do pipeline: linhas criadas por
     # rateios/derivações depois do enriquecimento nascem com o nome cru e
@@ -4821,7 +4855,7 @@ def get_nova_base_margem_clientes(
         no_hierarquia  = ("no_hierarquia", _moda_cli),
     )
     agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+        lambda r: _margem_pct(r["margem"], r["receita"]), axis=1
     )
     # Mantem clientes com receita OU custo — garante consistencia com
     # o endpoint Resumo por Empresa (mesmo total de custo por BU).
@@ -4926,7 +4960,7 @@ def get_nova_base_margem_cliente_detalhe(
     # Remove PEPs zerados (so horas, sem receita nem custo) — ruido na visao de margem
     agg = agg[(agg["receita"].round(2) != 0) | (agg["custo_rateado"].round(2) != 0)]
     agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+        lambda r: _margem_pct(r["margem"], r["receita"]), axis=1
     )
     agg = agg.rename(columns={"pep_base": "pep"})
     sort_cols = ["periodo", "receita"] if breakdown else ["receita"]
@@ -5034,7 +5068,7 @@ def get_nova_base_margem_projeto_pessoas(
     # Remove pessoas zeradas (so horas, sem receita nem custo)
     agg = agg[(agg["receita"].round(2) != 0) | (agg["custo_rateado"].round(2) != 0)]
     agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+        lambda r: _margem_pct(r["margem"], r["receita"]), axis=1
     )
     sort_cols = ["nome_pessoa", "periodo"] if breakdown else ["receita"]
     agg = agg.sort_values(sort_cols, ascending=False if not breakdown else [True, True])
@@ -5106,7 +5140,7 @@ def get_nova_base_margem_pessoa_clientes(
     )
     agg = agg[(agg["receita"].round(2) != 0) | (agg["custo_rateado"].round(2) != 0)]
     agg["margem_pct"] = agg.apply(
-        lambda r: r["margem"] / r["receita"] if r["receita"] != 0 else None, axis=1
+        lambda r: _margem_pct(r["margem"], r["receita"]), axis=1
     )
     sort_cols = ["nome_cliente", "periodo"] if breakdown else ["receita"]
     agg = agg.sort_values(sort_cols, ascending=False if not breakdown else [True, True])
@@ -5571,7 +5605,7 @@ def get_workers(
     agg["email"] = agg["cpf"].astype(str).map(lambda c: (pessoas.get(_cpf_d(c), {}) or {}).get("email") or "")
 
     agg["margem"] = agg["receita"] + agg["custo"]
-    agg["margem_pct"] = (agg["margem"] / agg["receita"]).where(agg["receita"] != 0, 0).round(4)
+    agg["margem_pct"] = (agg["margem"] / agg["receita"]).where(agg["receita"].abs() >= 0.005, 0).round(4)
     for c in ("receita", "custo", "margem", "horas"):
         agg[c] = agg[c].round(2)
     agg = agg.sort_values("receita", ascending=False)
