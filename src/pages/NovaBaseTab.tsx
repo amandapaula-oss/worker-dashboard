@@ -1,13 +1,20 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Table, Select, Space, Typography, Tag, Button, Input, Dropdown, Checkbox } from "antd";
+import { Table, Select, Space, Typography, Tag, Button, Input, Dropdown, Checkbox, message } from "antd";
 import { FilterOutlined, DownloadOutlined, SearchOutlined, SettingOutlined } from "@ant-design/icons";
 import { Resizable } from "react-resizable";
 import "react-resizable/css/styles.css";
-import { getNovaBaseFilters, getNovaBaseData, downloadNovaBase } from "../api";
+import { getNovaBaseFilters, getNovaBaseData, downloadNovaBase, downloadReceitaContabilidade } from "../api";
 import TableSkeleton from "../components/TableSkeleton";
 import { theme } from "../theme";
 import { exportTableToExcel } from "../utils/exportExcel";
 import { useNovaBaseFilters } from "../contexts/NovaBaseFilters";
+
+const MES_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function rotuloMes(periodo: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(periodo).trim());
+  if (!m) return String(periodo);
+  return `${MES_PT[Number(m[2]) - 1] ?? m[2]}/${m[1].slice(2)}`;
+}
 
 function ResizableTitle({ onResize, width, ...rest }: any) {
   if (!width) return <th {...rest} />;
@@ -84,6 +91,11 @@ export default function NovaBaseTab() {
   const [error, setError]                   = useState<string | null>(null);
   const [filtersReady, setFiltersReady]     = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  const [downloadingReceita, setDownloadingReceita] = useState(false);
+  const mesesDisponiveis = useMemo<string[]>(
+    () => [...(filters.periodos ?? [])].map(String).sort().reverse(),
+    [filters.periodos],
+  );
   const [search, setSearch]                 = useState("");
   const [pageSize, setPageSize]             = useState(50);
   const [currentPage, setCurrentPage]       = useState(1);
@@ -325,6 +337,32 @@ export default function NovaBaseTab() {
             }}>
             Baixar Base Completa
           </Button>
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: [
+                { key: "__todos", label: "Todos os meses" },
+                ...(mesesDisponiveis.length
+                  ? [{ type: "divider" as const },
+                     ...mesesDisponiveis.map((p) => ({ key: p, label: rotuloMes(p) }))]
+                  : []),
+              ],
+              onClick: async ({ key }) => {
+                setDownloadingReceita(true);
+                try {
+                  await downloadReceitaContabilidade(
+                    key === "__todos" ? [] : [key],
+                    lockedVertical || undefined,
+                  );
+                } catch (e: any) {
+                  message.error(`Não consegui gerar o arquivo: ${e?.message || "erro desconhecido"}`);
+                } finally { setDownloadingReceita(false); }
+              },
+            }}>
+            <Button icon={<DownloadOutlined />} type="primary" loading={downloadingReceita}>
+              Receita Contabilidade
+            </Button>
+          </Dropdown>
         </div>
       </div>
 

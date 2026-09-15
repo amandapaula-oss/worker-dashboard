@@ -5140,6 +5140,38 @@ def download_nova_base(user=Depends(get_current_user)):
         headers={"Content-Disposition": "attachment; filename=nova_base_completa.xlsx"},
     )
 
+@app.get("/api/nova-base/download-receita-contabilidade")
+def download_receita_contabilidade(periodos: str = "", vertical: str = "", user=Depends(get_current_user)):
+    """Receita por mes com centro de lucro, BU, PEP/projeto, cliente e valor.
+    `periodos`: 'YYYY-MM' separados por virgula; vazio = todos os meses.
+    `vertical`: restringe a uma BU (usado quando a tela esta travada numa BU)."""
+    import io
+    import re as _re
+    from fastapi.responses import StreamingResponse
+    from receita_contabilidade import gerar_xlsx_bytes
+    pers = [p.strip() for p in periodos.split(",") if p.strip()][:24]
+    invalidos = [p for p in pers if not _re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", p)]
+    if invalidos:
+        raise HTTPException(400, f"Período inválido (use AAAA-MM): {', '.join(invalidos[:3])}")
+    df = _get_nova_base().copy()
+    allowed_bus = get_user_bus(user)
+    if allowed_bus and "vertical" in df.columns:
+        df = df[df["vertical"].astype(str).str.strip().isin(allowed_bus)]
+    if vertical.strip() and "vertical" in df.columns:
+        df = df[df["vertical"].astype(str).str.strip() == vertical.strip()]
+    try:
+        conteudo = gerar_xlsx_bytes(df, pers)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    # o nome vai pro header HTTP: so o que e seguro em Content-Disposition
+    sufixo = _re.sub(r"[^0-9A-Za-z_-]", "", "_".join(pers)) if pers else "todos_os_meses"
+    return StreamingResponse(
+        io.BytesIO(conteudo),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="receita_contabilidade_{sufixo}.xlsx"'},
+    )
+
+
 @app.get("/api/nova-base/pivot")
 def get_nova_base_pivot(
     rows: str = "",

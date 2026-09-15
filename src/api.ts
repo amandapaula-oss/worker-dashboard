@@ -365,6 +365,30 @@ export async function downloadNovaBase(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+export async function downloadReceitaContabilidade(
+  periodos: string[] = [],
+  vertical?: string,
+): Promise<void> {
+  const qs = new URLSearchParams();
+  if (periodos.length) qs.set("periodos", periodos.join(","));
+  if (vertical) qs.set("vertical", vertical);
+  const q = qs.toString() ? `?${qs}` : "";
+  const res = await fetch(`${BASE_URL}/api/nova-base/download-receita-contabilidade${q}`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error((await res.text()) || `Erro ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `receita_contabilidade_${periodos.length ? periodos.join("_") : "todos_os_meses"}.xlsx`;
+  // a ancora precisa estar no DOM (Firefox) e a URL so pode ser revogada depois do clique
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export async function clearNovaBaseCache(): Promise<any> {
   return apiFetch("/api/nova-base/clear-cache", { method: "POST" });
 }
