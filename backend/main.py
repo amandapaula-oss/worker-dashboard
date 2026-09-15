@@ -3727,10 +3727,18 @@ def _aplicar_rateio_custos(df: pd.DataFrame) -> pd.DataFrame:
     )
     # Rateio Orange: forca classificacao=custo, macro_area vazio (linha eh custo
     # direto de projeto via apontamento, nao despesa Backoffice/SGA da pessoa).
+    # EXCECAO: projeto INTERNO (BRxxINP/BO/BU — RH, PMO, Contabil, M&A, Infra...)
+    # nao e entrega a cliente; area corporativa e DESPESA, nunca custo, senao
+    # entra na margem bruta da BU (regra da Amanda, 15/09).
+    _pep_alvo = (df["pep"].fillna("").astype(str).str.upper() if "pep" in df.columns
+                 else pd.Series("", index=df.index))
+    _proj_interno = _pep_alvo.str.match(r"^BR\d{1,2}(INP|BO|BU)")
+    _rateio_cliente = mask_rac_aloca & is_orange_eligible & ~_proj_interno
     if "classificacao" in df.columns:
-        df.loc[mask_rac_aloca & is_orange_eligible, "classificacao"] = "custo"
+        df.loc[_rateio_cliente, "classificacao"] = "custo"
+        df.loc[mask_rac_aloca & is_orange_eligible & _proj_interno, "classificacao"] = "despesa"
     if "macro_area" in df.columns:
-        df.loc[mask_rac_aloca & is_orange_eligible, "macro_area"] = ""
+        df.loc[_rateio_cliente, "macro_area"] = ""
     df.loc[is_alloc_target & ~mask_rac_aloca, "tag_rateio"] = "Receita/aponta sem custo atrelado"
 
     # Marca pessoa-periodo cujo custo foi efetivamente rateado.
