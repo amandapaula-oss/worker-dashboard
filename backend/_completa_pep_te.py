@@ -91,8 +91,23 @@ def _le(p, aba):
     return None
 
 
+MESNOME = {'JANEIRO': '01', 'FEVEREIRO': '02', 'MARCO': '03', 'MARÇO': '03', 'ABRIL': '04',
+           'MAIO': '05', 'JUNHO': '06', 'JULHO': '07'}
+
+
+def per_do_arquivo(caminho):
+    """a competencia do racional e o proprio arquivo/pasta (RacFinancial_Junho -> 2026-06);
+    a coluna INICIO e data de contrato, nao competencia."""
+    alvo = npn(caminho)
+    for nome, mm in MESNOME.items():
+        if nome in alvo:
+            return f'2026-{mm}'
+    return None
+
+
 n_rac = 0
 for p in arqs:
+    per_arq = per_do_arquivo(p)
     try:
         import openpyxl as _ox
         _wb = _ox.load_workbook(p, read_only=True)
@@ -116,6 +131,8 @@ for p in arqs:
             if colper:
                 dt = pd.to_datetime(r.get(colper), errors='coerce')
                 per = None if pd.isna(dt) else dt.strftime('%Y-%m')
+            if per not in PERS:
+                per = per_arq          # cai para a competencia do proprio arquivo
             if per not in PERS:
                 continue
             n_rac += 1
@@ -179,17 +196,29 @@ alvo = [x for x in rows if x['fonte'] in ('racionais', 'Base Unificada Q2')]
 print(f'linhas da carga no Q2: {len(alvo)}')
 
 
+def _resolve(c, origem):
+    """1 PEP -> usa. Varios PEPs da MESMA raiz (fases do mesmo projeto) -> usa a raiz.
+    Raizes diferentes -> ambiguo de verdade, devolve None."""
+    if not c:
+        return None, None
+    if len(c) == 1:
+        return next(iter(c)), origem
+    raizes = {raiz(p) for p in c}
+    if len(raizes) == 1:
+        return next(iter(raizes)), origem + ' (raiz)'
+    return None, None
+
+
 def acha(x):
-    """devolve (pep_completo, origem) ou (None, None) — so quando unico."""
+    """devolve (pep, origem) ou (None, None)."""
     v = round(float(x['receita'] or x['custo_rateado'] or 0), 2)
-    for chave, origem in (((x['periodo'], v), 'valor'),):
-        c = by_val.get(chave)
-        if c and len(c) == 1:
-            return next(iter(c)), origem
+    p, o = _resolve(by_val.get((x['periodo'], v)), 'valor')
+    if p:
+        return p, o
     if x.get('nome_pessoa'):
-        c = by_pess.get((x['periodo'], npn(x['nome_pessoa'])))
-        if c and len(c) == 1:
-            return next(iter(c)), 'pessoa'
+        p, o = _resolve(by_pess.get((x['periodo'], npn(x['nome_pessoa']))), 'pessoa')
+        if p:
+            return p, o
     # sem pessoa (Fee/WIP/UsageBased): cliente na fonte <> T&E
     if not x.get('nome_pessoa') and x.get('nome_cliente'):
         c = by_cli.get((x['periodo'], npn(x['nome_cliente'])))
