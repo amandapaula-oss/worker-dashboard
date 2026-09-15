@@ -433,14 +433,20 @@ def _load_all():
     pep_to_nome_cli = _pep_info["nome_norm"].to_dict()  # usa nome canônico (já aliasado) p/ bater com budget
 
     rac_by_pep: dict = {}
+    rac_by_pep_periodo: dict = {}
     if "pep" in rac_q4.columns:
         _rq4 = rac_q4.copy()
         _rq4["pep_base"] = _rq4["pep"].astype(str).str.split(".").str[0].str.strip()
         rac_by_pep = _rq4.groupby("pep_base")["valor_liquido"].sum().to_dict()
+        # Versão mensal: {(pep_base, periodo) -> valor_liquido}
+        rac_by_pep_periodo = _rq4.groupby(["pep_base", "periodo"])["valor_liquido"].sum().to_dict()
 
     rec_by_pep_ws = marg_q4.groupby(["pep_base", "ws_key"])["receita"].sum().to_dict()
     lb_by_pep_ws  = marg_q4.groupby(["pep_base", "ws_key"])["margem"].sum().to_dict()
     custo_by_pep  = marg_q4.groupby("pep_base")["custo_rateado"].sum().to_dict()
+    # Versões mensais por PEP: {(pep_base, periodo) -> valor}
+    custo_by_pep_periodo = marg_q4.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
+    lb_by_pep_periodo    = marg_q4.groupby(["pep_base", "periodo"])["margem"].sum().to_dict()
 
     # Lookups filtrados por (cliente, vertical) — usados para clientes sem budget
     # para não inflar a receita com PEPs de outras verticais.
@@ -530,6 +536,9 @@ def _load_all():
         "rec_by_pep_ws":    rec_by_pep_ws,
         "lb_by_pep_ws":     lb_by_pep_ws,
         "custo_by_pep":     custo_by_pep,
+        "rac_by_pep_periodo":   rac_by_pep_periodo,
+        "custo_by_pep_periodo": custo_by_pep_periodo,
+        "lb_by_pep_periodo":    lb_by_pep_periodo,
         "ae_to_clients":             _ae_to_clients,
         "rec_by_client_vert_nh":     rec_by_client_vert_nh,
         "marg_by_client_vert_nh":    marg_by_client_vert_nh,

@@ -1,1 +1,22 @@
-nohup: failed to run command 'uvicorn': No such file or directory
+INFO:     Will watch for changes in these directories: ['C:\\Users\\amanda.paula\\worker-dashboard\\backend']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [30264] using WatchFiles
+INFO:     Started server process [19412]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Carregando Worker (background)...
+INFO:     127.0.0.1:63451 - "GET /health HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'apuracao_engine.py'. Reloading...
+ Worker carregado. Carregando dados pesados...
+Carregando financeiro.csv (SAP + Nexus + Razão)...
+Carregando operacional.xlsx/financeiro...
+operacional.xlsx/financeiro carregado: 2761 linhas
+SAP: 1088 linhas, agrupadores=['Consulting expenses', 'Depreciation and amortization', 'Financial income (expenses) net', 'General and administrative expenses', 'Non-operating income (expenses) net']
+Nexus: 1421 linhas
+  Tipos: ['Actual', 'Budget']
+  Moedas: ['BRL', 'EUR', 'GBP']
+  Empresas: ['Dojo', 'FC Europe', 'FC Holding', 'FC Hyper', 'FC NextGen', 'FC UK', 'FCamara', 'Nação Digital', 'Omnik', 'SGA']
+  Anos: [2025]
+Servidor pronto.
+Todos os dados carregados.
+INFO:     127.0.0.1:62693 - "GET /health HTTP/1.1" 200 OK

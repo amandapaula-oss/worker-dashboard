@@ -1,3 +1,7 @@
+## Regras do projeto
+
+- **Sempre que subir uma nova versão, atualizar o número da versão** (`REACT_APP_VERSION`) antes do deploy. Formato: `YYYY.MM.DD-N`.
+
 <!-- VERCEL BEST PRACTICES START -->
 ## Best practices for developing on Vercel
 

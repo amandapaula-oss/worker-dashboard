@@ -114,18 +114,23 @@ def main():
     sheet1["custo_rateado"] = pd.to_numeric(sheet1["custo_rateado"], errors="coerce").fillna(0)
     sheet1["horas"]         = pd.to_numeric(sheet1["horas"],         errors="coerce").fillna(0)
 
-    # Fallback: quando projetos tem receita > 0 mas custo = 0, soma o custo
-    # do mesmo PEP/período em margem_pessoas (caso Loja Eletrica Q4)
+    # Fallback: quando projetos tem receita ≠ 0 mas custo = 0, soma o custo
+    # do mesmo PEP/período em margem_pessoas (alinhado com engine).
+    # Filtra pessoas por classificacao="custo" (mesma regra do engine).
     pess_pre = pd.read_excel(p("operacional.xlsx"), sheet_name="margem_pessoas", dtype={"pep": str})
     pess_pre["periodo"]  = pess_pre["periodo"].astype(str).str.strip()
     pess_pre["pep_base"] = pess_pre["pep"].astype(str).str.split(".").str[0].str.strip()
     pess_pre["custo_rateado"] = pd.to_numeric(pess_pre["custo_rateado"], errors="coerce").fillna(0)
     pess_pre["horas"]         = pd.to_numeric(pess_pre["horas"],         errors="coerce").fillna(0)
-    custo_pessoas = pess_pre.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
-    horas_pessoas = pess_pre.groupby(["pep_base", "periodo"])["horas"].sum().to_dict()
+    _pess_xl = pd.ExcelFile(p("pessoas.xlsx"))
+    _rp = _pess_xl.parse("relacao_pessoas").astype({"CPF / Worker ID": str})
+    _cpf_custo = set(_rp[_rp["classificacao"] == "custo"]["CPF / Worker ID"].str.strip())
+    pess_filt = pess_pre[pess_pre["cpf"].astype(str).str.strip().isin(_cpf_custo)]
+    custo_pessoas = pess_filt.groupby(["pep_base", "periodo"])["custo_rateado"].sum().to_dict()
+    horas_pessoas = pess_filt.groupby(["pep_base", "periodo"])["horas"].sum().to_dict()
 
     sheet1["pep_base"] = sheet1["pep"].astype(str).str.split(".").str[0].str.strip()
-    _mask_fb = (sheet1["receita"] > 0) & (sheet1["custo_rateado"] == 0)
+    _mask_fb = (sheet1["receita"] != 0) & (sheet1["custo_rateado"] == 0)
     for idx in sheet1[_mask_fb].index:
         key = (sheet1.at[idx, "pep_base"], sheet1.at[idx, "periodo"])
         if key in custo_pessoas and custo_pessoas[key] != 0:
@@ -133,7 +138,7 @@ def main():
             if sheet1.at[idx, "horas"] == 0 and key in horas_pessoas:
                 sheet1.at[idx, "horas"] = horas_pessoas[key]
 
-    # 2o fallback: se ainda receita>0 e custo=0, aplica benchmark por WS
+    # 2o fallback: se ainda receita ≠ 0 e custo=0, aplica benchmark por WS
     # (mesma regra do engine em _load_all). Cloud 34%, Dados 35%, Hyper 35%, Demais 37%.
     WS_MB_BENCHMARK = {"cloud": 0.34, "dados": 0.35, "hyper": 0.35, "demais": 0.37}
     WS_MAP_LOCAL = {
@@ -143,7 +148,7 @@ def main():
     }
     def _ws_key_local(cb):
         return WS_MAP_LOCAL.get(str(cb).strip().lower(), "demais")
-    _mask_fb2 = (sheet1["receita"] > 0) & (sheet1["custo_rateado"] == 0)
+    _mask_fb2 = (sheet1["receita"] != 0) & (sheet1["custo_rateado"] == 0)
     for idx in sheet1[_mask_fb2].index:
         ws = _ws_key_local(sheet1.at[idx, "categoria_bu"])
         bench = WS_MB_BENCHMARK.get(ws, 0.35)  # Apps: default 35% (mesmo do engine)
