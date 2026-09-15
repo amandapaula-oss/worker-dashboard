@@ -49,6 +49,7 @@ def valido(p):
 
 # ---------- fontes ----------
 by_val, by_cpf, by_pess = defaultdict(set), defaultdict(set), defaultdict(set)
+by_cli = defaultdict(set)   # so usado para Fee/WIP/UsageBased, que nao tem pessoa
 
 te = pd.read_excel('2026 dados/FCamara - P&L Gerencial - jun26 v2.xlsx', sheet_name='T&E')
 te.columns = [str(c).strip() for c in te.columns]
@@ -66,6 +67,71 @@ for _, r in te.iterrows():
         by_cpf[(r['per'], c)].add(p)
     if pd.notna(r.get('PROFISSIONAL')):
         by_pess[(r['per'], npn(r['PROFISSIONAL']))].add(p)
+
+# Racionais mensais (Financial Controls): abas Fee_WIP / UsageBased / TimeAndExpenses.
+# A aba '<> T&E' do P&L so tem jan-fev, entao o Fee/WIP do Q2 vem daqui.
+# Essas abas tem PEP (com fase) e 'Formula PEP' (raiz) — os dois numeros.
+import glob
+RAC = r'C:\Users\amanda.paula\FCamara Consultoria e Formação\Financial Controls - Racional\Receita'
+arqs = [p for p in glob.glob(os.path.join(RAC, 'BR02 - Fcamara', '2026', '0[456].*', '**', 'RacFinancial*.xlsx'), recursive=True)]
+arqs += [p for p in glob.glob(os.path.join(RAC, 'BR09 - Next', '2026', 'RacFinancial*.xlsx'))
+         if any(m in p for m in ('Abril', 'Maio', 'Junho'))]
+
+
+def _le(p, aba):
+    """le a aba achando a linha de header que tem 'PEP'."""
+    for hdr in (1, 0, 2):
+        try:
+            d = pd.read_excel(p, sheet_name=aba, header=hdr)
+        except Exception:
+            return None
+        d.columns = [str(c).strip() for c in d.columns]
+        if any(c.upper() == 'PEP' for c in d.columns):
+            return d
+    return None
+
+
+n_rac = 0
+for p in arqs:
+    try:
+        import openpyxl as _ox
+        _wb = _ox.load_workbook(p, read_only=True)
+        abas = _wb.sheetnames
+        _wb.close()
+    except Exception:
+        continue
+    for aba in abas:
+        if not any(t in aba.upper() for t in ('FEE', 'WIP', 'USAGE', 'TIMEANDEXPENSES')):
+            continue
+        d = _le(p, aba)
+        if d is None or not len(d):
+            continue
+        cols = set(d.columns)
+        colper = next((c for c in ('Compet', 'INICIO', 'Competência') if c in cols), None)
+        for _, r in d.iterrows():
+            pep = valido(r.get('PEP')) or valido(r.get('Formula PEP'))
+            if not pep:
+                continue
+            per = None
+            if colper:
+                dt = pd.to_datetime(r.get(colper), errors='coerce')
+                per = None if pd.isna(dt) else dt.strftime('%Y-%m')
+            if per not in PERS:
+                continue
+            n_rac += 1
+            for col in ('Formula Líquido', 'RECEITA PLANEJADA', 'RECEITA LIQUIDA', 'Valor Liquido :)'):
+                v = pd.to_numeric(r.get(col), errors='coerce') if col in cols else None
+                if v is not None and pd.notna(v) and float(v) != 0:
+                    by_val[(per, round(float(v), 2))].add(pep)
+            if 'NOME CLIENTE' in cols and pd.notna(r.get('NOME CLIENTE')):
+                by_cli[(per, npn(r['NOME CLIENTE']))].add(pep)
+            if 'PROFISSIONAL' in cols and pd.notna(r.get('PROFISSIONAL')):
+                by_pess[(per, npn(r['PROFISSIONAL']))].add(pep)
+            if 'WORKEID' in cols:
+                c = cpfd(r.get('WORKEID'))
+                if c:
+                    by_cpf[(per, c)].add(pep)
+print(f'racionais mensais: {len(arqs)} arquivos | {n_rac} linhas do Q2 com PEP')
 
 rc = pd.read_excel(BU_PATH, sheet_name='Racional (Receita)')
 rc.columns = [str(c).strip() for c in rc.columns]
@@ -97,7 +163,7 @@ print(f'fontes: T&E {len(te)} ln + Racional Receita | chaves: valor {len(by_val)
 rows, ids, off = [], set(), 0
 while True:
     r = httpx.get(f'{url}/rest/v1/nova_base',
-                  params={'select': 'id,fonte,periodo,pep,pep_base,receita,custo_rateado,nome_pessoa',
+                  params={'select': 'id,fonte,periodo,pep,pep_base,receita,custo_rateado,nome_pessoa,nome_cliente',
                           'periodo': f'in.({",".join(PERS)})', 'order': 'id', 'limit': '1000', 'offset': str(off)},
                   headers=H, timeout=90)
     b = r.json()
@@ -124,6 +190,11 @@ def acha(x):
         c = by_pess.get((x['periodo'], npn(x['nome_pessoa'])))
         if c and len(c) == 1:
             return next(iter(c)), 'pessoa'
+    # sem pessoa (Fee/WIP/UsageBased): cliente na fonte <> T&E
+    if not x.get('nome_pessoa') and x.get('nome_cliente'):
+        c = by_cli.get((x['periodo'], npn(x['nome_cliente'])))
+        if c and len(c) == 1:
+            return next(iter(c)), 'cliente (Fee/WIP)'
     return None, None
 
 
