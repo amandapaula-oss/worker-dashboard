@@ -3068,6 +3068,12 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         return s
 
     nome_norm = _norm(df["nome_pessoa"])
+    # Placeholders NAO sao pessoa: "(sem profissional)" aparece em receita de N
+    # clientes no mesmo mes e, com chave, a propagacao por pessoa x periodo
+    # levava o PEP de um cliente pra linha de outro (Renner/Ourinvest -> Health).
+    _placeholder = nome_norm.str.replace(r"[()\[\].\-]", "", regex=True).str.strip().isin(
+        {"", "NAN", "NONE", "SEM PROFISSIONAL", "SEM PESSOA", "TIME HYPER", "NA", "N/A"})
+    nome_norm = nome_norm.where(~_placeholder, "")
     df["_pessoa_key"] = nome_norm
 
     # Aliases manuais nome_pessoa — casos que a heuristica nao pega
