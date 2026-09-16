@@ -1,0 +1,337 @@
+[
+ {
+  "fonte": "Licensing Hyper Q2",
+  "periodo": "2026-04",
+  "cliente": "Licensing Hyper (sem detalhe por cliente)",
+  "projeto": "",
+  "valor": 1939374.81
+ },
+ {
+  "fonte": "Licensing Hyper Q2",
+  "periodo": "2026-05",
+  "cliente": "Licensing Hyper (sem detalhe por cliente)",
+  "projeto": "",
+  "valor": 1036385.58
+ },
+ {
+  "fonte": "Licensing Hyper Q2",
+  "periodo": "2026-06",
+  "cliente": "Licensing Hyper (sem detalhe por cliente)",
+  "projeto": "",
+  "valor": 640362.16
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-04",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev - Esteira de Testes (Labs)",
+  "valor": 16353.75
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-04",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev-New Business Models",
+  "valor": 100391.47
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-05",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev-New Business Models",
+  "valor": 101227.72
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-06",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev-New Business Models",
+  "valor": 93792.43
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-04",
+  "cliente": "Track&Field",
+  "projeto": "Track&Field - TFSports 25/26",
+  "valor": 56740.63
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-05",
+  "cliente": "Track&Field",
+  "projeto": "Track&Field - TFSports 25/26",
+  "valor": 62029.97
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-06",
+  "cliente": "Track&Field",
+  "projeto": "Track&Field - TFSports 25/26",
+  "valor": 71732.59
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-04",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev - Esteira de Testes",
+  "valor": 2183.31
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-05",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev - Esteira de Testes",
+  "valor": 3168.46
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-06",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev - Esteira de Testes",
+  "valor": 22375.58
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-04",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev - Report de Tendências",
+  "valor": 6846.38
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-05",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev - Report de Tendências",
+  "valor": 6202.01
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-06",
+  "cliente": "Odontoprev",
+  "projeto": "Odontoprev - Report de Tendências",
+  "valor": 6650.83
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-04",
+  "cliente": "T&F",
+  "projeto": "T&F - AI Factory",
+  "valor": 21221.27
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-05",
+  "cliente": "T&F",
+  "projeto": "T&F - AI Factory",
+  "valor": 22625.59
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-06",
+  "cliente": "T&F",
+  "projeto": "T&F - AI Factory",
+  "valor": 5656.4
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-04",
+  "cliente": "Nita",
+  "projeto": "Nita - Extensão 3 Farelo",
+  "valor": 52037.87,
+  "obs": "liquido = bruto x 0.934500"
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-05",
+  "cliente": "Nita",
+  "projeto": "Nita - Extensão 3 Farelo",
+  "valor": 47243.24,
+  "obs": "liquido = bruto x 0.934500"
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-06",
+  "cliente": "Nita",
+  "projeto": "Nita - Extensão 3 Farelo",
+  "valor": 19517.37,
+  "obs": "liquido = bruto x 0.934500"
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-05",
+  "cliente": "VIX",
+  "projeto": "VIX - Plan Estratégico",
+  "valor": 105921.48,
+  "obs": "liquido = bruto x 0.934500"
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-06",
+  "cliente": "VIX",
+  "projeto": "VIX - Plan Estratégico",
+  "valor": 139790.67,
+  "obs": "liquido = bruto x 0.934500"
+ },
+ {
+  "fonte": "Play Q2",
+  "periodo": "2026-06",
+  "cliente": "Nita",
+  "projeto": "Nita - GTM",
+  "valor": 82991.49,
+  "obs": "liquido = bruto x 0.934500"
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-04",
+  "cliente": "Adcos - Labs",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 12300.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-05",
+  "cliente": "Adcos - Labs",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 12300.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-06",
+  "cliente": "Adcos - Labs",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 12300.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-04",
+  "cliente": "Adcos - Labs",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 8408.28
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-05",
+  "cliente": "Adcos - Labs",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 8408.28
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-06",
+  "cliente": "Adcos - Labs",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 8408.28
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-04",
+  "cliente": "Adcos - Labs (mídia)",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 27000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-05",
+  "cliente": "Adcos - Labs (mídia)",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 27000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-06",
+  "cliente": "Adcos - Labs (mídia)",
+  "projeto": "BR02CLP000116.1.1 - Adcos - Full Commerce - Adcos - Full Commerce",
+  "valor": 27000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-04",
+  "cliente": "FutebolCard - Monetização",
+  "projeto": "Futebolcard - Monetização (BR02CLP000117)",
+  "valor": 22000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-05",
+  "cliente": "FutebolCard - Monetização",
+  "projeto": "Futebolcard - Monetização (BR02CLP000117)",
+  "valor": 22000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-06",
+  "cliente": "FutebolCard - Monetização",
+  "projeto": "Futebolcard - Monetização (BR02CLP000117)",
+  "valor": 22000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-04",
+  "cliente": "Odontoprev - Testes Always On",
+  "projeto": "Odontoprev - Esteira de Testes (BRO2CLP000715)",
+  "valor": 10000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-05",
+  "cliente": "Odontoprev - Testes Always On",
+  "projeto": "Odontoprev - Esteira de Testes (BRO2CLP000715)",
+  "valor": 10000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-06",
+  "cliente": "Odontoprev - Testes Always On",
+  "projeto": "Odontoprev - Esteira de Testes (BRO2CLP000715)",
+  "valor": 10000.0
+ },
+ {
+  "fonte": "Sales Boost Q2",
+  "periodo": "2026-04",
+  "cliente": "Danone - AI Strategy",
+  "projeto": "AI Prototype (BR02CLP000481)",
+  "valor": 65000.0
+ },
+ {
+  "fonte": "Licensing Msf Q2",
+  "periodo": "2026-04",
+  "cliente": "PUC/Fundação SP",
+  "projeto": "",
+  "valor": 4442.2
+ },
+ {
+  "fonte": "Licensing Msf Q2",
+  "periodo": "2026-04",
+  "cliente": "Encripta",
+  "projeto": "",
+  "valor": 306391.74
+ },
+ {
+  "fonte": "Licensing Msf Q2",
+  "periodo": "2026-05",
+  "cliente": "PUC/Fundação SP",
+  "projeto": "",
+  "valor": 3937.44
+ },
+ {
+  "fonte": "Licensing Msf Q2",
+  "periodo": "2026-05",
+  "cliente": "Encripta",
+  "projeto": "",
+  "valor": 367271.51
+ },
+ {
+  "fonte": "Licensing Msf Q2",
+  "periodo": "2026-06",
+  "cliente": "PUC/Fundação SP",
+  "projeto": "",
+  "valor": 3665.74
+ },
+ {
+  "fonte": "Licensing Msf Q2",
+  "periodo": "2026-06",
+  "cliente": "Encripta",
+  "projeto": "",
+  "valor": 288762.44
+ }
+]
