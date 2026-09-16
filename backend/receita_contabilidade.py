@@ -38,22 +38,27 @@ NUM = "#,##0"
 MES_PT = {1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
           7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez"}
 
-# nome oficial de cada centro de lucro (mesmo mapa do main.py)
-_NOME_POR_CODIGO = {
-    "DC001": "DC001 Squads",
-    "DC002": "DC002 Dedicated Teams",
-    "DC004": "DC004 E-commerce",
-    "DC005": "DC005 Open-X",
-    "DC007": "DC007 Imagine",
-    "DC008": "DC008 Hyperautomation",
-    "DC009": "DC009 Licensing Hyper",
-    "DC010": "DC010 Hyper Cloud Dev Plat",
-    "DC011": "DC011 Hyper Data Prot Comp",
-    "DC029": "DC029 FC Consult. New Rev",
-    "DC037": "DC037 Business Unit",
-    "DC038": "DC038 Back Office",
-    "DC040": "DC040 FC Consult. B. Sales",
+# nome oficial de cada centro de lucro — mesmo mapa do fix_no_hierarquia_format.py,
+# que e a referencia da casa (o cadastro do SAP so traz o codigo)
+_DC_NOME = {
+    "DC001": "Squads", "DC002": "Dedicated Teams", "DC003": "Software Factory",
+    "DC004": "E-commerce", "DC005": "Open-X", "DC006": "Licensing Microsoft",
+    "DC007": "Imagine", "DC008": "Hyperautomation", "DC009": "Licensing Hyper",
+    "DC010": "Hyper Cloud Dev Plat", "DC011": "Hyper Data Prot Comp",
+    "DC012": "Strat Consult (Dojo)", "DC013": "Data Consult (Dojo)",
+    "DC014": "Product (Dojo)", "DC015": "Web Analytics", "DC016": "Project Lead",
+    "DC017": "SEO", "DC018": "Creative", "DC019": "Performance",
+    "DC020": "Social & Content", "DC021": "CRM", "DC022": "Rev Ops",
+    "DC023": "Marketplace", "DC024": "Open Innovation", "DC025": "CVB",
+    "DC026": "CVC", "DC027": "Intrapreneurship", "DC028": "Creat. Problem Solv.",
+    "DC029": "FC Consult. New Rev", "DC030": "Dig. & App Innov.",
+    "DC031": "Infrastructure", "DC032": "Data & AI (SGA)", "DC033": "Security",
+    "DC034": "Partners", "DC035": "Modern work", "DC036": "FinOps",
+    "DC037": "Business Unit", "DC038": "Back Office", "DC039": "Data Prof.Serv.Dojo",
+    "DC040": "FC Consult. B. Sales", "DC041": "FC Consult. Strategy",
+    "DC042": "AI Factory",
 }
+_NOME_POR_CODIGO = {k: f"{k} {v}" for k, v in _DC_NOME.items()}
 
 
 def _rotulo_mes(periodo: str) -> str:
