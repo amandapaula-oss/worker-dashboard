@@ -48,7 +48,10 @@ ALIAS = {'BANCO BV': 'VOTORANTIM', 'BV': 'VOTORANTIM', 'DE TOKYO MITSUBISHI UFJ 
          'TOKIO MARINE SEGURADORA': 'TOKIO MARINE', 'MERCADO LIVRE MERCADO PAGO': 'MERCADO LIVRE',
          'IRANI PAPEL E EMBALAGEM': 'IRANI', 'MULTIPLAN EMPREENDIMENTOS IMOBILIA': 'MULTIPLAN',
          'CIP NUCLEA': 'CIP', 'MULTIPLAN EMPREENDIMENTOS': 'MULTIPLAN',
-         'MULTIPLAN EMPREENDIMENTOS IMOBILIARIOS S': 'MULTIPLAN'}   # nome truncado na nossa base
+         'MULTIPLAN EMPREENDIMENTOS IMOBILIARIOS S': 'MULTIPLAN',   # nome truncado na nossa base
+         # o Augusto rotula de FIDELITY dois projetos que no SAP sao da LINKCALL/Callink
+         'FIDELITY FIS SOLUCOES': 'CALLINK',
+         'CALLINK SERVICOS DE CALL CENTER': 'CALLINK'}
 
 
 def npn(v):
@@ -114,8 +117,17 @@ colunas_ok = set(httpx.get(f'{url}/rest/v1/nova_base', params={'select': '*', 'l
                            headers=H, timeout=60).json()[0]) - {'id', 'cpf'}
 KEYS = [k for k in KEYS if k in colunas_ok]
 
+FORCA = '--forca-fonte' in sys.argv
+alvo = list(bate.index)
+if FORCA:
+    dois_lados = [(k, p) for (k, p) in naobate.index
+                  if abs(cmp.loc[(k, p), 'aug']) > 1 and abs(cmp.loc[(k, p), 'nossa']) > 1]
+    print(f'   (--forca-fonte: +{len(dois_lados)} cliente x mes que divergem em VALOR '
+          f'e serao reescritos pela fonte)')
+    alvo += dois_lados
+
 sai_ids, entra, mudou = [], [], 0
-for (k, per) in bate.index:
+for (k, per) in alvo:
     nossas = hy[(hy['k'] == k) & (hy['periodo'] == per)]
     novas = a[(a['k'] == k) & (a['periodo'] == per)]
     if nossas.empty or novas.empty:
