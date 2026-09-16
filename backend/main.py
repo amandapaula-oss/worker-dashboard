@@ -2952,7 +2952,7 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "SORRIA + (SUST./MELHORIA)": "ODONTOPREV S.A.",
         "SORTENABET": "SORTENABET",
         "SORTENABET GAMING BRASIL SA": "SORTENABET",
-        "SPAD COMERCIO DE COSMETICOS": "Adcos",
+        "SPAD COMERCIO DE COSMETICOS": "ADCOS",
         "SPAD COMERCIO DE COSMETICOS LTDA": "ADCOS",
         "SQUAD BIRMINGHAM BANK": "BIRMINGHAM BANK",
         "STRADA": "STRADA",
@@ -2962,7 +2962,7 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "SUPRICORP SUPRIMENTOS LTDA - 0001-88": "GIMBA",
         "SUSTENTAÇÃO SITE DASA": "DASA",
         "TFSPORTS": "TFSPORTS",
-        "TFSPORTS EVENTOS ESPORTIVOS LTDA": "TFSPORTS",
+        "TFSPORTS EVENTOS ESPORTIVOS LTDA": "Track&Field",
         "TLS LOGISTICA DISTRIBUICAO E TRANSPORTES": "TLS LOGISTICA DISTRIBUICAO E TRANSPORTES",
         "TOKIO MARINE": "TOKIO MARINE SEGURADORA S.A.",
         "TOKIO MARINE SEGURADORA S.A.": "TOKIO MARINE SEGURADORA S.A.",
@@ -3039,6 +3039,20 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         # cadastro do SAP sao da LINKCALL/Callink (211730_CALLINK e 211731_CALLINK) —
         # erro na fonte, avisado em 16/09; aqui so corrigimos a exibicao
         "FIDELITY / FIS SOLUCOES": "CALLINK SERVICOS DE CALL CENTER LTDA - FL 02 - MG",
+        # --- grafias do SAP que entram com a peca "Receita Contabil 1Q26" (16/09) ---
+        "FRIGELAR COMERCIO E INDUSTRIA LTDA": "Frigelar",
+        "ENCRIPTA S.A.": "Encripta",
+        "FARFETCH.COM BRASIL SERVICOS LTDA": "FARFETCH",
+        "MERCADOLIVRE.COM ATIVIDADES DE INTE": "MERCADO LIVRE",
+        "MERCADOLIVRE.COM ATIVIDADES DE INTERNET": "MERCADO LIVRE",
+        "BULLLA INSTITUICAO DE PAGAMENTO S.A": "Bullla",
+        "BULLLA INSTITUICAO DE PAGAMENTO S.A.": "Bullla",
+        "FUNDACAO SAO PAULO": "PUC/Fundação SP",
+        "MM SP DISTRIBUIDORA E COMERCIO ATAC": "MM SP",
+        "ALLPARK EMPREENDIMENTOS, PARTICIPAC": "ESTAPAR",
+        "ALLPARK EMPREENDIMENTOS, PARTICIPACOES E": "ESTAPAR",
+        "DIAGNOSTICOS DA AMERICA S.A .": "DASA",
+        "DIAGNOSTICOS DA AMERICA S.A.": "DASA",
         }
     # Expõe o mapa pra re-aplicação no FIM do pipeline: linhas criadas por
     # rateios/derivações depois do enriquecimento nascem com o nome cru e

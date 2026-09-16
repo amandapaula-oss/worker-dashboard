@@ -92,14 +92,69 @@ fora = df[~df['per'].isin(PERS)]
 df = df[df['per'].isin(PERS)].copy()
 print(f'\naba 1 (Racional MB% Q2): {len(df)} linhas no Q2 ({len(fora)} fora do Q2, ignoradas)')
 
-# TRAVA DE DEDUPE (16/09/26): a fonte repete linhas INTEIRAS - em abril/26 eram 31 grupos,
-# um bloco copiado em ordem espelhada, que entrou dobrado na base (R$ 413.339,28 a mais).
-# Duas linhas identicas em TODAS as colunas (Chave, horas e valor inclusive) nao sao duas
-# alocacoes: sao a mesma repetida. Sem a trava, toda recarga traz o erro de volta.
+# TRAVA DE DEDUPE (16/09/26, revista): a fonte repete linhas INTEIRAS - em abril/26 eram
+# 31 grupos, um bloco copiado em ordem espelhada, que entrou dobrado na base (R$ 413.339,28
+# a mais). Mas linha identica repetida NEM SEMPRE e' erro: a Transunion tem duas linhas
+# iguais de R$ 58.146,46 em maio que, somadas, dao o mesmo Fee mensal de abril e junho -
+# e' um Fee partido em duas parcelas, nao uma duplicidade.
+# Criterio: so derruba a repeticao quando o total do mes daquele cliente x projeto fica
+# FORA da linha dos meses vizinhos, e derrubar aproxima o total da mediana dos vizinhos.
+# Sem vizinho para comparar, mantem (e avisa) - errar pra menos apaga receita de verdade.
 _antes = len(df)
-df = df.drop_duplicates()
-if len(df) < _antes:
-    print(f'   !! DEDUPE: {_antes - len(df)} linha(s) repetida(s) na fonte foram ignoradas')
+_dupk = [c for c in df.columns if c != 'per']
+_rec = pd.to_numeric(df.get('Receita (Valor Liquido)'), errors='coerce').fillna(0)
+_cus = pd.to_numeric(df.get('Custo Alocado'), errors='coerce').fillna(0)
+_cli = df['Cliente Unificado'].astype(str).str.strip().str.upper()
+_prj = df.get('ID Projeto(s)', pd.Series('', index=df.index)).astype(str).str.strip().str.upper()
+_tot_r = _rec.groupby([_cli, _prj, df['per']]).sum()
+_tot_c = _cus.groupby([_cli, _prj, df['per']]).sum()
+_marca = df.duplicated(subset=_dupk, keep=False)
+_tira = []
+for _ch, _g in (df[_marca].groupby(_dupk, dropna=False) if _marca.any() else []):
+    if len(_g) < 2:
+        continue
+    _i = list(_g.index)
+    _k = (_cli.loc[_i[0]], _prj.loc[_i[0]], df['per'].loc[_i[0]])
+    # a linha repetida pode ser de receita ou so de custo; compara na grandeza que ela move
+    _rot, _val, _tot = (('receita', _rec, _tot_r) if abs(float(_rec.loc[_i[0]])) > 0.005
+                        else ('custo', _cus, _tot_c))
+    _uni = float(_val.loc[_i[0]])
+    _viz = [v for (c, pj, m), v in _tot.items()
+            if c == _k[0] and pj == _k[1] and m != _k[2] and abs(v) > 0.005]
+    _com = float(_tot.get(_k, 0))
+    _sem = _com - float(_val.loc[_i[1:]].sum())
+    if abs(_uni) <= 0.005 or not _viz:
+        print(f'   ?? repeticao sem base de comparacao, MANTIDA: {_k[0][:26]} {_k[2]} '
+              f'{len(_g)}x {_rot} {_uni:,.2f}')
+        continue
+    _med = sorted(_viz)[len(_viz) // 2]
+    if abs(_sem - _med) < abs(_com - _med):
+        _tira += _i[1:]
+        print(f'   -- repeticao DERRUBADA: {_k[0][:26]} {_k[2]} {len(_g)}x {_rot} {_uni:,.2f} '
+              f'(mes {_com:,.2f} -> {_sem:,.2f}, vizinhos {_med:,.2f})')
+    else:
+        print(f'   ok repeticao legitima, MANTIDA: {_k[0][:26]} {_k[2]} {len(_g)}x {_rot} '
+              f'{_uni:,.2f} (mes {_com:,.2f} x vizinhos {_med:,.2f})')
+if _tira:
+    df = df.drop(index=_tira)
+    print(f'   !! DEDUPE: {_antes - len(df)} linha(s) repetida(s) na fonte foram ignoradas '
+          f'(o total do mes so fecha com os vizinhos sem elas)')
+
+# AVISO (nao mexe em nada): a duplicidade de abril/26 NAO era linha repetida - era o valor
+# ja dobrado DENTRO de uma unica linha, o que nenhum drop_duplicates pega. O que da' pra
+# fazer aqui e' apontar: cliente x projeto cujo mes fica perto do DOBRO dos vizinhos.
+for (_c, _pj, _m), _v in _tot_r.items():
+    if abs(_v) < 20000:
+        continue
+    _viz = [x for (c2, p2, m2), x in _tot_r.items()
+            if c2 == _c and p2 == _pj and m2 != _m and abs(x) > 0.005]
+    if len(_viz) < 2:
+        continue
+    _med = sorted(_viz)[len(_viz) // 2]
+    if _med and 1.8 <= _v / _med <= 2.2:
+        print(f'   !! SUSPEITA DE VALOR DOBRADO: {str(_c)[:26]} {_pj[:16]} {_m} '
+              f'R$ {_v:,.2f} = {_v/_med:.2f}x a mediana dos outros meses ({_med:,.2f}) '
+              f'- conferir na fonte antes de subir')
 
 # ATENCAO: a tabela nova_base NAO tem coluna 'cpf' (o main.py cria essa coluna em memoria,
 # no processamento). Mandar 'cpf' no insert quebra com PGRST204.
