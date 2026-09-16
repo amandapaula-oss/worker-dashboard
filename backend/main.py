@@ -3027,6 +3027,18 @@ def _enriquecer_dados_pessoa(df: pd.DataFrame) -> pd.DataFrame:
         "TRES CORACOES ALIMENTOS": "Grupo Três Corações",
         "UNIMED ESTADO DE SAO PAULO (FESP)": "UNIMED FESP",
         "VLI MULTIMODAL": "VLI",
+        # --- unificacao de cliente da auditoria de 16/09 (mesmo cliente, dois nomes) ---
+        "OURINVEST (OURIBANK)": "OURIBANK",          # muda de nome na virada do Q2
+        "VIA VAREJO": "GRUPO CASAS BAHIA",           # mesmo grupo (SAP: GRUPO CASAS BAHIA S.A.)
+        "TFSPORTS": "Track&Field",
+        "T&F": "Track&Field",
+        "ADCOS - LABS": "ADCOS",
+        "ADCOS - LABS (MÍDIA)": "ADCOS",
+        "MERCADO LIVRE /MERCADO.PAGO - FL 01 - SP": "MERCADO LIVRE",
+        # o Controle Augusto rotula de "FIDELITY / FIS SOLUCOES" dois projetos que no
+        # cadastro do SAP sao da LINKCALL/Callink (211730_CALLINK e 211731_CALLINK) —
+        # erro na fonte, avisado em 16/09; aqui so corrigimos a exibicao
+        "FIDELITY / FIS SOLUCOES": "CALLINK SERVICOS DE CALL CENTER LTDA - FL 02 - MG",
         }
     # Expõe o mapa pra re-aplicação no FIM do pipeline: linhas criadas por
     # rateios/derivações depois do enriquecimento nascem com o nome cru e
