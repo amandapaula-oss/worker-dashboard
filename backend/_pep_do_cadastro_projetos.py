@@ -94,7 +94,12 @@ for x in rows:
         return re.sub(r'^BRO', 'BR0', p.split('.')[0])
     raizes = {_norm_raiz(c[2]) for c in cands if c[0] == melhor[0]}
     if len(raizes) > 1:
-        stats[f'ambiguo ({len(raizes)} projetos)'] += 1
+        # o cadastro do SAP tem projetos DIFERENTES com o mesmo nome (ex.: 'Odontoprev
+        # Esteira de Testes' em BRO2CLP000715 e BR02CLP000234). Por decisao da Amanda,
+        # lanca no primeiro (ordem estavel) e deixa a escolha registrada para revisao.
+        stats[f'ambiguo — lancado no 1o de {len(raizes)}'] += 1
+        plano.append((x, melhor[2], melhor[3] + f' [AMBIGUO: {len(raizes)} projetos com o mesmo nome — '
+                      + ', '.join(sorted(raizes)) + ']'))
         continue
     plano.append((x, melhor[2], melhor[3]))
     stats['casou pelo nome do projeto'] += 1
