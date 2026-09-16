@@ -2,10 +2,11 @@
 """Relatorio "Receita Contabilidade": toda a receita por mes, com centro de lucro
 (profit center), BU, PEP completo, ID do projeto, cliente e valor.
 
-Gera um xlsx com 3 abas:
-  1. Receita Detalhada  — uma linha por lancamento de receita
-  2. Por Mes e BU       — matriz BU x mes
-  3. Por Centro de Lucro— matriz centro de lucro x mes
+Gera um xlsx com 4 abas (as duas visoes que a Paola pediu em 16/09 + os dois resumos):
+  1. Consolidado por PEP — uma linha por PEP/cliente/mes (menos linhas)
+  2. Detalhe por Pessoa  — uma linha por lancamento; nas alocacoes, uma por pessoa
+  3. Por Mes e BU        — matriz BU x mes
+  4. Por Centro de Lucro — matriz centro de lucro x mes
 
 O centro de lucro sai de `no_hierarquia` (ex.: "DC002 Dedicated Teams") e, quando a
 linha nao tem, do cadastro mestre de PEPs do SAP (pep_master_sap.xlsx) pelo projeto.
@@ -34,6 +35,9 @@ BORDA = Border(bottom=Side(style="thin", color="DDDDDD"))
 # "#.##0" e o que se digita na INTERFACE em pt-BR (NumberFormatLocal, via COM);
 # escrito pelo openpyxl ele vira 3 casas decimais sem separador.
 NUM = "#,##0"
+# idem para a data: o codigo gravado e' en-US. "mmm/aa" (o que se digita no Excel
+# em pt-BR) sairia literal "abr/aa"; "mmm/yy" e' o que o Excel pt-BR exibe abr/26.
+DATA = "mmm/yy"
 
 MES_PT = {1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
           7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez"}
@@ -69,6 +73,14 @@ def _rotulo_mes(periodo: str) -> str:
         return str(periodo)
 
 
+def _fim_mes(periodo):
+    """'2026-04' -> datetime(2026, 4, 30). A coluna de mes precisa ser DATA de verdade:
+    como texto, a tabela dinamica ordena abr, fev, jan, jun... (pedido da Paola, 16/09).
+    O ultimo dia do mes e' a mesma competencia que a contabilidade usa no arquivo dela."""
+    ts = pd.to_datetime(f"{periodo}-01", errors="coerce")
+    return str(periodo) if pd.isna(ts) else (ts + pd.offsets.MonthEnd(0)).to_pydatetime()
+
+
 @lru_cache(maxsize=1)
 def _profit_center_por_pep() -> dict:
     """PEP (e raiz) -> codigo do centro de lucro, do cadastro mestre do SAP.
@@ -93,6 +105,50 @@ def _profit_center_por_pep() -> dict:
     except Exception as e:  # pragma: no cover
         print(f"[receita_contabilidade] cadastro mestre nao lido: {e}")
     return mapa
+
+
+def _escreve_tabela(xw, aba, tabela, titulo, subtitulo, larguras):
+    """Escreve uma tabela simples: titulo em A1, subtitulo em A2, cabecalho na linha 4,
+    dados a partir da 5 e TOTAL no fim. Colunas de data saem com formato mmm/aa e as
+    numericas com separador de milhar."""
+    tabela.to_excel(xw, sheet_name=aba, index=False, startrow=3)
+    ws = xw.sheets[aba]
+    ws["A1"] = titulo
+    ws["A1"].font = Font(name=FONTE_BASE, size=12, bold=True)
+    ws["A2"] = subtitulo
+    ws["A2"].font = Font(name=FONTE_BASE, size=9, italic=True, color="666666")
+    ncol = tabela.shape[1]
+    for j in range(1, ncol + 1):
+        c = ws.cell(4, j)
+        c.fill, c.font = HDR_FILL, HDR_FONT
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    num = [j for j, c in enumerate(tabela.columns, 1)
+           if pd.api.types.is_numeric_dtype(tabela[c])]
+    dat = [j for j, c in enumerate(tabela.columns, 1)
+           if pd.api.types.is_datetime64_any_dtype(tabela[c])]
+    for i in range(len(tabela)):
+        for j in range(1, ncol + 1):
+            c = ws.cell(5 + i, j)
+            c.font, c.border = CELL_FONT, BORDA
+            if j in dat:
+                c.number_format = DATA
+            elif j in num:
+                c.number_format = NUM
+    linha_tot = 5 + len(tabela)
+    ws.cell(linha_tot, 1, "TOTAL")
+    for j in num:
+        ws.cell(linha_tot, j, round(float(tabela.iloc[:, j - 1].sum()), 2)).number_format = NUM
+    _estiliza(ws, ncol, larguras, linha_tot)
+    return ws
+
+
+def _cabecalho_meses(ws, meses, col0):
+    """Troca os rotulos de mes do cabecalho da matriz por datas de verdade (mmm/aa),
+    para a matriz tambem ordenar/filtrar como data."""
+    for i, m in enumerate(meses):
+        c = ws.cell(4, col0 + i)
+        c.value = _fim_mes(m)
+        c.number_format = DATA
 
 
 def _estiliza(ws, n_cols, larguras, linha_total=None, freeze="A5"):
@@ -142,8 +198,13 @@ def gerar_xlsx_bytes(df: pd.DataFrame, periodos: Optional[List[str]] = None) -> 
     nome_completo = nome_completo.fillna(vindo_da_linha.replace("", pd.NA)).fillna(cod)
     nome_pc = (nome_completo.fillna("").str.replace(r"^DC\d+\s*", "", regex=True).str.strip())
 
+    # nome do profissional: so nas linhas de alocacao ele existe; placeholders viram vazio
+    pessoa = d.get("nome_pessoa", pd.Series("", index=d.index)).fillna("").astype(str).str.strip()
+    pessoa = pessoa.where(~pessoa.str.lower().isin(
+        ["nan", "none", "(sem profissional)", "sem profissional", "0"]), "")
+
     det = pd.DataFrame({
-        "Mês": d["periodo"].map(_rotulo_mes),
+        "Mês": d["periodo"].map(_fim_mes),
         "Competência": d["periodo"],
         "Empresa": d.get("empresa", "").fillna("").astype(str).str.strip(),
         "Centro de Lucro": cod.fillna(""),
@@ -152,42 +213,47 @@ def gerar_xlsx_bytes(df: pd.DataFrame, periodos: Optional[List[str]] = None) -> 
         "PEP": pep,
         "ID Projeto": pep_base,
         "Cliente": d.get("nome_cliente", "").fillna("").astype(str).str.strip(),
+        "Profissional": pessoa,
         "Apuração": d.get("apuracao", "").fillna("").astype(str).str.strip(),
         "Fonte": fonte.loc[d.index],
         "Valor": d["receita"].round(2),
     }).sort_values(["Competência", "BU", "Cliente", "PEP"]).reset_index(drop=True)
+    det["Mês"] = pd.to_datetime(det["Mês"], errors="coerce")
+
+    # visao 1: consolidado por PEP — mesma informacao, sem a quebra por pessoa
+    CHAVE = ["Mês", "Competência", "Empresa", "Centro de Lucro", "Centro de Lucro (nome)",
+             "BU", "PEP", "ID Projeto", "Cliente", "Apuração"]
+    cons = (det.groupby(CHAVE, dropna=False, as_index=False)
+            .agg(Lançamentos=("Valor", "size"), Valor=("Valor", "sum"))
+            .sort_values(["Competência", "BU", "Cliente", "PEP"]).reset_index(drop=True))
+    cons["Valor"] = cons["Valor"].round(2)
 
     meses = sorted(det["Competência"].unique())
+    _tot = f"{det['Valor'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    # deixa explicito o recorte: quem tem acesso a 1 BU precisa saber que o
+    # arquivo nao e a empresa inteira
+    _bus = sorted(b for b in det["BU"].unique() if str(b).strip())
+    _rec = f" · BUs: {', '.join(_bus)}" if 0 < len(_bus) <= 3 else ""
+    _per = ", ".join(_rotulo_mes(m) for m in meses)
+    _com_pessoa = int(det["Profissional"].ne("").sum())
+
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xw:
-        det.drop(columns=["Competência"]).to_excel(xw, sheet_name="Receita Detalhada",
-                                                   index=False, startrow=3)
-        ws = xw.sheets["Receita Detalhada"]
-        ws["A1"] = "Receita Contabilidade — detalhe por lançamento"
-        ws["A1"].font = Font(name=FONTE_BASE, size=12, bold=True)
-        _tot = f"{det['Valor'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        # deixa explicito o recorte: quem tem acesso a 1 BU precisa saber que o
-        # arquivo nao e a empresa inteira
-        _bus = sorted(b for b in det["BU"].unique() if str(b).strip())
-        _rec = f" · BUs: {', '.join(_bus)}" if 0 < len(_bus) <= 3 else ""
-        ws["A2"] = (f"{len(det)} lançamentos · {', '.join(_rotulo_mes(m) for m in meses)} · "
-                    f"total R$ {_tot}{_rec} · receita realizada (exclui Budget)")
-        ws["A2"].font = Font(name=FONTE_BASE, size=9, italic=True, color="666666")
-        ncol = det.shape[1] - 1
-        for j in range(1, ncol + 1):
-            c = ws.cell(4, j)
-            c.fill, c.font = HDR_FILL, HDR_FONT
-            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        for i in range(len(det)):
-            for j in range(1, ncol + 1):
-                c = ws.cell(5 + i, j)
-                c.font, c.border = CELL_FONT, BORDA
-                if j == ncol:
-                    c.number_format = NUM
-        tot = 5 + len(det)
-        ws.cell(tot, 1, "TOTAL")
-        ws.cell(tot, ncol, round(float(det["Valor"].sum()), 2)).number_format = NUM
-        _estiliza(ws, ncol, [9, 15, 15, 24, 14, 22, 16, 34, 13, 20, 15], tot)
+        _escreve_tabela(
+            xw, "Consolidado por PEP", cons.drop(columns=["Competência"]),
+            "Receita Contabilidade — consolidado por PEP",
+            f"{len(cons)} linhas (PEP × cliente × mês) · {_per} · total R$ {_tot}{_rec} · "
+            f"receita realizada (exclui Budget) · o detalhe de cada linha está na aba "
+            f"'Detalhe por Pessoa'",
+            [9, 15, 15, 24, 14, 22, 16, 34, 13, 13, 15])
+
+        _escreve_tabela(
+            xw, "Detalhe por Pessoa", det.drop(columns=["Competência"]),
+            "Receita Contabilidade — detalhe por lançamento",
+            f"{len(det)} lançamentos · {_per} · total R$ {_tot}{_rec} · "
+            f"receita realizada (exclui Budget) · {_com_pessoa} linhas são alocação "
+            f"(uma por profissional); as demais são Fee, WIP, licença e usage based",
+            [9, 15, 15, 24, 14, 22, 16, 34, 30, 13, 20, 15])
 
         # ---- matriz BU x mes ----
         piv = (det.pivot_table(index="BU", columns="Competência", values="Valor",
@@ -216,6 +282,7 @@ def gerar_xlsx_bytes(df: pd.DataFrame, periodos: Optional[List[str]] = None) -> 
         for j in range(2, n2 + 1):
             col = piv.columns[j - 2]
             ws2.cell(t2, j, round(float(piv[col].sum()), 2)).number_format = NUM
+        _cabecalho_meses(ws2, meses, 2)
         _estiliza(ws2, n2, [22] + [15] * (n2 - 1), t2)
 
         # ---- matriz centro de lucro x mes ----
@@ -249,6 +316,7 @@ def gerar_xlsx_bytes(df: pd.DataFrame, periodos: Optional[List[str]] = None) -> 
         for j in range(2, n3 + 1):
             col = piv3.columns[j - 2]
             ws3.cell(t3, j, round(float(piv3[col].sum()), 2)).number_format = NUM
+        _cabecalho_meses(ws3, meses, 2)
         _estiliza(ws3, n3, [30] + [15] * (n3 - 1), t3)
 
     buf.seek(0)
