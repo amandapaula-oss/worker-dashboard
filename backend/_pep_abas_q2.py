@@ -178,7 +178,9 @@ if not APPLY:
 
 feitas = 0
 for x, pep, motivo in plano:
-    fd = (x.get('fonte_dados') or '') + f' | PEP: {motivo}'
+    fd = x.get('fonte_dados') or ''
+    if '| PEP:' not in fd:          # idempotente: rodar de novo nao acrescenta de novo
+        fd += f' | PEP: {motivo}'
     r = httpx.patch(f'{url}/rest/v1/nova_base', params={'id': f'eq.{x["id"]}'},
                     json={'pep': pep, 'pep_base': raiz(pep), 'fonte_dados': fd[:500]},
                     headers={**H, 'Prefer': 'return=minimal'}, timeout=60)
