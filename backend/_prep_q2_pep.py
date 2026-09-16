@@ -92,6 +92,15 @@ fora = df[~df['per'].isin(PERS)]
 df = df[df['per'].isin(PERS)].copy()
 print(f'\naba 1 (Racional MB% Q2): {len(df)} linhas no Q2 ({len(fora)} fora do Q2, ignoradas)')
 
+# TRAVA DE DEDUPE (16/09/26): a fonte repete linhas INTEIRAS - em abril/26 eram 31 grupos,
+# um bloco copiado em ordem espelhada, que entrou dobrado na base (R$ 413.339,28 a mais).
+# Duas linhas identicas em TODAS as colunas (Chave, horas e valor inclusive) nao sao duas
+# alocacoes: sao a mesma repetida. Sem a trava, toda recarga traz o erro de volta.
+_antes = len(df)
+df = df.drop_duplicates()
+if len(df) < _antes:
+    print(f'   !! DEDUPE: {_antes - len(df)} linha(s) repetida(s) na fonte foram ignoradas')
+
 # ATENCAO: a tabela nova_base NAO tem coluna 'cpf' (o main.py cria essa coluna em memoria,
 # no processamento). Mandar 'cpf' no insert quebra com PGRST204.
 KEYS = ['fonte', 'fonte_dados', 'periodo', 'empresa', 'pep', 'pep_base', 'nome_pessoa', 'nome_cliente',
