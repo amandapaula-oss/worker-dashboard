@@ -1,6 +1,6 @@
 {
- "gerado_em": "2026-09-14",
- "fonte": "30. FP&A NOVO\\15. Metas (Apuração)\\2026\\Metas Oficiais\\RESUMO.xlsx (base do Yuri, atualizada 08/09/2026)",
+ "gerado_em": "2026-09-18",
+ "fonte": "Q2 = \"RESUMO - 18.09.xlsx\" aba Q2Y26 VIVO (base alinhada a contabilidade); Q1 = \"RESUMO.xlsx\" original aba Q1Y26 (Valor), congelado — o Q1 nao foi recalculado por decisao de 18/09",
  "q2": [
   {
    "periodo": "Q2Y26",
@@ -9,24 +9,24 @@
    "avaliado": "MIRELLA ANDRADE ARAUJO",
    "posicao": "AE",
    "peso_meta": 1.0,
-   "atingimento_final": 0.4,
+   "atingimento_final": 0.0,
    "salario": 20940.29,
    "quantidade": 1.0,
-   "apuracao_rs": 8376.116,
+   "apuracao_rs": 0.0,
    "receita": {
-    "realizado": 4635951.62,
+    "realizado": 4506042.08,
     "meta": 4987474.3,
-    "ating": 0.929519
+    "ating": 0.903472
    },
    "mb": {
-    "realizado": 0.376159,
+    "realizado": 0.358174,
     "meta": 0.354316,
-    "delta_pp": 0.021843
+    "delta_pp": 0.003858
    },
    "lb": {
-    "realizado": 1743856.53,
+    "realizado": 1613946.99,
     "meta": 1767143.3765,
-    "ating": 0.986822
+    "ating": 0.913308
    }
   },
   {
@@ -46,14 +46,14 @@
     "ating": 0.918064
    },
    "mb": {
-    "realizado": 0.259535,
+    "realizado": 0.265994,
     "meta": 0.355,
-    "delta_pp": -0.095465
+    "delta_pp": -0.089006
    },
    "lb": {
-    "realizado": 2301311.1425,
+    "realizado": 2358589.1425,
     "meta": 3428745.4829,
-    "ating": 0.671182
+    "ating": 0.687887
    }
   },
   {
@@ -68,19 +68,19 @@
    "quantidade": 1.0,
    "apuracao_rs": 0.0,
    "receita": {
-    "realizado": 4024651.84,
+    "realizado": 3765612.48,
     "meta": 4500552.0,
-    "ating": 0.894257
+    "ating": 0.8367
    },
    "mb": {
-    "realizado": 0.373259,
+    "realizado": 0.343439,
     "meta": 0.352028,
-    "delta_pp": 0.021231
+    "delta_pp": -0.008589
    },
    "lb": {
-    "realizado": 1502237.92308,
+    "realizado": 1293258.10034,
     "meta": 1584322.22028,
-    "ating": 0.94819
+    "ating": 0.816285
    }
   },
   {
@@ -90,24 +90,24 @@
    "avaliado": "Amanda Rampazzo",
    "posicao": "AE",
    "peso_meta": 1.0,
-   "atingimento_final": 0.0,
+   "atingimento_final": 0.4,
    "salario": 8950.0,
    "quantidade": 1.0,
-   "apuracao_rs": 0.0,
+   "apuracao_rs": 3580.0,
    "receita": {
     "realizado": 625357.37,
     "meta": 880000.0,
     "ating": 0.710633
    },
    "mb": {
-    "realizado": 0.394916,
+    "realizado": 0.511034,
     "meta": 0.355,
-    "delta_pp": 0.039916
+    "delta_pp": 0.156034
    },
    "lb": {
-    "realizado": 246963.387,
+    "realizado": 319579.01,
     "meta": 312400.0,
-    "ating": 0.790536
+    "ating": 1.02298
    }
   },
   {
@@ -122,19 +122,19 @@
    "quantidade": 1.0,
    "apuracao_rs": 0.0,
    "receita": {
-    "realizado": 17718242.59,
+    "realizado": 17764078.27,
     "meta": 19199999.28,
-    "ating": 0.922825
+    "ating": 0.925212
    },
    "mb": {
-    "realizado": 0.203395,
+    "realizado": 0.236986,
     "meta": 0.292015,
-    "delta_pp": -0.08862
+    "delta_pp": -0.055029
    },
    "lb": {
-    "realizado": 3603800.18,
+    "realizado": 4209832.42284,
     "meta": 5606681.71468,
-    "ating": 0.642769
+    "ating": 0.75086
    }
   },
   {
@@ -149,19 +149,19 @@
    "quantidade": 1.0,
    "apuracao_rs": 0.0,
    "receita": {
-    "realizado": 3596707.903113,
+    "realizado": 3561913.73,
     "meta": 4403863.64523,
-    "ating": 0.816716
+    "ating": 0.808816
    },
    "mb": {
-    "realizado": 0.274298,
+    "realizado": 0.265536,
     "meta": 0.295907,
-    "delta_pp": -0.021609
+    "delta_pp": -0.030371
    },
    "lb": {
-    "realizado": 986570.323113,
+    "realizado": 945816.15,
     "meta": 1303134.352477,
-    "ating": 0.757075
+    "ating": 0.725801
    }
   },
   {
@@ -203,7 +203,7 @@
    "quantidade": 1.0,
    "apuracao_rs": 14400.0,
    "receita": {
-    "realizado": 4005010.76,
+    "realizado": 4005010.79,
     "meta": 4290025.82554,
     "ating": 0.933563
    },
@@ -213,7 +213,7 @@
     "delta_pp": 0.019676
    },
    "lb": {
-    "realizado": 1407628.28,
+    "realizado": 1407628.31,
     "meta": 1423389.081528,
     "ating": 0.988927
    }
@@ -225,24 +225,24 @@
    "avaliado": "Henrique",
    "posicao": "Diretor",
    "peso_meta": 1.0,
-   "atingimento_final": 0.0,
+   "atingimento_final": 0.5,
    "salario": 31281.86,
    "quantidade": 1.0,
-   "apuracao_rs": 0.0,
+   "apuracao_rs": 15640.93,
    "receita": {
-    "realizado": 11905509.693113,
+    "realizado": 12116427.7,
     "meta": 12782760.958653,
-    "ating": 0.931372
+    "ating": 0.947873
    },
    "mb": {
-    "realizado": 0.25077,
+    "realizado": 0.292135,
     "meta": 0.266039,
-    "delta_pp": -0.015269
+    "delta_pp": 0.026096
    },
    "lb": {
-    "realizado": 2985547.653113,
+    "realizado": 3539627.78595,
     "meta": 3400710.873983,
-    "ating": 0.877919
+    "ating": 1.040849
    }
   },
   {
@@ -262,14 +262,14 @@
     "ating": 0.620969
    },
    "mb": {
-    "realizado": 0.4465,
+    "realizado": 0.428896,
     "meta": 0.320735,
-    "delta_pp": 0.125765
+    "delta_pp": 0.108162
    },
    "lb": {
-    "realizado": 1587744.20325,
+    "realizado": 1525146.03312,
     "meta": 1836685.69077,
-    "ating": 0.864462
+    "ating": 0.830379
    }
   },
   {
@@ -284,17 +284,17 @@
    "quantidade": 1.0,
    "apuracao_rs": 21897.302,
    "receita": {
-    "realizado": 5267605.98,
+    "realizado": 5356786.2,
     "meta": 7178978.9395,
-    "ating": 0.733754
+    "ating": 0.746177
    },
    "mb": {
-    "realizado": 0.343996,
+    "realizado": 0.384758,
     "meta": 0.238436,
-    "delta_pp": 0.10556
+    "delta_pp": 0.146321
    },
    "lb": {
-    "realizado": 1812035.88238,
+    "realizado": 2061063.89551,
     "meta": null,
     "ating": null
    }
@@ -311,19 +311,19 @@
    "quantidade": 1.0,
    "apuracao_rs": 0.0,
    "receita": {
-    "realizado": 4226188.18,
+    "realizado": 4282986.93,
     "meta": 5960213.2475,
-    "ating": 0.709067
+    "ating": 0.718596
    },
    "mb": {
-    "realizado": 0.349262,
+    "realizado": 0.364757,
     "meta": 0.332175,
-    "delta_pp": 0.017086
+    "delta_pp": 0.032581
    },
    "lb": {
-    "realizado": 1476045.49284,
+    "realizado": 1562247.52748,
     "meta": 1979835.988145,
-    "ating": 0.745539
+    "ating": 0.789079
    }
   },
   {
@@ -338,19 +338,19 @@
    "quantidade": 1.0,
    "apuracao_rs": 0.0,
    "receita": {
-    "realizado": 10008288.66,
+    "realizado": 10210468.31,
     "meta": 14743064.217131,
-    "ating": 0.678847
+    "ating": 0.692561
    },
    "mb": {
-    "realizado": 0.273454,
+    "realizado": 0.340452,
     "meta": 0.272052,
-    "delta_pp": 0.001402
+    "delta_pp": 0.068401
    },
    "lb": {
-    "realizado": 2736803.99339,
+    "realizado": 3476176.80143,
     "meta": 4010873.737178,
-    "ating": 0.682346
+    "ating": 0.866688
    }
   },
   {
@@ -370,14 +370,14 @@
     "ating": 0.486124
    },
    "mb": {
-    "realizado": 0.362575,
+    "realizado": 0.361743,
     "meta": 0.339182,
-    "delta_pp": 0.023393
+    "delta_pp": 0.022561
    },
    "lb": {
-    "realizado": 261636.84867,
+    "realizado": 261036.55147,
     "meta": 503485.477675,
-    "ating": 0.519651
+    "ating": 0.518459
    }
   },
   {
@@ -419,19 +419,19 @@
    "quantidade": 1.0,
    "apuracao_rs": 0.0,
    "receita": {
-    "realizado": 2090985.78,
+    "realizado": 2163609.2,
     "meta": 7792724.693252,
-    "ating": 0.268325
+    "ating": 0.277645
    },
    "mb": {
-    "realizado": -1.927098,
+    "realizado": 0.295483,
     "meta": 0.256673,
-    "delta_pp": -2.183771
+    "delta_pp": 0.03881
    },
    "lb": {
-    "realizado": -4029534.5904,
+    "realizado": 639309.95846,
     "meta": 2000184.228071,
-    "ating": -2.014582
+    "ating": 0.319626
    }
   },
   {
@@ -446,19 +446,19 @@
    "quantidade": 1.0,
    "apuracao_rs": 0.0,
    "receita": {
-    "realizado": 7976200.62,
+    "realizado": 8098327.3,
     "meta": 14415872.962853,
-    "ating": 0.553293
+    "ating": 0.561765
    },
    "mb": {
-    "realizado": -0.407881,
+    "realizado": 0.267297,
     "meta": 0.219641,
-    "delta_pp": -0.627522
+    "delta_pp": 0.047655
    },
    "lb": {
-    "realizado": -3253339.40607,
+    "realizado": 2164656.72468,
     "meta": 3166323.438248,
-    "ating": -1.027482
+    "ating": 0.68365
    }
   }
  ],
