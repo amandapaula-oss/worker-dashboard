@@ -105,3 +105,8 @@ for bu, v in g.items():
     else:
         print(f'   {bu:18} {v:>18,.2f} {"-":>18} {"-":>15}')
 print(f'\n   TOTAL Q1 (pipeline): R$ {g.sum():,.2f}')
+
+emp = nb.groupby('empresa')['receita'].sum()
+tres = emp[[k for k in emp.index if str(k)[:4] in ('BR02', 'BR07', 'BR09')]].sum()
+print(f'   BR02+BR07+BR09 no Q1: R$ {tres:,.2f}  (antes do alinhamento: '
+      f'R$ {Q1_ANTES:,.2f} | dif R$ {tres - Q1_ANTES:+,.2f})')
