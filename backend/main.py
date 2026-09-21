@@ -1051,6 +1051,77 @@ def read_csv_cached(path: str, **kwargs) -> pd.DataFrame:
     sheet = path.replace(".csv", "")
     return read_sheet_cached(sheet, **kwargs)
 
+
+def _pep_vertical_regras(mapa: dict | None = None) -> dict:
+    """Le a aba pep_vertical e devolve {pep: [(tokens|None, vertical), ...]}.
+
+    A coluna opcional `periodo` restringe a regra a certos meses: tokens separados por
+    virgula, cada um "2026-04" (mes exato), ">=2026-04" ou "<=2026-03". Uma linha SEM
+    periodo e' o caso geral daquele PEP. Com isso o mesmo PEP pode ter BU diferente por
+    trimestre, que e' o que a Odontoprev precisa: Others no Q1 — ja' apurado e pago, a
+    Visao BUs dos diretores de jan-mar tem que continuar batendo — e Hyper de abril em
+    diante (decisao Amanda/Paola 18/09). Sem a coluna, o comportamento e' o de sempre.
+    """
+    pv = read_sheet_cached("pep_vertical", dtype=str).dropna(subset=["pep", "vertical"])
+    tem_per = "periodo" in pv.columns
+    regras: dict = {}
+    for _, r in pv.iterrows():
+        pep = str(r["pep"]).strip()
+        if not pep:
+            continue
+        v = str(r["vertical"]).strip()
+        if mapa:
+            v = mapa.get(v, v)
+        toks = None
+        if tem_per:
+            per = str(r.get("periodo") or "").strip()
+            if per and per.lower() not in ("nan", "none"):
+                toks = [x.strip() for x in per.split(",") if x.strip()]
+        regras.setdefault(pep, []).append((toks, v))
+    return regras
+
+
+def _pep_vertical_casa(periodo: str, tokens: list) -> bool:
+    for t in tokens:
+        if t.startswith(">="):
+            if periodo >= t[2:]:
+                return True
+        elif t.startswith("<="):
+            if periodo <= t[2:]:
+                return True
+        elif periodo == t:
+            return True
+    return False
+
+
+def _aplica_pep_vertical(df: pd.DataFrame, regras: dict, col: str) -> pd.DataFrame:
+    """Escreve `vertical` nas linhas cujo `col` tem regra em pep_vertical."""
+    if not regras or col not in df.columns:
+        return df
+    key = df[col].fillna("").astype(str).str.strip()
+    cand = key.isin(set(regras))
+    if not cand.any():
+        return df
+    per = (df["periodo"].fillna("").astype(str).str.strip().str[:7]
+           if "periodo" in df.columns else pd.Series("", index=df.index))
+
+    def _resolve(pep, periodo):
+        geral = None
+        for toks, v in regras.get(pep, ()):
+            if toks is None:
+                if geral is None:
+                    geral = v
+            elif _pep_vertical_casa(periodo, toks):
+                return v
+        return geral
+
+    vals = pd.Series([_resolve(k, p) for k, p in zip(key[cand], per[cand])],
+                     index=df.index[cand])
+    ok = vals.notna()
+    if ok.any():
+        df.loc[vals.index[ok], "vertical"] = vals[ok]
+    return df
+
 # ── Metas endpoints ────────────────────────────────────────────────────────────
 
 def get_metas_df() -> pd.DataFrame:
@@ -1289,10 +1360,7 @@ def get_margem_proj() -> pd.DataFrame:
     # Se o pep está mapeado no arquivo, esse valor é usado independente do vlookup do cliente.
     # Isso garante que clientes Finance/Retail/etc. com pep=Others não contaminem a vertical errada.
     try:
-        pv = read_sheet_cached("pep_vertical", dtype=str).dropna(subset=["pep", "vertical"])
-        pv_map = dict(zip(pv["pep"].str.strip(), pv["vertical"].str.strip()))
-        pep_override = df["pep"].str.strip().map(pv_map)
-        df.loc[pep_override.notna(), "vertical"] = pep_override[pep_override.notna()]
+        df = _aplica_pep_vertical(df, _pep_vertical_regras(), "pep")
     except Exception:
         pass
 
@@ -2518,19 +2586,9 @@ def _aplicar_vertical_por_pep(df: pd.DataFrame) -> pd.DataFrame:
     if "pep_base" not in df.columns and "pep" not in df.columns:
         return df
     try:
-        pv = read_sheet_cached("pep_vertical", dtype=str).dropna(subset=["pep", "vertical"])
-        pv_map = {}
-        for _, r in pv.iterrows():
-            pep = str(r["pep"]).strip()
-            v = str(r["vertical"]).strip()
-            if pep:
-                pv_map[pep] = VERT_MAP.get(v, v)
+        regras = _pep_vertical_regras(VERT_MAP)
         for col in ("pep_base", "pep"):
-            if col not in df.columns:
-                continue
-            key = df[col].fillna("").astype(str).str.strip()
-            override = key.map(pv_map)
-            df.loc[override.notna(), "vertical"] = override[override.notna()]
+            df = _aplica_pep_vertical(df, regras, col)
     except Exception as e:
         print(f"[vertical_por_pep] falhou: {e}")
 
