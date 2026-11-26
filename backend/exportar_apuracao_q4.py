@@ -202,9 +202,15 @@ def main():
             print(f"  - {e}")
 
 
-def gerar_xlsx_bytes() -> bytes:
-    """Gera o xlsx em memória e retorna como bytes (usado pelo endpoint da API)."""
+def gerar_xlsx_bytes(verticais: set | None = None) -> bytes:
+    """Gera o xlsx em memória e retorna como bytes (usado pelo endpoint da API).
+
+    `verticais`: se informado, só entram as pessoas que atuam em alguma dessas
+    verticais da apuração. None = sem restrição (admin). Pessoa cuja vertical não
+    dá pra determinar fica DE FORA quando há restrição — falha fechada.
+    """
     import io
+    from apuracao_engine import verticais_da_pessoa
     d = _load_all()
     pessoas = d["pessoas"]
 
@@ -215,6 +221,12 @@ def gerar_xlsx_bytes() -> bytes:
         sal  = float(p["Sal_Q4"] or 0)
         if sal == 0:
             continue
+        if verticais is not None:
+            try:
+                if not (verticais_da_pessoa(nome) & verticais):
+                    continue
+            except Exception:
+                continue
         try:
             if pos in POSICOES_DIR:
                 rows = linhas_diretor(calc_bonus_diretor(nome))

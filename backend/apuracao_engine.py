@@ -1614,6 +1614,40 @@ DIRETOR_VERTICAL = {
     norm("Alexsandro"):   "Retail",
 }
 
+def verticais_da_pessoa(nome: str) -> set:
+    """Verticais da apuracao em que a pessoa atua. Usado para restringir export/PDF
+    as BUs liberadas pro usuario logado (ver _apuracao_verticais_do_user em main.py).
+
+    Diretor: vem do mapa manual DIRETOR_VERTICAL.
+    AE e demais: vem das verticais dos clientes atribuidos a ele no cadastro.
+    Conjunto vazio = nao foi possivel determinar; quem chama trata como negado.
+    """
+    n = norm(nome)
+    v = DIRETOR_VERTICAL.get(n)
+    if v:
+        return {v}
+    d = _load_all()
+    pessoas = d["pessoas"]
+    p = pessoas[pessoas["nome_norm"] == n]
+    if p.empty and n.split():
+        p = pessoas[pessoas["nome_norm"].str.contains(n.split()[0], regex=False)]
+    if not p.empty:
+        # confere o mapa de diretor pelo nome do cadastro (o usuario pode ter digitado parcial)
+        v = DIRETOR_VERTICAL.get(norm(p.iloc[0]["Nome"]))
+        if v:
+            return {v}
+        n = norm(p.iloc[0]["Nome"])
+    por_cliente = {x for x in d.get("ae_to_clients", {}).get(n, {}).values() if x}
+    if por_cliente:
+        return por_cliente
+    # Ultimo recurso: as vagas genericas trazem a vertical no proprio nome
+    # ("CS Health", "Estrategista Retail", "Hunter Grupo Mult").
+    for _v in ("Grupo Mult", "Multisector", "Health", "Finance", "Retail", "Logistics"):
+        if norm(_v) in n:
+            return {_v}
+    return set()
+
+
 # Chave no budget_tcv para cada vertical de Diretor
 DIRETOR_TCV_KEY = {
     "Health":       "Health",

@@ -38,7 +38,7 @@ for bu in ('Finance', 'Retail', 'Logistics', 'Health', 'Multisector'):
                       'fonte_dados': 'Pessoas nao faturaveis por vertical - Q2Y26.xlsx',
                       'periodo': per, 'empresa': {'BR02': 'BR02 FCamara', 'BR09': 'BR09 NextGen', 'BR07': 'BR07 Hyper'}.get(emp, emp or None),
                       'nome_pessoa': nome, 'nome_cliente': 'Estrutura não faturável',
-                      'vertical': 'BU ' + bu, 'classificacao': 'custo',
+                      'vertical': 'BU ' + bu, 'classificacao': 'despesa',  # regra Amanda 26/11: quem era despesa no Q1 continua despesa
                       'custo_rateado': round(-abs(float(v)), 2)})
             rows.append(x)
             tot_nf[bu] = tot_nf.get(bu, 0) + float(v)
@@ -64,7 +64,7 @@ for (v, m, cc), val in g.items():
               'periodo': f'2026-0{int(m)}',
               'empresa': {'BR02': 'BR02 FCamara', 'BR09': 'BR09 NextGen', 'BR07': 'BR07 Hyper'}.get(cc, cc or None),
               'nome_pessoa': None, 'nome_cliente': 'Despesas gerais da BU',
-              'vertical': 'BU ' + v, 'classificacao': 'custo',
+              'vertical': 'BU ' + v, 'classificacao': 'despesa',  # 26/11: despesas gerais sao despesa
               'custo_rateado': round(-abs(float(val)), 2)})
     rows.append(x)
     tot_dg[v] = tot_dg.get(v, 0) + float(val)

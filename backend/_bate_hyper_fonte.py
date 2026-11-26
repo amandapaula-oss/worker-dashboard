@@ -46,7 +46,12 @@ fonte = []
 for i in range(hdr + 1, len(raw)):
     p = raiz(raw.iloc[i, pj])
     if not p.startswith('BR'):
-        continue
+        # a fonte tem lancamento SEM PEP (so com ID SF) — e' linha de receita, nao subtotal.
+        # Subtotal de cliente nao tem ID SF: e' assim que se distingue. (MELI PIX, 16/09)
+        _idsf = str(raw.iloc[i, jid] or '').strip() if jid is not None else ''
+        if not _idsf or _idsf == 'nan':
+            continue
+        p = ''
     for m, j in mj.items():
         v = pd.to_numeric(raw.iloc[i, j], errors='coerce')
         fonte.append({'pep': p, 'cliente': str(raw.iloc[i, cj]).strip(), 'periodo': m,

@@ -233,6 +233,44 @@ def enforce_bu_filter(user: str, verticais: str) -> str:
     inter = [v for v in requested if v in allowed]
     return ",".join(inter) if inter else "__NO_ACCESS__"
 
+
+# A apuracao nomeia as verticais sem o prefixo "BU " e chama Logistics de
+# "Grupo Mult" (ver DIRETOR_VERTICAL no apuracao_engine). Este de-para liga as
+# BUs do usuario as verticais de la.
+_BU_PARA_VERTICAL_APURACAO = {
+    "BU Finance":     {"Finance"},
+    "BU Health":      {"Health"},
+    "BU Multisector": {"Multisector"},
+    "BU Retail":      {"Retail"},
+    "BU Logistics":   {"Logistics", "Grupo Mult"},
+}
+
+
+def _apuracao_verticais_do_user(user: str):
+    """Verticais da apuracao que o usuario pode ver. None = sem restricao (admin)."""
+    allowed = get_user_bus(user)
+    if not allowed:
+        return None
+    out = set()
+    for b in allowed:
+        out |= _BU_PARA_VERTICAL_APURACAO.get(str(b).strip(), set())
+    return out
+
+
+def _exige_acesso_a_pessoa(user: str, nome: str) -> None:
+    """403 se a pessoa nao estiver em nenhuma vertical liberada pro usuario.
+    Falha fechada: vertical indeterminada tambem nega (so admin passa)."""
+    permitidas = _apuracao_verticais_do_user(user)
+    if permitidas is None:
+        return
+    from apuracao_engine import verticais_da_pessoa
+    try:
+        da_pessoa = verticais_da_pessoa(nome)
+    except Exception:
+        da_pessoa = set()
+    if not (da_pessoa & permitidas):
+        raise HTTPException(403, "Essa apuração é de outra BU.")
+
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
@@ -1964,6 +2002,7 @@ def get_apuracao_pdf_q3(nome: str, user=Depends(get_current_user)):
     from fastapi.responses import Response
     from pdf_apuracao import gerar_pdf
     from apuracao_engine import calc_bonus_ae_q3
+    _exige_acesso_a_pessoa(user, nome)
     try:
         dados = calc_bonus_ae_q3(nome)
         pdf_bytes = gerar_pdf(dados)
@@ -1990,6 +2029,7 @@ def get_apuracao_pdf(nome: str, user=Depends(get_current_user)):
     if pessoa.empty:
         raise HTTPException(status_code=404, detail=f"Pessoa não encontrada: {nome}")
     pos = str(pessoa.iloc[0]["Posicao"]).upper().strip()
+    _exige_acesso_a_pessoa(user, str(pessoa.iloc[0]["Nome"]))
     try:
         dados = calc_bonus_diretor(nome) if pos == "DIRETOR" else calc_bonus_ae(nome)
         pdf_bytes = gerar_pdf(dados)
@@ -2008,7 +2048,7 @@ def get_exportar_xlsx(user=Depends(get_current_user)):
     from fastapi.responses import Response
     from exportar_apuracao_q4 import gerar_xlsx_bytes
     try:
-        data = gerar_xlsx_bytes()
+        data = gerar_xlsx_bytes(verticais=_apuracao_verticais_do_user(user))
         return Response(
             content=data,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2110,7 +2150,12 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
         p["cpf_digits"] = p["cpf"].astype(str).str.replace(r"[^\d]", "", regex=True)
         p = p[p["cpf_digits"].str.len() >= 11]
         map_nome.update(p.drop_duplicates("nome_norm").set_index("nome_norm")["cpf_digits"].to_dict())
-        map_id.update(p.drop_duplicates("id").set_index("id")["cpf_digits"].to_dict())
+        # As 785 linhas sem id viram a string "nan" no astype(str) acima e criavam a
+        # chave map_id["nan"] — e numero_pessoal nulo tambem vira "nan" no lookup, entao
+        # toda linha sem CPF proprio, sem match por nome e sem numero_pessoal recebia o
+        # CPF da primeira pessoa sem id do arquivo. Fora o id vazio antes de indexar.
+        p_id = p[~p["id"].isin(["", "nan", "NaN", "None", "<NA>"])]
+        map_id.update(p_id.drop_duplicates("id").set_index("id")["cpf_digits"].to_dict())
 
     # 2) Supabase pessoas (master) — sobrescreve
     # Inclui nome, razao_social (PJ) e variantes truncadas (32-40 chars)
@@ -2198,8 +2243,10 @@ def _carregar_pessoal_depara() -> tuple[dict, dict]:
 # Mapa Profit Center -> Apuracao (NG / Ecossistema)
 # Baseado em DC001-DC042 (cadastro Profit Centers). DC001 (Squads), DC002 (Dedicated
 # Teams), DC005 (Open-X) sao NG. Demais sao Ecossistema. Tambem aceita o nome.
+# "Symphony" nao tem code DC: e nome de Profit Center do racional <> T&E
+# (DISTRITO, BR02CLP000300). Classificado como NG por decisao da Amanda (17/11/26).
 _APURACAO_NG_CODES = {"DC001", "DC002", "DC005"}
-_APURACAO_NG_NAMES = {"Squads", "Dedicated Teams", "Open-X"}
+_APURACAO_NG_NAMES = {"Squads", "Dedicated Teams", "Open-X", "Symphony"}
 _APURACAO_ECOSSISTEMA_CODES = {f"DC{i:03d}" for i in range(3, 43)} - _APURACAO_NG_CODES
 _APURACAO_ECOSSISTEMA_NAMES = {
     "Software Factory", "E-commerce", "Licensing Microsoft", "Imagine",

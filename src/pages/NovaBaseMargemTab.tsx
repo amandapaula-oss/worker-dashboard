@@ -44,6 +44,12 @@ export default function NovaBaseMargemTab() {
   } = useNovaBaseFilters();
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading]         = useState(true);
+  // Um request que falha NAO pode deixar a tela mostrando o resultado do filtro
+  // anterior como se fosse o novo (foi o que a Paola viu em 21/09: filtro Logistics
+  // selecionado e a lista inteira, sem filtro, na tela). Guardamos o erro e a ordem
+  // dos requests para descartar resposta atrasada de um filtro ja trocado.
+  const [erro, setErro]               = useState<string | null>(null);
+  const reqSeq                        = React.useRef(0);
   const [clientes, setClientes]       = useState<any[]>([]);
   const [search, setSearch]           = useState("");
   const [viewMode, setViewMode]       = useState<string>("Consolidado");
@@ -112,6 +118,7 @@ export default function NovaBaseMargemTab() {
 
   const loadClientes = useCallback(() => {
     setLoading(true);
+    setErro(null);
     const params: Record<string, string> = {};
     if (selPeriodos.length)  params.periodos       = selPeriodos.join(",");
     if (selEmpresas.length)  params.empresas       = selEmpresas.join(",");
@@ -120,10 +127,16 @@ export default function NovaBaseMargemTab() {
     if (selApuracoes.length) params.apuracoes      = selApuracoes.join(",");
     if (selNoHier.length)    params.no_hierarquias = selNoHier.join(",");
     if (viewMode === "Por Mês") params.breakdown = "true";
+    const seq = ++reqSeq.current;
     getNovaBaseMargemClientes(params)
-      .then(setClientes)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then(d => { if (seq === reqSeq.current) setClientes(d); })
+      .catch(e => {
+        if (seq !== reqSeq.current) return;
+        setClientes([]);
+        setErro(String(e?.message || "").slice(0, 300) ||
+          "Nao consegui carregar. O servidor pode estar reconstruindo a base — tente de novo em 1 minuto.");
+      })
+      .finally(() => { if (seq === reqSeq.current) setLoading(false); });
   }, [selPeriodos, selEmpresas, selVerticais, selFontes, selApuracoes, selNoHier, viewMode]);
 
   useEffect(() => { loadClientes(); }, [loadClientes]);
@@ -196,6 +209,9 @@ export default function NovaBaseMargemTab() {
   // Margem Bruta vem do backend: NG real + Eco a 33,3%
   const totMar  = filteredClientes.reduce((s, r) => s + (r.margem || 0), 0);
   const totPct  = totRec !== 0 ? totMar / totRec : 0;
+  // enquanto carrega ou depois de falhar, KPI nao mostra numero — R$ 0,00 na tela
+  // foi lido como "os dados sumiram", e numero de dado velho e' pior ainda.
+  const semDados = loading || erro !== null;
 
   const isMensal = viewMode === "Por Mês";
 
@@ -743,10 +759,10 @@ export default function NovaBaseMargemTab() {
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
         {[
-          { label: "Receita Total", value: brl(totRec), color: theme.text },
-          { label: "Custo Total",   value: brl(totCus), color: totCus < 0 ? "#c0392b" : theme.text },
-          { label: "Margem Bruta",  value: brl(totMar), color: totMar < 0 ? "#c0392b" : "#0a7a3e" },
-          { label: "Margem %",      value: `${(totPct * 100).toFixed(1)}%`, color: totPct < 0.1 ? "#c0392b" : totPct < 0.3 ? "#856404" : "#0a7a3e" },
+          { label: "Receita Total", value: semDados ? "—" : brl(totRec), color: theme.text },
+          { label: "Custo Total",   value: semDados ? "—" : brl(totCus), color: totCus < 0 ? "#c0392b" : theme.text },
+          { label: "Margem Bruta",  value: semDados ? "—" : brl(totMar), color: totMar < 0 ? "#c0392b" : "#0a7a3e" },
+          { label: "Margem %",      value: semDados ? "—" : `${(totPct * 100).toFixed(1)}%`, color: totPct < 0.1 ? "#c0392b" : totPct < 0.3 ? "#856404" : "#0a7a3e" },
         ].map(k => (
           <Card key={k.label} style={{ flex: 1, minWidth: 160, borderRadius: 10, border: "1px solid #dde3f0" }}
             styles={{ body: { padding: "0.8rem 1rem", textAlign: "center" } }}>
@@ -756,7 +772,12 @@ export default function NovaBaseMargemTab() {
         ))}
       </div>
 
-      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : (
+      {loading ? <Spin style={{ display: "block", margin: "2rem auto" }} /> : erro ? (
+        <div style={{ margin: "2rem auto", maxWidth: 560, padding: "1rem 1.2rem", borderRadius: 10,
+                      border: "1px solid #f0c2c2", background: "#fdf3f3", color: "#8a2b2b" }}>
+          <b>Nao carregou.</b><div style={{ marginTop: 6, fontSize: "0.85rem" }}>{erro}</div>
+        </div>
+      ) : (
         <Table
           dataSource={isMensal
             ? pivotTableData
